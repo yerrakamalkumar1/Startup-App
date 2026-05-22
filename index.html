@@ -11,6 +11,8 @@
   <style>
     body {
       background: #ffffff;
+      height: 100vh;
+      overflow: hidden;
     }
 
     .app-splash {
@@ -37,12 +39,14 @@
       height: 88px;
       border-radius: 24px;
       box-shadow: 0 16px 36px rgba(15, 118, 110, 0.16);
+      animation: logoLift 0.75s ease both;
     }
 
     .splash-brand {
       color: var(--accent-blue);
       font-size: 1.45rem;
       font-weight: 800;
+      animation: fadeUp 0.75s ease 0.08s both;
     }
 
     .splash-footer {
@@ -52,10 +56,11 @@
       font-size: 0.76rem;
       font-weight: 700;
       text-align: center;
+      animation: fadeUp 0.75s ease 0.16s both;
     }
 
     .landing-wrap {
-      min-height: 100vh;
+      height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -147,6 +152,7 @@
       border: 1px solid var(--border-color);
       border-radius: 18px;
       box-shadow: 0 22px 48px rgba(15, 23, 42, 0.08);
+      animation: authEnter 0.5s ease 0.9s both;
     }
 
     .auth-brand {
@@ -182,65 +188,6 @@
     .helper-copy {
       color: var(--text-secondary);
       font-size: 0.82rem;
-    }
-
-    .quick-demo-card {
-      display: flex;
-      align-items: center;
-      gap: 0.65rem;
-      padding: 0.75rem;
-      margin-bottom: 0.55rem;
-      background: white;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .quick-demo-card:hover {
-      border-color: #7dd3c7;
-      background: #f6fffc;
-    }
-
-    .demo-avatar {
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      border-radius: 50%;
-      background: var(--accent-blue);
-      color: white;
-      font-size: 0.78rem;
-      font-weight: 800;
-    }
-
-    .demo-info h4 {
-      font-size: 0.84rem;
-    }
-
-    .demo-info span {
-      color: var(--text-muted);
-      font-size: 0.72rem;
-    }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin: 1rem 0;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 700;
-    }
-
-    .divider::before,
-    .divider::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: var(--border-color);
     }
 
     .conditional-block {
@@ -289,9 +236,25 @@
       font-weight: 700;
     }
 
+    @keyframes logoLift {
+      from { opacity: 0; transform: translateY(12px) scale(0.94); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes authEnter {
+      from { opacity: 0; transform: translateY(16px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
     @media (max-width: 900px) {
       .landing-wrap {
-        min-height: 100dvh;
+        height: 100dvh;
+        padding: 0.9rem;
       }
 
       .landing-hero {
@@ -299,6 +262,62 @@
         border-bottom: 1px solid var(--border-color);
       }
 
+    }
+
+    @media (max-height: 720px) {
+      .landing-auth {
+        padding: 1.25rem;
+      }
+
+      .auth-brand {
+        margin-bottom: 0.75rem;
+      }
+
+      .auth-header {
+        margin-bottom: 0.75rem;
+      }
+
+      .form-group {
+        margin-bottom: 0.75rem;
+      }
+
+      .helper-copy {
+        margin-top: 0.85rem !important;
+      }
+    }
+
+    @media (max-height: 620px) {
+      .auth-brand img {
+        width: 30px;
+        height: 30px;
+      }
+
+      .auth-brand span {
+        font-size: 1rem;
+      }
+
+      .auth-header h2 {
+        font-size: 1.05rem;
+      }
+
+      .auth-header p,
+      .helper-copy {
+        font-size: 0.72rem;
+      }
+
+      .form-control {
+        min-height: 34px;
+        padding: 0.42rem 0.6rem;
+      }
+
+      .role-chip,
+      .auth-tab,
+      .btn {
+        min-height: 32px;
+        padding-top: 0.36rem;
+        padding-bottom: 0.36rem;
+        font-size: 0.76rem;
+      }
     }
   </style>
 </head>
@@ -367,32 +386,6 @@
         </button>
       </form>
 
-      <div class="divider">Role previews</div>
-
-      <div class="quick-demo-card" onclick="quickLogin('sarah@connecthub.in')">
-        <div class="demo-avatar">SJ</div>
-        <div class="demo-info">
-          <h4>Sarah Jenkins</h4>
-          <span>Freelancer dashboard</span>
-        </div>
-        <i data-lucide="chevron-right" style="margin-left:auto;width:16px;color:#7b8794;"></i>
-      </div>
-      <div class="quick-demo-card" onclick="quickLogin('rohan@connecthub.in')">
-        <div class="demo-avatar" style="background:#0f766e;">RS</div>
-        <div class="demo-info">
-          <h4>Rohan Sharma</h4>
-          <span>Startup dashboard</span>
-        </div>
-        <i data-lucide="chevron-right" style="margin-left:auto;width:16px;color:#7b8794;"></i>
-      </div>
-      <div class="quick-demo-card" onclick="quickLogin('ananya@connecthub.in')">
-        <div class="demo-avatar" style="background:#087f5b;">AS</div>
-        <div class="demo-info">
-          <h4>Ananya Sen</h4>
-          <span>Investor dashboard</span>
-        </div>
-        <i data-lucide="chevron-right" style="margin-left:auto;width:16px;color:#7b8794;"></i>
-      </div>
     </div>
 
     <div id="signUpSection" style="display:none;">
@@ -548,14 +541,6 @@
       const el = document.getElementById('signInError');
       el.textContent = error.message;
       el.style.display = 'block';
-    }
-  }
-
-  async function quickLogin(email) {
-    const auth = await authenticateUser(email, 'demo');
-    if (auth.success) {
-      await syncFromBackend();
-      window.location.href = getDashboardUrl(auth.user.role);
     }
   }
 
