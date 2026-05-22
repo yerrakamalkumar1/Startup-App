@@ -39,14 +39,14 @@
       height: 88px;
       border-radius: 24px;
       box-shadow: 0 16px 36px rgba(15, 118, 110, 0.16);
-      animation: logoLift 0.75s ease both;
+      animation: logoLift 0.75s ease both, logoGlow 1.2s ease-in-out infinite alternate;
     }
 
     .splash-brand {
       color: var(--accent-blue);
       font-size: 1.45rem;
       font-weight: 800;
-      animation: fadeUp 0.75s ease 0.08s both;
+      animation: textDrop 0.8s cubic-bezier(0.2, 0.9, 0.2, 1.1) 0.08s both;
     }
 
     .splash-loader {
@@ -255,6 +255,31 @@
       font-weight: 700;
     }
 
+    .forgot-link {
+      display: inline-flex;
+      margin: -0.45rem 0 0.9rem;
+      border: 0;
+      background: transparent;
+      color: var(--accent-blue);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .reset-panel {
+      display: none;
+      padding: 0.85rem;
+      margin-bottom: 1rem;
+      background: #f6fffc;
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius-lg);
+      animation: fadeUp 0.24s ease both;
+    }
+
+    .reset-panel.active {
+      display: block;
+    }
+
     @keyframes logoLift {
       from { opacity: 0; transform: translateY(12px) scale(0.94); }
       to { opacity: 1; transform: translateY(0) scale(1); }
@@ -263,6 +288,16 @@
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes textDrop {
+      from { opacity: 0; transform: translateY(-18px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes logoGlow {
+      from { box-shadow: 0 16px 36px rgba(15, 118, 110, 0.16); }
+      to { box-shadow: 0 18px 44px rgba(15, 118, 110, 0.28); }
     }
 
     @keyframes authEnter {
@@ -406,10 +441,29 @@
           <label for="signPass">Passcode</label>
           <input type="password" id="signPass" class="form-control" placeholder="Enter passcode" required>
         </div>
+        <button type="button" class="forgot-link" onclick="toggleResetPanel()">Forgot password?</button>
         <button type="submit" class="btn btn-primary" style="width:100%;">
           <i data-lucide="arrow-right"></i>Sign In
         </button>
       </form>
+
+      <div id="resetPanel" class="reset-panel">
+        <div id="resetMsg" class="error-msg" style="display:none;"></div>
+        <div class="form-group">
+          <label for="resetEmail">Registered Email</label>
+          <input type="email" id="resetEmail" class="form-control" placeholder="you@example.com">
+        </div>
+        <button type="button" class="btn btn-secondary" style="width:100%;margin-bottom:0.75rem;" onclick="sendResetOtp()">Send OTP</button>
+        <div class="form-group">
+          <label for="resetOtp">Email OTP</label>
+          <input type="text" id="resetOtp" class="form-control" placeholder="6 digit OTP" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label for="resetPass">New Passcode</label>
+          <input type="password" id="resetPass" class="form-control" placeholder="Create new passcode">
+        </div>
+        <button type="button" class="btn btn-primary" style="width:100%;" onclick="completePasswordReset()">Reset Passcode</button>
+      </div>
 
     </div>
 
@@ -515,6 +569,7 @@
     setTimeout(() => {
       document.getElementById('appSplash')?.classList.add('hide');
       playLaunchTone();
+      window.addEventListener('pointerdown', playLaunchTone, { once: true });
     }, 1100);
   });
 
@@ -525,15 +580,15 @@
       const gain = ctx.createGain();
       gain.gain.value = 0.025;
       gain.connect(ctx.destination);
-      [660, 880].forEach((frequency, index) => {
+      [523, 784, 1046].forEach((frequency, index) => {
         const osc = ctx.createOscillator();
         osc.type = 'sine';
         osc.frequency.value = frequency;
         osc.connect(gain);
-        osc.start(ctx.currentTime + index * 0.07);
-        osc.stop(ctx.currentTime + index * 0.07 + 0.08);
+        osc.start(ctx.currentTime + index * 0.06);
+        osc.stop(ctx.currentTime + index * 0.06 + 0.07);
       });
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
     } catch {}
   }
 
@@ -588,6 +643,45 @@
       const el = document.getElementById('signInError');
       el.textContent = error.message;
       el.style.display = 'block';
+    }
+  }
+
+  function toggleResetPanel() {
+    document.getElementById('resetPanel').classList.toggle('active');
+  }
+
+  function showResetMessage(message, ok = false) {
+    const el = document.getElementById('resetMsg');
+    el.textContent = message;
+    el.style.display = 'block';
+    el.style.color = ok ? '#087f5b' : '#b91c1c';
+    el.style.background = ok ? '#ecfdf5' : '#fff1f2';
+    el.style.borderColor = ok ? '#bbf7d0' : '#fecdd3';
+  }
+
+  async function sendResetOtp() {
+    const email = document.getElementById('resetEmail').value.trim();
+    if (!email) return showResetMessage('Enter your registered email first.');
+    try {
+      const result = await requestPasswordOtp(email);
+      showResetMessage(result.message || 'OTP sent to email.', true);
+    } catch (error) {
+      showResetMessage(error.message);
+    }
+  }
+
+  async function completePasswordReset() {
+    const email = document.getElementById('resetEmail').value.trim();
+    const otp = document.getElementById('resetOtp').value.trim();
+    const password = document.getElementById('resetPass').value;
+    if (!email || !otp || !password) return showResetMessage('Enter email, OTP and new passcode.');
+    try {
+      const result = await resetPasswordWithOtp(email, otp, password);
+      showResetMessage(result.message || 'Password reset successful.', true);
+      document.getElementById('signEmail').value = email;
+      document.getElementById('signPass').value = '';
+    } catch (error) {
+      showResetMessage(error.message);
     }
   }
 

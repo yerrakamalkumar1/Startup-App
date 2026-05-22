@@ -19,7 +19,8 @@ const AppUX = (() => {
         tap: [420, 0.035, 0.018],
         nav: [540, 0.045, 0.02],
         done: [780, 0.08, 0.025],
-        back: [300, 0.04, 0.018]
+        back: [300, 0.04, 0.018],
+        bell: [1046, 0.11, 0.028]
       };
       const [frequency, duration, volume] = tones[type] || tones.tap;
       oscillator.type = "sine";
@@ -155,6 +156,58 @@ const AppUX = (() => {
     document.body.appendChild(bar);
   }
 
+  function loadRazorpayCheckout() {
+    return new Promise((resolve, reject) => {
+      if (window.Razorpay) return resolve();
+      const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existing) {
+        existing.addEventListener("load", resolve);
+        existing.addEventListener("error", reject);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Could not load Razorpay Checkout."));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function startPayment({ amount, purpose, payeeName }) {
+    const rupees = Number(amount || prompt("Enter amount in INR"));
+    if (!Number.isFinite(rupees) || rupees < 1) {
+      alert("Enter a valid payment amount.");
+      return;
+    }
+    try {
+      await loadRazorpayCheckout();
+      const data = await createRazorpayOrder(rupees, purpose, { payeeName });
+      const user = getCurrentUser() || {};
+      const options = {
+        key: data.keyId,
+        amount: data.order.amount,
+        currency: data.order.currency,
+        name: "Connect Hub",
+        description: purpose || "Connect Hub payment",
+        order_id: data.order.id,
+        prefill: { name: user.name || "", email: "" },
+        theme: { color: "#0f766e" },
+        handler: async response => {
+          try {
+            await verifyRazorpayPayment(response);
+            playSound("done");
+            alert("Payment verified successfully.");
+          } catch (error) {
+            alert(error.message);
+          }
+        }
+      };
+      new window.Razorpay(options).open();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
   function onView(view) {
     if (currentView && currentView !== view) historyStack.push(currentView);
     currentView = view;
@@ -203,5 +256,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound };
+  return { init, onView, back, playSound, startPayment };
 })();

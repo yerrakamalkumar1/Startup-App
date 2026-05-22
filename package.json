@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node backend/server.js"
   },
+  "dependencies": {
+    "nodemailer": "^7.0.10"
+  },
   "engines": {
     "node": ">=18"
   }

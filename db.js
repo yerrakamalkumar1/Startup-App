@@ -245,6 +245,34 @@ async function syncFromBackend() {
   return getDB();
 }
 
+async function requestPasswordOtp(email) {
+  return apiRequest("/api/password/request", {
+    method: "POST",
+    body: JSON.stringify({ email: normalizeEmail(email) })
+  });
+}
+
+async function resetPasswordWithOtp(email, otp, password) {
+  return apiRequest("/api/password/reset", {
+    method: "POST",
+    body: JSON.stringify({ email: normalizeEmail(email), otp, password })
+  });
+}
+
+async function createRazorpayOrder(amount, purpose, notes = {}) {
+  return apiRequest("/api/payments/create-order", {
+    method: "POST",
+    body: JSON.stringify({ amount, purpose, notes })
+  });
+}
+
+async function verifyRazorpayPayment(payload) {
+  return apiRequest("/api/payments/verify", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 function getDB() {
   const dbStr = localStorage.getItem("connecthub_db");
   if (!dbStr) {
@@ -270,6 +298,10 @@ function saveDB(db, options = {}) {
 
 function getRegisteredUsers() {
   return JSON.parse(localStorage.getItem("connecthub_registered_users") || "{}");
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }
 
 function getPlatformStats() {
@@ -336,6 +368,7 @@ function clearSession() {
 }
 
 async function authenticateUser(email, password) {
+  email = normalizeEmail(email);
   if (CONNECTHUB_BACKEND_URL) {
     const result = await apiRequest("/api/login", {
       method: "POST",
@@ -361,6 +394,7 @@ async function authenticateUser(email, password) {
 }
 
 async function registerUser(name, email, password, role, title, additionalInfo) {
+  email = normalizeEmail(email);
   if (CONNECTHUB_BACKEND_URL) {
     const result = await apiRequest("/api/register", {
       method: "POST",

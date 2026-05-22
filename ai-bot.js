@@ -24,18 +24,19 @@
       </div>
       <div class="ai-bot-messages" id="aiBotMessages">
         <div class="ai-msg bot">
-          Hi, I can guide you through registrations, startup hiring, freelancer ads, media posts, investor discovery, and static publishing.
-          <br><br><strong>Tip:</strong> ask "how to publish", "why is my ad not visible", or "best ad format".
+          Hi, I can help with hiring, freelancer ads, payments, account recovery, profile setup, media posts, investor flows, and dashboard navigation.
+          <br><br><strong>Tip:</strong> ask "payment help", "forgot password", "best ad format", or "how to hire".
         </div>
       </div>
       <div class="ai-bot-suggestions">
         <button class="ai-suggest-btn" data-query="How do I post a photo or reel ad?">Media ad</button>
-        <button class="ai-suggest-btn" data-query="Why is my freelancer ad not visible to startups?">Visibility</button>
-        <button class="ai-suggest-btn" data-query="How do I publish this app live?">Publish</button>
+        <button class="ai-suggest-btn" data-query="How do payments work?">Payments</button>
+        <button class="ai-suggest-btn" data-query="I forgot my password">Password</button>
         <button class="ai-suggest-btn" data-query="Best workflow for startup hiring">Hiring</button>
+        <button class="ai-suggest-btn" data-query="How do I improve my profile?">Profile</button>
       </div>
       <div class="ai-bot-input-area">
-        <input type="text" id="aiBotInput" placeholder="Ask about setup, ads, hiring, publishing...">
+        <input type="text" id="aiBotInput" placeholder="Ask about ads, hiring, payments, account help...">
         <button class="ai-bot-send-btn" id="aiBotSend" aria-label="Send"><i data-lucide="send"></i></button>
       </div>
     `;
@@ -107,8 +108,20 @@
       return "<strong>Visibility checklist:</strong><br>Freelancer service ads appear in the Startup dashboard under <strong>Browse Freelancers</strong>. If you cannot see one: confirm you published from the freelancer account, keep the same browser/localStorage, avoid private mode, and refresh the startup dashboard. Startup media posts appear in the startup dashboard and freelancer media feed.";
     }
 
-    if (hasAny(q, ["publish", "live", "deploy", "hosting", "domain", "netlify", "vercel", "github"])) {
-      return "<strong>Publishing this app:</strong><br>This is a static app, so you can deploy the folder directly. Upload <strong>index.html</strong>, dashboards, <strong>index.css</strong>, <strong>db.js</strong>, <strong>ai-bot.js</strong>, and the <strong>assets</strong> folder to Netlify, Vercel, GitHub Pages, or any static host.<br><br><strong>Important:</strong> current data is browser-local. For real public users, connect Firebase/Supabase or your backend so registrations and posts sync across devices.";
+    if (hasAny(q, ["payment", "pay", "razorpay", "sponsor payment", "client pay", "freelancer pay"])) {
+      return "<strong>Payments:</strong><br>Startups can pay freelancers from the contact modal. Investors can sponsor startups from the investment modal. Razorpay works after the admin adds <strong>RAZORPAY_KEY_ID</strong> and <strong>RAZORPAY_KEY_SECRET</strong> in Render. Always verify payment success inside the app before delivering work.";
+    }
+
+    if (hasAny(q, ["forgot", "password", "otp", "reset", "passcode"])) {
+      return "<strong>Password help:</strong><br>Tap <strong>Forgot password?</strong> on the login screen, enter your registered email, receive OTP, then set a new passcode. Email OTP works after SMTP variables are configured in Render.";
+    }
+
+    if (hasAny(q, ["profile", "edit profile", "open profile", "bio", "pitch"])) {
+      return "<strong>Profile improvement:</strong><br>Use a clear title, one-line value promise, sector/category tags, and proof-of-work media. Startups should explain what they build and what talent/capital they need. Freelancers should show packages, price, delivery time, and samples.";
+    }
+
+    if (hasAny(q, ["navigation", "menu", "back", "dashboard", "three lines"])) {
+      return "<strong>Navigation:</strong><br>Use the three-line menu on mobile to switch dashboard sections. Tap the back arrow to return to the previous section. Tap the Connect Hub logo to return to the main dashboard view.";
     }
 
     if (hasAny(q, ["hire", "startup", "candidate", "workflow", "best workflow"])) {
@@ -131,7 +144,7 @@
       return "For human support, call <strong style='color:#0f766e;'>6301394850</strong> or email <strong>support@connecthub.com</strong>.";
     }
 
-    return "I can help with: <br><strong>Startup:</strong> post gigs, publish media, hire freelancers.<br><strong>Freelancer:</strong> publish service ads with proof-of-work media and apply to gigs.<br><strong>Publishing:</strong> deploy as a static app now, then add a backend when you need real multi-user sync.";
+    return "I can help with: <br><strong>Startup:</strong> hiring, gigs, media posts, payments.<br><strong>Freelancer:</strong> service ads, applications, profile quality, payments.<br><strong>Investor:</strong> discovery, sponsorship, portfolio.<br><strong>Account:</strong> login, OTP reset, profile settings, navigation.";
   }
 
   function hasAny(text, words) {

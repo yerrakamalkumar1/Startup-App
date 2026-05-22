@@ -2,12 +2,20 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const https = require("https");
+let nodemailer = null;
+try {
+  nodemailer = require("nodemailer");
+} catch {
+  nodemailer = null;
+}
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
 const DATA_DIR = process.env.CONNECTHUB_DATA_DIR || path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "connecthub-db.json");
 const USERS_FILE = path.join(DATA_DIR, "connecthub-users.json");
+const OTP_FILE = path.join(DATA_DIR, "connecthub-otps.json");
 
 const DEMO_USERS = {
   "sarah@connecthub.in": {
@@ -132,6 +140,7 @@ function ensureDataFiles() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DB_FILE)) writeJson(DB_FILE, INITIAL_DB);
   if (!fs.existsSync(USERS_FILE)) writeJson(USERS_FILE, {});
+  if (!fs.existsSync(OTP_FILE)) writeJson(OTP_FILE, {});
 }
 
 function readJson(file, fallback) {
@@ -190,6 +199,113 @@ function verifyPassword(password, userRecord) {
     return hashPassword(password, userRecord.passwordSalt).hash === userRecord.passwordHash;
   }
   return userRecord.password === password;
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function isSmtpConfigured() {
+  return Boolean(nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+async function sendOtpEmail(email, otp) {
+  if (!isSmtpConfigured()) {
+    throw new Error("Email OTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM in Render.");
+  }
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: "Connect Hub password reset OTP",
+    text: `Your Connect Hub password reset OTP is ${otp}. It expires in 10 minutes.`,
+    html: `<p>Your Connect Hub password reset OTP is <strong>${otp}</strong>.</p><p>It expires in 10 minutes.</p>`
+  });
+}
+
+function createOtp(email) {
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = hashPassword(otp, salt).hash;
+  const otps = readJson(OTP_FILE, {});
+  otps[email] = {
+    hash,
+    salt,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0
+  };
+  writeJson(OTP_FILE, otps);
+  return otp;
+}
+
+function verifyOtp(email, otp) {
+  const otps = readJson(OTP_FILE, {});
+  const entry = otps[email];
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    delete otps[email];
+    writeJson(OTP_FILE, otps);
+    return false;
+  }
+  entry.attempts = (entry.attempts || 0) + 1;
+  if (entry.attempts > 5) {
+    delete otps[email];
+    writeJson(OTP_FILE, otps);
+    return false;
+  }
+  const ok = hashPassword(otp, entry.salt).hash === entry.hash;
+  if (ok) delete otps[email];
+  else otps[email] = entry;
+  writeJson(OTP_FILE, otps);
+  return ok;
+}
+
+function razorpayConfigured() {
+  return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+}
+
+function razorpayRequest(endpoint, payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
+    const req = https.request({
+      hostname: "api.razorpay.com",
+      path: endpoint,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+        Authorization: `Basic ${auth}`
+      }
+    }, res => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        const parsed = data ? JSON.parse(data) : {};
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve(parsed);
+        else reject(new Error(parsed.error?.description || "Razorpay request failed."));
+      });
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+function verifyRazorpaySignature({ razorpay_order_id, razorpay_payment_id, razorpay_signature }) {
+  const expected = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest("hex");
+  return expected === razorpay_signature;
 }
 
 function createUserProfile({ name, role, title, additionalInfo = {} }) {
@@ -288,7 +404,8 @@ async function handleApi(req, res) {
   }
 
   if (req.url === "/api/login" && req.method === "POST") {
-    const { email, password } = await readBody(req);
+    const { email: rawEmail, password } = await readBody(req);
+    const email = normalizeEmail(rawEmail);
     if (DEMO_USERS[email]) return sendJson(res, 200, { success: true, user: DEMO_USERS[email] });
     const users = readJson(USERS_FILE, {});
     if (users[email] && verifyPassword(password, users[email])) {
@@ -299,15 +416,86 @@ async function handleApi(req, res) {
 
   if (req.url === "/api/register" && req.method === "POST") {
     const body = await readBody(req);
+    const email = normalizeEmail(body.email);
     const users = readJson(USERS_FILE, {});
-    if (DEMO_USERS[body.email] || users[body.email]) {
+    if (!email || !body.password || !body.name) {
+      return sendJson(res, 400, { success: false, message: "Name, email, and passcode are required." });
+    }
+    if (DEMO_USERS[email] || users[email]) {
       return sendJson(res, 409, { success: false, message: "Email account already registered." });
     }
     const profile = createUserProfile(body);
     const passwordData = hashPassword(body.password);
-    users[body.email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
+    users[email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
     writeJson(USERS_FILE, users);
     return sendJson(res, 200, { success: true, user: profile, db: readJson(DB_FILE, INITIAL_DB) });
+  }
+
+  if (req.url === "/api/password/request" && req.method === "POST") {
+    const { email: rawEmail } = await readBody(req);
+    const email = normalizeEmail(rawEmail);
+    const users = readJson(USERS_FILE, {});
+    if (!users[email]) {
+      return sendJson(res, 404, { success: false, message: "No registered account found with that email." });
+    }
+    const otp = createOtp(email);
+    await sendOtpEmail(email, otp);
+    return sendJson(res, 200, { success: true, message: "OTP sent to your email." });
+  }
+
+  if (req.url === "/api/password/reset" && req.method === "POST") {
+    const { email: rawEmail, otp, password } = await readBody(req);
+    const email = normalizeEmail(rawEmail);
+    if (!password || String(password).length < 4) {
+      return sendJson(res, 400, { success: false, message: "Passcode must be at least 4 characters." });
+    }
+    if (!verifyOtp(email, otp)) {
+      return sendJson(res, 400, { success: false, message: "Invalid or expired OTP." });
+    }
+    const users = readJson(USERS_FILE, {});
+    if (!users[email]) {
+      return sendJson(res, 404, { success: false, message: "Account not found." });
+    }
+    const passwordData = hashPassword(password);
+    users[email].passwordHash = passwordData.hash;
+    users[email].passwordSalt = passwordData.salt;
+    delete users[email].password;
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, message: "Password reset successful." });
+  }
+
+  if (req.url === "/api/payments/razorpay-key" && req.method === "GET") {
+    if (!razorpayConfigured()) {
+      return sendJson(res, 503, { success: false, message: "Razorpay is not configured yet." });
+    }
+    return sendJson(res, 200, { success: true, keyId: process.env.RAZORPAY_KEY_ID });
+  }
+
+  if (req.url === "/api/payments/create-order" && req.method === "POST") {
+    if (!razorpayConfigured()) {
+      return sendJson(res, 503, { success: false, message: "Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render to enable payments." });
+    }
+    const { amount, purpose, notes = {} } = await readBody(req);
+    const rupees = Number(amount);
+    if (!Number.isFinite(rupees) || rupees < 1) {
+      return sendJson(res, 400, { success: false, message: "Enter a valid amount." });
+    }
+    const order = await razorpayRequest("/v1/orders", {
+      amount: Math.round(rupees * 100),
+      currency: "INR",
+      receipt: `ch_${Date.now()}`,
+      notes: { purpose: purpose || "Connect Hub payment", ...notes }
+    });
+    return sendJson(res, 200, { success: true, order, keyId: process.env.RAZORPAY_KEY_ID });
+  }
+
+  if (req.url === "/api/payments/verify" && req.method === "POST") {
+    if (!razorpayConfigured()) {
+      return sendJson(res, 503, { success: false, message: "Razorpay is not configured yet." });
+    }
+    const body = await readBody(req);
+    const ok = verifyRazorpaySignature(body);
+    return sendJson(res, ok ? 200 : 400, { success: ok, message: ok ? "Payment verified." : "Payment verification failed." });
   }
 
   sendJson(res, 404, { success: false, message: "API route not found." });

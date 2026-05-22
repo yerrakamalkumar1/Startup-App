@@ -69,6 +69,7 @@
       </div>
       <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
         <button type="button" class="btn btn-secondary" onclick="closeModal('investModal')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="payInvestment()">Pay via Razorpay</button>
         <button type="submit" class="btn btn-emerald">Confirm Investment</button>
       </div>
     </form>
@@ -268,6 +269,15 @@
     closeModal('investModal');
     go('portfolio');
     alert(`Investment in ${st.name} recorded!`);
+  }
+
+  function payInvestment() {
+    const st = getDB().startups.find(s => s.id === investingId);
+    AppUX.startPayment({
+      amount: document.getElementById('invAmt').value,
+      purpose: `Sponsor ${st?.name || 'startup'}`,
+      payeeName: st?.name || 'Startup'
+    });
   }
 
   function closeModal(id) {

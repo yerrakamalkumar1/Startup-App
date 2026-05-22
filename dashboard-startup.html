@@ -327,6 +327,10 @@
         <p style="font-size:0.82rem;color:#0f766e;font-weight:800;">Call or WhatsApp</p>
         <a href="tel:${ad.contactPhone || '6301394850'}" style="font-size:1.2rem;font-weight:800;text-decoration:none;">${ad.contactPhone || '6301394850'}</a>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-top:1rem;">
+        <input id="hirePayAmount" class="form-control" type="number" min="1" value="${String(ad.price || '').replace(/[^0-9]/g, '') || 1000}" placeholder="Amount">
+        <button class="btn btn-primary" onclick="AppUX.startPayment({ amount: document.getElementById('hirePayAmount').value, purpose: 'Payment to freelancer', payeeName: '${ad.freelancerName.replace(/'/g, "\\'")}' })">Pay Freelancer</button>
+      </div>
       <div style="display:flex;justify-content:flex-end;margin-top:1rem;"><button class="btn btn-secondary" onclick="closeModal('hireModal')">Close</button></div>`;
     document.getElementById('hireModal').classList.add('active');
   }
