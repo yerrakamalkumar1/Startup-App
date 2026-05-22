@@ -1,8 +1,9 @@
-const CACHE_NAME = "connecthub-v1";
+const CACHE_NAME = "connecthub-v2";
 const APP_SHELL = [
   "index.html",
   "index.css",
   "config.js",
+  "app-ui.js",
   "db.js",
   "ai-bot.js",
   "dashboard-startup.html",

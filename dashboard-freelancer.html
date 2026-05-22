@@ -103,6 +103,7 @@
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script src="ai-bot.js"></script>
+<script src="app-ui.js"></script>
 <script>
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -113,6 +114,7 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
+  AppUX.init({ homeView: 'gigs', profileView: 'mads' });
 
   let currentJobId = '';
   syncFromBackend().then(() => go('gigs'));
@@ -128,6 +130,7 @@
     else if (view === 'calc') renderCalc(b);
     else if (view === 'apps') renderApps(b);
     lucide.createIcons();
+    AppUX.onView(view);
   }
 
   function renderGigs(b) {

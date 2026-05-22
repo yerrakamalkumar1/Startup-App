@@ -49,6 +49,25 @@
       animation: fadeUp 0.75s ease 0.08s both;
     }
 
+    .splash-loader {
+      width: 160px;
+      height: 5px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #d9f7ef;
+      animation: fadeUp 0.75s ease 0.14s both;
+    }
+
+    .splash-loader span {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0f766e, #2dd4bf);
+      transform-origin: left;
+      animation: splashLoad 1.05s ease both;
+    }
+
     .splash-footer {
       position: absolute;
       bottom: 28px;
@@ -251,6 +270,11 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
+    @keyframes splashLoad {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
     @media (max-width: 900px) {
       .landing-wrap {
         height: 100dvh;
@@ -325,6 +349,7 @@
 <div id="appSplash" class="app-splash">
   <img class="splash-logo" src="assets/logo.png" alt="Connect Hub">
   <div class="splash-brand">Connect Hub</div>
+  <div class="splash-loader" aria-label="Loading"><span></span></div>
   <div class="splash-footer">Connect Hub India<br>Networking for startups, freelancers, and investors</div>
 </div>
 
@@ -487,8 +512,30 @@
   }
 
   window.addEventListener('load', () => {
-    setTimeout(() => document.getElementById('appSplash')?.classList.add('hide'), 1100);
+    setTimeout(() => {
+      document.getElementById('appSplash')?.classList.add('hide');
+      playLaunchTone();
+    }, 1100);
   });
+
+  function playLaunchTone() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.025;
+      gain.connect(ctx.destination);
+      [660, 880].forEach((frequency, index) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        osc.connect(gain);
+        osc.start(ctx.currentTime + index * 0.07);
+        osc.stop(ctx.currentTime + index * 0.07 + 0.08);
+      });
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    } catch {}
+  }
 
   lucide.createIcons();
 

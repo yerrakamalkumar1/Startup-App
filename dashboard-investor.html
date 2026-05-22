@@ -78,6 +78,7 @@
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script src="ai-bot.js"></script>
+<script src="app-ui.js"></script>
 <script>
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -88,6 +89,7 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
+  AppUX.init({ homeView: 'explore', profileView: 'portfolio' });
 
   let investingId = '';
   syncFromBackend().then(() => go('explore'));
@@ -102,6 +104,7 @@
     else if (view === 'events') renderEvents(b);
     else if (view === 'portfolio') renderPortfolio(b);
     lucide.createIcons();
+    AppUX.onView(view);
   }
 
   function renderExplore(b) {

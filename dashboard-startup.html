@@ -120,6 +120,7 @@
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script src="ai-bot.js"></script>
+<script src="app-ui.js"></script>
 <script>
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -130,6 +131,7 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
+  AppUX.init({ homeView: 'analytics', profileView: 'profile' });
 
   let db0 = getDB();
   let myStartup = db0.startups.find(s => s.id === user.startupId) || db0.startups[0];
@@ -157,6 +159,7 @@
     else if (view === 'profile') renderProfile(b);
     else if (view === 'candidates') renderCandidates(b);
     lucide.createIcons();
+    AppUX.onView(view);
   }
 
   function renderAnalytics(b) {
