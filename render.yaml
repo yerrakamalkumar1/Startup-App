@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: connecthub
+    name: connect-hub
     runtime: node
     plan: free
     buildCommand: ""

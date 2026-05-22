@@ -1,6 +1,6 @@
 {
-  "name": "ConnectHub",
-  "short_name": "ConnectHub",
+  "name": "Connect Hub",
+  "short_name": "Connect Hub",
   "description": "A networking marketplace for Indian startups, freelancers, and investors.",
   "start_url": "index.html",
   "display": "standalone",

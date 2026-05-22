@@ -322,5 +322,5 @@ http.createServer((req, res) => {
   }
   serveStatic(req, res);
 }).listen(PORT, () => {
-  console.log(`ConnectHub backend running at http://localhost:${PORT}`);
+  console.log(`Connect Hub backend running at http://localhost:${PORT}`);
 });

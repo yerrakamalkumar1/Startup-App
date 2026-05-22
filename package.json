@@ -1,8 +1,8 @@
 {
-  "name": "connecthub",
+  "name": "connect-hub",
   "version": "1.0.0",
   "private": true,
-  "description": "ConnectHub static app with a lightweight Node JSON backend.",
+  "description": "Connect Hub static app with a lightweight Node JSON backend.",
   "scripts": {
     "start": "node backend/server.js"
   },
