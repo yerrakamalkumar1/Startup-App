@@ -78,6 +78,29 @@
       animation: fadeUp 0.75s ease 0.16s both;
     }
 
+    .splash-enter {
+      display: none;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.72rem 1.1rem;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent-blue);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 800;
+      box-shadow: 0 14px 28px rgba(15, 118, 110, 0.22);
+      animation: fadeUp 0.25s ease both;
+    }
+
+    .splash-enter.active {
+      display: inline-flex;
+    }
+
+    .splash-enter:active {
+      transform: scale(0.98);
+    }
+
     .landing-wrap {
       height: 100vh;
       display: flex;
@@ -385,6 +408,7 @@
   <img class="splash-logo" src="assets/logo.png" alt="Connect Hub">
   <div class="splash-brand">Connect Hub</div>
   <div class="splash-loader" aria-label="Loading"><span></span></div>
+  <button id="splashEnter" class="splash-enter" type="button">Tap to enter</button>
   <div class="splash-footer">Connect Hub India<br>Networking for startups, freelancers, and investors</div>
 </div>
 
@@ -566,17 +590,34 @@
   }
 
   window.addEventListener('load', () => {
-    setTimeout(() => {
-      document.getElementById('appSplash')?.classList.add('hide');
-      playLaunchTone();
-      window.addEventListener('pointerdown', playLaunchTone, { once: true });
+    const enterButton = document.getElementById('splashEnter');
+    enterButton?.addEventListener('click', async () => {
+      enterButton.disabled = true;
+      await playLaunchTone();
+      revealLoginPortal();
+    });
+
+    setTimeout(async () => {
+      const played = await playLaunchTone();
+      if (played) {
+        revealLoginPortal();
+      } else {
+        enterButton?.classList.add('active');
+        enterButton?.focus();
+      }
     }, 1100);
   });
 
-  function playLaunchTone() {
+  function revealLoginPortal() {
+    document.getElementById('appSplash')?.classList.add('hide');
+  }
+
+  async function playLaunchTone() {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       const ctx = new Ctx();
+      if (ctx.state === 'suspended') await ctx.resume();
+      if (ctx.state !== 'running') return false;
       const gain = ctx.createGain();
       gain.gain.value = 0.025;
       gain.connect(ctx.destination);
@@ -589,7 +630,11 @@
         osc.stop(ctx.currentTime + index * 0.06 + 0.07);
       });
       gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
-    } catch {}
+      setTimeout(() => ctx.close?.(), 420);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   lucide.createIcons();
