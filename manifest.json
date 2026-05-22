@@ -1,0 +1,21 @@
+{
+  "name": "ConnectHub",
+  "short_name": "ConnectHub",
+  "description": "A networking marketplace for Indian startups, freelancers, and investors.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

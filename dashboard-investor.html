@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectHub - Investor Dashboard</title>
+  <link rel="stylesheet" href="index.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f766e">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="app-container">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/logo.png" alt="ConnectHub">
+      <span>ConnectHub</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item active" id="t-explore" onclick="go('explore')"><a><i data-lucide="search"></i>Explore Startups</a></li>
+      <li class="sidebar-item" id="t-events" onclick="go('events')"><a><i data-lucide="calendar"></i>Events</a></li>
+      <li class="sidebar-item" id="t-portfolio" onclick="go('portfolio')"><a><i data-lucide="wallet"></i>My Portfolio</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="user-profile-badge">
+        <div id="av" class="user-avatar">IN</div>
+        <div class="user-info">
+          <span id="uname" class="user-name">-</span>
+          <span id="urole" class="user-role">Investor</span>
+        </div>
+        <button class="btn btn-secondary btn-icon" onclick="handleLogout()" title="Logout" style="margin-left:auto;">
+          <i data-lucide="log-out" style="width:13px;height:13px;"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <nav class="top-navbar">
+      <div class="page-title"><h1 id="ptitle">Explore Startups</h1></div>
+      <span style="font-size:0.78rem;background:rgba(5,118,66,0.08);color:#057642;padding:0.3rem 0.75rem;border-radius:9999px;font-weight:700;">Investor / Sponsor</span>
+    </nav>
+
+    <div id="body" class="content-body"></div>
+
+    <footer class="app-footer">
+      <span>2026 <strong>ConnectHub India</strong></span>
+      <span>Help: <a href="tel:6301394850" style="color:#0f766e;font-weight:700;text-decoration:none;">6301394850</a></span>
+      <div class="footer-links"><a href="#">Privacy</a><a href="#">Terms</a></div>
+    </footer>
+  </main>
+</div>
+
+<!-- Invest Modal -->
+<div id="investModal" class="modal-overlay">
+  <div class="modal-content glass-panel">
+    <div class="modal-header">
+      <h3 class="modal-title">Commit Investment</h3>
+      <button class="close-btn" onclick="closeModal('investModal')">&times;</button>
+    </div>
+    <p id="investDesc" style="font-size:0.82rem;color:#5e5e5e;margin-bottom:1rem;"></p>
+    <form onsubmit="submitInvest(event)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+        <div class="form-group"><label>Amount (Rs)</label><input type="number" id="invAmt" class="form-control" value="500000" step="10000" required></div>
+        <div class="form-group"><label>Equity Stake (%)</label><input type="number" id="invEq" class="form-control" value="2" step="0.5" required></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('investModal')">Cancel</button>
+        <button type="submit" class="btn btn-emerald">Confirm Investment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="ai-bot.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  const user = getCurrentUser();
+  if (!user || user.role !== 'investor') window.location.href = 'index.html';
+  document.getElementById('av').textContent = user.avatarInitials;
+  document.getElementById('uname').textContent = user.name;
+  document.getElementById('urole').textContent = user.title;
+
+  let investingId = '';
+  syncFromBackend().then(() => go('explore'));
+
+  function go(view) {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('t-' + view)?.classList.add('active');
+    const titles = { explore:'Explore Indian Startups', events:'Investment Events', portfolio:'My Portfolio' };
+    document.getElementById('ptitle').textContent = titles[view] || '';
+    const b = document.getElementById('body');
+    if (view === 'explore') renderExplore(b);
+    else if (view === 'events') renderEvents(b);
+    else if (view === 'portfolio') renderPortfolio(b);
+    lucide.createIcons();
+  }
+
+  function renderExplore(b) {
+    b.innerHTML = `
+      <div>
+        <div style="position:relative;margin-bottom:1rem;">
+          <input type="text" id="sSearch" class="form-control" placeholder="Search by startup name, sector or stage..." oninput="filterStartups()" style="padding-left:2.1rem;">
+          <i data-lucide="search" style="position:absolute;left:0.65rem;top:50%;transform:translateY(-50%);width:14px;color:#5e5e5e;"></i>
+        </div>
+        <p style="color:#5e5e5e;font-size:0.8rem;margin-bottom:1rem;">Browse Indian cafes, restaurants, and real estate startups seeking capital.</p>
+        <div id="stGrid" class="dashboard-grid-3"></div>
+      </div>`;
+    filterStartups();
+    lucide.createIcons();
+  }
+
+  function filterStartups() {
+    const q = (document.getElementById('sSearch')?.value||'').toLowerCase();
+    const db = getDB();
+    const list = db.startups.filter(s =>
+      s.name.toLowerCase().includes(q) || s.sector.toLowerCase().includes(q) || s.stage.toLowerCase().includes(q)
+    );
+    const grid = document.getElementById('stGrid');
+    if (!grid) return;
+    grid.innerHTML = list.map(st => {
+      const raised = parseFloat(st.raised.replace(/[^0-9.]/g,''))||0;
+      const target = parseFloat(st.target.replace(/[^0-9.]/g,''))||1;
+      const pct = Math.min(100, Math.round(raised/target*100));
+      return `
+        <div class="glass-card" style="display:flex;flex-direction:column;gap:0.85rem;">
+          <div style="display:flex;justify-content:space-between;align-items:start;">
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <div style="width:36px;height:36px;border-radius:6px;background:${st.logoColor}20;color:${st.logoColor};border:1px solid ${st.logoColor}40;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">${st.logoInitials}</div>
+              <div>
+                <div style="font-weight:700;font-size:0.9rem;color:#191919;">${st.name}</div>
+                <div style="font-size:0.7rem;color:#5e5e5e;">${st.sector}</div>
+              </div>
+            </div>
+            <span class="badge badge-indigo">${st.stage}</span>
+          </div>
+          <p style="font-size:0.78rem;color:#5e5e5e;height:3.2rem;overflow:hidden;">${st.description}</p>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:0.2rem;">
+              <span style="color:#5e5e5e;">Raised: ${st.raised}</span>
+              <span style="font-weight:700;color:#191919;">${pct}% of ${st.target}</span>
+            </div>
+            <div style="height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:#0f766e;border-radius:3px;"></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e5e7eb;padding-top:0.75rem;">
+            <div><span style="font-size:0.65rem;color:#5e5e5e;display:block;">VALUATION</span><span style="font-weight:800;color:#191919;">${st.valuation}</span></div>
+            <button class="btn btn-primary" onclick="openInvest('${st.id}','${st.name}')">Invest / Sponsor</button>
+          </div>
+        </div>`;
+    }).join('') || '<p style="color:#5e5e5e;text-align:center;padding:2rem;grid-column:1/-1;">No startups found.</p>';
+    lucide.createIcons();
+  }
+
+  function renderEvents(b) {
+    const db = getDB();
+    b.innerHTML = `
+      <div>
+        <p style="color:#5e5e5e;font-size:0.8rem;margin-bottom:1rem;">Join pitch sessions, networking galas, and business summits across India.</p>
+        <div class="event-timeline">
+          ${db.events.map(ev => `
+            <div class="glass-card event-card">
+              <div class="event-date-box">
+                <span class="event-day">${ev.day}</span>
+                <span class="event-month">${ev.month}</span>
+              </div>
+              <div class="event-details" style="flex-grow:1;">
+                <div class="event-title">${ev.title}</div>
+                <div style="font-size:0.75rem;color:#5e5e5e;margin:0.15rem 0;">${ev.description}</div>
+                <div class="event-meta">${ev.time} · <i data-lucide="users" style="width:11px;height:11px;vertical-align:middle;"></i> ${ev.rsvpCount} registered</div>
+              </div>
+              <div>
+                ${ev.registered
+                  ? `<button class="btn btn-secondary" style="color:#057642;border-color:#d1ebd1;" disabled><i data-lucide="check" style="width:13px;height:13px;"></i> Registered</button>`
+                  : `<button class="btn btn-primary" onclick="rsvp('${ev.id}')">RSVP</button>`}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    lucide.createIcons();
+  }
+
+  function rsvp(evId) {
+    const db = getDB();
+    const ev = db.events.find(e => e.id === evId);
+    if (ev) { ev.registered = true; ev.rsvpCount++; saveDB(db); renderEvents(document.getElementById('body')); lucide.createIcons(); }
+  }
+
+  function renderPortfolio(b) {
+    const db = getDB();
+    const total = db.investments.reduce((sum,inv) => sum + (parseFloat(inv.amount.replace(/[^0-9.]/g,''))||0), 0);
+    const rows = db.investments.map(inv => `
+      <tr>
+        <td style="font-weight:700;">${inv.startupName}</td>
+        <td style="color:#057642;font-weight:700;">${inv.amount}</td>
+        <td>${inv.equity}</td>
+        <td>${inv.date}</td>
+      </tr>`).join('');
+    b.innerHTML = `
+      <div class="dashboard-grid-3" style="margin-bottom:1rem;">
+        <div class="glass-card stat-card">
+          <div class="stat-details">
+            <span class="stat-label">Total Committed</span>
+            <span class="stat-value" style="color:#057642;font-size:1.3rem;">Rs ${total.toLocaleString('en-IN')}</span>
+          </div>
+          <div class="stat-icon-wrapper" style="color:#057642;"><i data-lucide="wallet"></i></div>
+        </div>
+        <div class="glass-card stat-card">
+          <div class="stat-details">
+            <span class="stat-label">Active Investments</span>
+            <span class="stat-value">${db.investments.length}</span>
+          </div>
+          <div class="stat-icon-wrapper"><i data-lucide="building"></i></div>
+        </div>
+      </div>
+      <div class="glass-panel" style="padding:1rem;">
+        <div class="table-container">
+          <table class="custom-table">
+            <thead><tr><th>Startup</th><th>Amount</th><th>Equity</th><th>Date</th></tr></thead>
+            <tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#5e5e5e;padding:2rem;">No investments yet. Explore startups and invest!</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function openInvest(id, name) {
+    investingId = id;
+    document.getElementById('investDesc').textContent = `You are committing capital to: ${name}`;
+    document.getElementById('invAmt').value = 500000;
+    document.getElementById('invEq').value = 2;
+    document.getElementById('investModal').classList.add('active');
+  }
+
+  function submitInvest(e) {
+    e.preventDefault();
+    const db = getDB();
+    const amt = +document.getElementById('invAmt').value;
+    const eq = +document.getElementById('invEq').value;
+    const st = db.startups.find(s => s.id === investingId);
+    if (!st) return;
+
+    // Update raised amount
+    const cur = parseFloat(st.raised.replace(/[^0-9.]/g,''))||0;
+    const mult = st.raised.includes('Cr') ? 10000000 : st.raised.includes('Lakh') ? 100000 : 1;
+    const newRs = (cur * mult) + amt;
+    st.raised = newRs >= 10000000 ? `Rs ${(newRs/10000000).toFixed(1)} Cr` : `Rs ${Math.round(newRs/100000)} Lakh`;
+
+    db.investments.push({
+      id: 'inv-' + Date.now(),
+      startupName: st.name,
+      amount: `Rs ${amt.toLocaleString('en-IN')}`,
+      equity: `${eq}%`,
+      date: new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+    });
+    saveDB(db);
+    closeModal('investModal');
+    go('portfolio');
+    alert(`Investment in ${st.name} recorded!`);
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+</script>
+</body>
+</html>

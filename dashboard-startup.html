@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectHub - Startup Dashboard</title>
+  <link rel="stylesheet" href="index.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f766e">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="app-container">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/logo.png" alt="ConnectHub">
+      <span>ConnectHub</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item active" id="t-analytics" onclick="go('analytics')"><a><i data-lucide="layout-dashboard"></i>Dashboard</a></li>
+      <li class="sidebar-item" id="t-browse" onclick="go('browse')"><a><i data-lucide="search"></i>Browse Freelancers</a></li>
+      <li class="sidebar-item" id="t-profile" onclick="go('profile')"><a><i data-lucide="building-2"></i>Business Profile</a></li>
+      <li class="sidebar-item" id="t-candidates" onclick="go('candidates')"><a><i data-lucide="users"></i>Candidates</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="user-profile-badge">
+        <div id="av" class="user-avatar">ST</div>
+        <div class="user-info">
+          <span id="uname" class="user-name">-</span>
+          <span id="urole" class="user-role">Startup</span>
+        </div>
+        <button class="btn btn-secondary btn-icon" onclick="handleLogout()" title="Logout" style="margin-left:auto;">
+          <i data-lucide="log-out"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <nav class="top-navbar">
+      <div class="page-title"><h1 id="ptitle">Dashboard</h1></div>
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <span id="topLabel" class="badge badge-indigo">Startup</span>
+        <button class="btn btn-secondary" id="postMediaBtn" onclick="openPromoModal()"><i data-lucide="image-plus"></i>Post Media</button>
+        <button class="btn btn-primary" id="postGigBtn" onclick="openGigModal()"><i data-lucide="plus"></i>Post Gig</button>
+      </div>
+    </nav>
+
+    <div id="body" class="content-body"></div>
+
+    <footer class="app-footer">
+      <span>2026 <strong>ConnectHub India</strong></span>
+      <span>Support: <a href="tel:6301394850" style="font-weight:800;text-decoration:none;">6301394850</a></span>
+      <div class="footer-links"><a href="#">Privacy</a><a href="#">Terms</a></div>
+    </footer>
+  </main>
+</div>
+
+<div id="gigModal" class="modal-overlay">
+  <div class="modal-content glass-panel">
+    <div class="modal-header">
+      <h3 class="modal-title">Post a Gig</h3>
+      <button class="close-btn" onclick="closeModal('gigModal')">&times;</button>
+    </div>
+    <form onsubmit="submitGig(event)">
+      <div class="form-group"><label>Gig Title</label><input type="text" id="gTitle" class="form-control" placeholder="Launch designer, app developer, video editor" required></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+        <div class="form-group"><label>Rate (Rs/hr)</label><input type="number" id="gRate" class="form-control" value="500" required></div>
+        <div class="form-group"><label>Estimated Hours</label><input type="number" id="gHours" class="form-control" value="20" required></div>
+      </div>
+      <div class="form-group"><label>Skills Needed</label><input type="text" id="gTags" class="form-control" placeholder="Design, reels, sales, automation, app dev"></div>
+      <div class="form-group"><label>Description</label><textarea id="gDesc" class="form-control" rows="3" placeholder="Describe the work clearly." required></textarea></div>
+      <div class="form-group media-picker">
+        <label for="gMedia">Optional photo or reel</label>
+        <input type="file" id="gMedia" class="form-control" accept="image/*,video/*">
+        <small>Upload a small image/video preview. Best under 2.5 MB for this static app.</small>
+      </div>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('gigModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Publish Gig</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="promoModal" class="modal-overlay">
+  <div class="modal-content glass-panel">
+    <div class="modal-header">
+      <h3 class="modal-title">Post Startup Media</h3>
+      <button class="close-btn" onclick="closeModal('promoModal')">&times;</button>
+    </div>
+    <form onsubmit="submitPromotion(event)">
+      <div class="form-group"><label>Post Title</label><input type="text" id="promoTitle" class="form-control" placeholder="New launch, proof of work, team update" required></div>
+      <div class="form-group"><label>Caption</label><textarea id="promoDesc" class="form-control" rows="3" placeholder="Share what you are building and who should connect with you." required></textarea></div>
+      <div class="form-group"><label>Tags</label><input type="text" id="promoTags" class="form-control" placeholder="Growth, hiring, beta launch, partnership"></div>
+      <div class="form-group media-picker">
+        <label for="promoMedia">Photo or reel</label>
+        <input type="file" id="promoMedia" class="form-control" accept="image/*,video/*" required>
+        <small>This creates an advertisement-style post visible in your dashboard and network feed.</small>
+      </div>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('promoModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Publish Media</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="hireModal" class="modal-overlay">
+  <div class="modal-content glass-panel">
+    <div class="modal-header">
+      <h3 class="modal-title">Contact Freelancer</h3>
+      <button class="close-btn" onclick="closeModal('hireModal')">&times;</button>
+    </div>
+    <div id="hireBody"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="ai-bot.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  const user = getCurrentUser();
+  if (!user || user.role !== 'startup_admin') window.location.href = 'index.html';
+  document.getElementById('av').textContent = user.avatarInitials;
+  document.getElementById('uname').textContent = user.name;
+  document.getElementById('urole').textContent = user.title;
+
+  let db0 = getDB();
+  let myStartup = db0.startups.find(s => s.id === user.startupId) || db0.startups[0];
+  document.getElementById('topLabel').textContent = myStartup.name;
+
+  let chartInst = null;
+  syncFromBackend().then(db => {
+    db0 = db;
+    myStartup = db.startups.find(s => s.id === user.startupId) || db.startups[0];
+    document.getElementById('topLabel').textContent = myStartup.name;
+    go('analytics');
+  });
+
+  function go(view) {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('t-' + view)?.classList.add('active');
+    const titles = { analytics:'Dashboard', browse:'Browse Freelancers', profile:'Business Profile', candidates:'Candidates' };
+    document.getElementById('ptitle').textContent = titles[view] || '';
+    const showActions = view === 'analytics';
+    document.getElementById('postGigBtn').style.display = showActions ? 'inline-flex' : 'none';
+    document.getElementById('postMediaBtn').style.display = showActions ? 'inline-flex' : 'none';
+    const b = document.getElementById('body');
+    if (view === 'analytics') renderAnalytics(b);
+    else if (view === 'browse') renderBrowse(b);
+    else if (view === 'profile') renderProfile(b);
+    else if (view === 'candidates') renderCandidates(b);
+    lucide.createIcons();
+  }
+
+  function renderAnalytics(b) {
+    const db = getDB();
+    const st = db.startups.find(s => s.id === myStartup.id) || myStartup;
+    const myJobs = db.jobs.filter(j => j.startupId === st.id);
+    const myPromos = (db.startupPromotions || []).filter(post => post.startupId === st.id);
+    const totalApps = db.applications.filter(a => myJobs.map(j => j.id).includes(a.jobId)).length;
+    const adsCount = db.freelancerAds.length;
+
+    b.innerHTML = `
+      <div class="hero-strip">
+        <div>
+          <h2>Hire freelancers for ${st.name}</h2>
+          <p>Freelancer service ads published from their dashboard appear in Browse Freelancers. You can post gigs or media updates to advertise your own startup.</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="go('browse')"><i data-lucide="search"></i>Browse ${adsCount} Ads</button>
+          <button class="btn btn-primary" onclick="openPromoModal()"><i data-lucide="image-plus"></i>Post Photo/Reel</button>
+        </div>
+      </div>
+      <div class="dashboard-grid-3">
+        <div class="glass-card stat-card">
+          <div><span class="stat-label">Profile Views</span><span class="stat-value">${st.views.slice(-1)[0]}</span><span class="stat-change">This week</span></div>
+          <div class="stat-icon-wrapper"><i data-lucide="eye"></i></div>
+        </div>
+        <div class="glass-card stat-card">
+          <div><span class="stat-label">Applications</span><span class="stat-value">${totalApps}</span><span class="stat-change">From posted gigs</span></div>
+          <div class="stat-icon-wrapper"><i data-lucide="users"></i></div>
+        </div>
+        <div class="glass-card stat-card">
+          <div><span class="stat-label">Funding Raised</span><span class="stat-value" style="font-size:1.15rem;">${st.raised}</span><span class="stat-change">Target: ${st.target}</span></div>
+          <div class="stat-icon-wrapper"><i data-lucide="indian-rupee"></i></div>
+        </div>
+      </div>
+      <div class="dashboard-grid-2">
+        <div class="glass-panel" style="padding:1.1rem;">
+          <h3 style="font-size:0.95rem;margin-bottom:1rem;">Weekly Engagement</h3>
+          <div style="height:220px;"><canvas id="engChart"></canvas></div>
+        </div>
+        <div class="glass-panel" style="padding:1.1rem;">
+          <h3 style="font-size:0.95rem;margin-bottom:1rem;">Active Gig Listings</h3>
+          <div style="display:flex;flex-direction:column;gap:0.55rem;max-height:220px;overflow:auto;">
+            ${myJobs.length ? myJobs.map(j => `
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;padding:0.75rem;border:1px solid #e5eaf1;border-radius:8px;">
+                <div>
+                  <div style="font-size:0.86rem;font-weight:800;">${j.title}</div>
+                  <div style="font-size:0.74rem;color:#7b8794;">Rs ${j.hourlyRate}/hr - ${j.applicants} applicants</div>
+                </div>
+                <span class="badge badge-green">${j.status}</span>
+              </div>`).join('') : '<p style="color:#7b8794;font-size:0.85rem;text-align:center;padding:1rem;">No gigs yet. Post one to receive applications.</p>'}
+          </div>
+        </div>
+      </div>`;
+
+    if (myPromos.length) {
+      b.innerHTML += `
+        <div class="glass-panel" style="padding:1.1rem;">
+          <h3 style="font-size:0.95rem;margin-bottom:1rem;">Your Media Advertisements</h3>
+          <div class="dashboard-grid-3">
+            ${myPromos.map(post => `
+              <div class="glass-card ad-card">
+                ${renderMedia(post.media, post.mediaType)}
+                <div class="ad-header">
+                  <div class="ad-titles">
+                    <span class="ad-title">${post.title}</span>
+                    <span class="ad-company-name">${post.startupName}</span>
+                  </div>
+                  <span class="badge badge-indigo">Startup Post</span>
+                </div>
+                <p class="ad-body">${post.description}</p>
+                <div class="ad-meta">${(post.tags || []).map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    setTimeout(() => drawChart(st), 40);
+  }
+
+  function drawChart(st) {
+    const ctx = document.getElementById('engChart');
+    if (!ctx || !window.Chart) return;
+    if (chartInst) chartInst.destroy();
+    chartInst = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+        datasets: [
+          { label:'Views', data: st.views, borderColor:'#0f766e', backgroundColor:'rgba(15,118,110,0.08)', tension:0.35, fill:true },
+          { label:'Applications', data: st.engagement, borderColor:'#087f5b', backgroundColor:'rgba(8,127,91,0.08)', tension:0.35, fill:true }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:11}}}}, scales:{x:{grid:{color:'#eef2f7'}}, y:{grid:{color:'#eef2f7'}}} }
+    });
+  }
+
+  function renderBrowse(b) {
+    const db = getDB();
+    const ads = db.freelancerAds;
+    b.innerHTML = `
+      <div class="chain-strip">
+        <div>
+          <h2>Freelancer ads from the shared marketplace</h2>
+          <p>When a freelancer publishes a service ad, it appears here for startups across every category.</p>
+        </div>
+        <span class="badge badge-green">${ads.length} available</span>
+      </div>
+      <div style="position:relative;">
+        <input type="text" id="fsearch" class="form-control" placeholder="Search designers, developers, marketers, editors..." oninput="filterAds()" style="padding-left:2.2rem;">
+        <i data-lucide="search" style="position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);width:16px;color:#7b8794;"></i>
+      </div>
+      <div id="adsGrid" class="dashboard-grid-3">${renderAdCards(ads)}</div>`;
+    lucide.createIcons();
+  }
+
+  function renderAdCards(ads) {
+    return ads.length ? ads.map(ad => `
+      <div class="glass-card ad-card">
+        ${renderMedia(ad.media, ad.mediaType)}
+        <div class="ad-header">
+          <div class="ad-company-info">
+            <div class="user-avatar" style="width:36px;height:36px;">${ad.freelancerName.split(' ').map(w => w[0]).join('').substring(0,2)}</div>
+            <div class="ad-titles">
+              <span class="ad-title">${ad.title}</span>
+              <span class="ad-company-name">${ad.freelancerName} - ${ad.category || 'Service'}</span>
+            </div>
+          </div>
+          <span class="badge badge-indigo">Freelancer Ad</span>
+        </div>
+        <p class="ad-body">${ad.description}</p>
+        <div class="ad-meta">${(ad.tags || []).map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+        <div class="ad-footer">
+          <div class="ad-price"><span class="price-label">PACKAGE</span><span class="price-amount">${ad.price}</span></div>
+          <button class="btn btn-primary" onclick="openHire('${ad.id}')">Contact</button>
+        </div>
+      </div>`).join('') : emptyState('No freelancer ads yet. They will appear here as soon as freelancers publish them.');
+  }
+
+  function filterAds() {
+    const q = document.getElementById('fsearch').value.toLowerCase();
+    const db = getDB();
+    const filtered = db.freelancerAds.filter(ad =>
+      ad.title.toLowerCase().includes(q) ||
+      ad.freelancerName.toLowerCase().includes(q) ||
+      (ad.category || '').toLowerCase().includes(q) ||
+      (ad.tags || []).some(t => t.toLowerCase().includes(q))
+    );
+    document.getElementById('adsGrid').innerHTML = renderAdCards(filtered);
+    lucide.createIcons();
+  }
+
+  function openHire(adId) {
+    const db = getDB();
+    const ad = db.freelancerAds.find(a => a.id === adId);
+    document.getElementById('hireBody').innerHTML = `
+      <div style="padding:1rem;border:1px solid #e5eaf1;border-radius:8px;background:#f8fbff;margin-bottom:1rem;">
+        <h4 style="font-size:0.95rem;margin-bottom:0.3rem;">${ad.title}</h4>
+        <p style="font-size:0.84rem;color:#526071;margin-bottom:0.7rem;">${ad.description}</p>
+        <div class="ad-meta">${(ad.tags || []).map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.8rem;font-size:0.84rem;"><span>Freelancer</span><strong>${ad.freelancerName}</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.3rem;font-size:0.84rem;"><span>Package</span><strong style="color:#087f5b;">${ad.price}</strong></div>
+      </div>
+      <div style="text-align:center;padding:1rem;border:1px solid #a7f3d0;border-radius:8px;background:#f6fffc;">
+        <p style="font-size:0.82rem;color:#0f766e;font-weight:800;">Call or WhatsApp</p>
+        <a href="tel:${ad.contactPhone || '6301394850'}" style="font-size:1.2rem;font-weight:800;text-decoration:none;">${ad.contactPhone || '6301394850'}</a>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:1rem;"><button class="btn btn-secondary" onclick="closeModal('hireModal')">Close</button></div>`;
+    document.getElementById('hireModal').classList.add('active');
+  }
+
+  function renderProfile(b) {
+    const db = getDB();
+    const st = db.startups.find(s => s.id === myStartup.id) || myStartup;
+    b.innerHTML = `
+      <div class="glass-panel" style="padding:1.25rem;max-width:760px;">
+        <h3 style="font-size:1rem;margin-bottom:1rem;">Business Profile</h3>
+        <form onsubmit="saveProfile(event)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div class="form-group"><label>Business Name</label><input type="text" id="pName" class="form-control" value="${st.name}" required></div>
+            <div class="form-group"><label>Sector</label><select id="pSector" class="form-control">${STARTUP_SECTORS.map(s => `<option ${s === st.sector ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div class="form-group"><label>Valuation</label><input type="text" id="pVal" class="form-control" value="${st.valuation}" required></div>
+            <div class="form-group"><label>Funding Stage</label><select id="pStage" class="form-control">${['Pre-seed','Seed','Series A','Series B'].map(s => `<option ${s === st.stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          </div>
+          <div class="form-group"><label>Short Pitch</label><textarea id="pDesc" class="form-control" rows="4" required>${st.description}</textarea></div>
+          <div style="display:flex;justify-content:flex-end;"><button type="submit" class="btn btn-primary">Save Profile</button></div>
+        </form>
+      </div>`;
+  }
+
+  function saveProfile(e) {
+    e.preventDefault();
+    const db = getDB();
+    const st = db.startups.find(s => s.id === myStartup.id);
+    st.name = document.getElementById('pName').value;
+    st.sector = document.getElementById('pSector').value;
+    st.valuation = document.getElementById('pVal').value;
+    st.stage = document.getElementById('pStage').value;
+    st.description = document.getElementById('pDesc').value;
+    saveDB(db);
+    document.getElementById('topLabel').textContent = st.name;
+    alert('Profile saved.');
+  }
+
+  function renderCandidates(b) {
+    const db = getDB();
+    const myJobs = db.jobs.filter(j => j.startupId === myStartup.id);
+    const myApps = db.applications.filter(a => myJobs.map(j => j.id).includes(a.jobId));
+    const rows = myApps.map(a => {
+      const actions = a.status === 'Accepted' ? `<span class="badge badge-green">Hired</span>` :
+        a.status === 'Declined' ? `<span class="badge badge-amber">Declined</span>` :
+        `<div style="display:flex;gap:0.35rem;">
+          <button class="btn btn-emerald btn-icon" onclick="decide('${a.id}','Accepted')" title="Hire"><i data-lucide="check"></i></button>
+          <button class="btn btn-rose btn-icon" onclick="decide('${a.id}','Declined')" title="Decline"><i data-lucide="x"></i></button>
+        </div>`;
+      return `<tr><td><strong>${a.candidateName || 'Freelancer'}</strong><div style="font-size:0.72rem;color:#7b8794;">${a.jobTitle}</div></td><td>Rs ${a.proposedRate}/hr</td><td>${a.appliedDate}</td><td>${actions}</td></tr>`;
+    }).join('');
+    b.innerHTML = `<div class="glass-panel" style="padding:1rem;">
+      <div class="table-container"><table class="custom-table">
+        <thead><tr><th>Freelancer</th><th>Bid Rate</th><th>Applied</th><th>Decision</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#7b8794;padding:2rem;">No candidates yet. Post a gig to receive applications.</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+    lucide.createIcons();
+  }
+
+  function decide(appId, decision) {
+    const db = getDB();
+    const app = db.applications.find(a => a.id === appId);
+    if (app) {
+      app.status = decision;
+      saveDB(db);
+      renderCandidates(document.getElementById('body'));
+    }
+  }
+
+  function openGigModal() {
+    document.getElementById('gigModal').classList.add('active');
+  }
+
+  function openPromoModal() {
+    document.getElementById('promoModal').classList.add('active');
+  }
+
+  async function submitGig(e) {
+    e.preventDefault();
+    const db = getDB();
+    const tags = document.getElementById('gTags').value.split(',').map(t => t.trim()).filter(Boolean);
+    let media = null;
+    try {
+      media = await fileToMedia(document.getElementById('gMedia'));
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+    db.jobs.push({
+      id: 'job-' + Date.now(),
+      startupId: myStartup.id,
+      title: document.getElementById('gTitle').value,
+      description: document.getElementById('gDesc').value,
+      tags: tags.length ? tags : ['General'],
+      hourlyRate: +document.getElementById('gRate').value,
+      estimatedHours: +document.getElementById('gHours').value,
+      status: 'Active',
+      applicants: 0,
+      media,
+      mediaType: media?.type || ""
+    });
+    saveDB(db);
+    e.target.reset();
+    closeModal('gigModal');
+    go('analytics');
+  }
+
+  async function submitPromotion(e) {
+    e.preventDefault();
+    const db = getDB();
+    const tags = document.getElementById('promoTags').value.split(',').map(t => t.trim()).filter(Boolean);
+    let media = null;
+    try {
+      media = await fileToMedia(document.getElementById('promoMedia'));
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+    db.startupPromotions.push({
+      id: 'sp-' + Date.now(),
+      startupId: myStartup.id,
+      startupName: myStartup.name,
+      title: document.getElementById('promoTitle').value,
+      description: document.getElementById('promoDesc').value,
+      tags: tags.length ? tags : ['Announcement'],
+      media,
+      mediaType: media?.type || "",
+      postedDate: new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
+    });
+    saveDB(db);
+    e.target.reset();
+    closeModal('promoModal');
+    go('analytics');
+  }
+
+  function emptyState(message) {
+    return `<div class="glass-card" style="grid-column:1/-1;text-align:center;padding:2rem;color:#7b8794;">${message}</div>`;
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+</script>
+</body>
+</html>

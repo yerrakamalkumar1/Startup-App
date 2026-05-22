@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectHub - Indian Startup Network</title>
+  <link rel="stylesheet" href="index.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f766e">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      background: #ffffff;
+    }
+
+    .landing-wrap {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 440px;
+      background: #ffffff;
+    }
+
+    .landing-hero {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 3rem 5vw;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(15, 118, 110, 0.11), transparent 32%),
+        linear-gradient(180deg, #ffffff 0%, #f3fbf9 100%);
+      border-right: 1px solid var(--border-color);
+    }
+
+    .hero-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .hero-logo img {
+      width: 40px;
+      height: 40px;
+    }
+
+    .hero-logo h1 {
+      color: var(--accent-blue);
+      font-size: 1.45rem;
+    }
+
+    .hero-tagline {
+      max-width: 620px;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      font-size: clamp(2.2rem, 5vw, 4.4rem);
+      font-weight: 800;
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .hero-sub {
+      max-width: 600px;
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.6rem;
+    }
+
+    .role-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      max-width: 680px;
+      margin-top: 2rem;
+    }
+
+    .role-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.42rem 0.75rem;
+      background: var(--accent-blue-soft);
+      color: var(--accent-blue);
+      border: 1px solid #a7f3d0;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .landing-auth {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 2.2rem;
+      background: #ffffff;
+      box-shadow: -18px 0 40px rgba(15, 23, 42, 0.05);
+    }
+
+    .auth-header {
+      margin-bottom: 1rem;
+    }
+
+    .auth-header h2 {
+      margin-bottom: 0.15rem;
+      font-size: 1.35rem;
+    }
+
+    .auth-header p,
+    .helper-copy {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+    }
+
+    .quick-demo-card {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.75rem;
+      margin-bottom: 0.55rem;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .quick-demo-card:hover {
+      border-color: #7dd3c7;
+      background: #f6fffc;
+    }
+
+    .demo-avatar {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      color: white;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .demo-info h4 {
+      font-size: 0.84rem;
+    }
+
+    .demo-info span {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1rem 0;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .conditional-block {
+      padding: 0.85rem;
+      margin-bottom: 1rem;
+      background: #f6fffc;
+      border: 1px solid #a7f3d0;
+      border-left: 4px solid var(--accent-blue);
+      border-radius: var(--radius-lg);
+    }
+
+    .role-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 1rem;
+    }
+
+    .role-chip {
+      padding: 0.45rem 0.75rem;
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 800;
+      transition: var(--transition);
+    }
+
+    .role-chip.active {
+      color: var(--accent-blue);
+      background: var(--accent-blue-soft);
+      border-color: #7dd3c7;
+    }
+
+    .error-msg {
+      display: none;
+      margin-bottom: 1rem;
+      padding: 0.65rem 0.75rem;
+      color: #b91c1c;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    @media (max-width: 900px) {
+      .landing-wrap {
+        grid-template-columns: 1fr;
+      }
+
+      .landing-hero {
+        border-right: 0;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+    }
+  </style>
+</head>
+<body>
+<div class="landing-wrap">
+  <section class="landing-hero">
+    <div class="hero-logo">
+      <img src="assets/logo.png" alt="ConnectHub">
+      <h1>ConnectHub</h1>
+    </div>
+
+    <div class="hero-tagline">Network for Indian startups and local business talent.</div>
+    <p class="hero-sub">
+      A clean marketplace where startups across sectors hire freelancers, publish opportunities,
+      share media ads, and meet investors. Every profile connects into one shared business network.
+    </p>
+
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="switchAuthTab('signup')"><i data-lucide="user-plus"></i>Register</button>
+      <button class="btn btn-secondary" onclick="switchAuthTab('signin')"><i data-lucide="log-in"></i>Sign in</button>
+    </div>
+
+    <div class="role-row">
+      <span class="role-pill"><i data-lucide="rocket"></i>Startups</span>
+      <span class="role-pill"><i data-lucide="store"></i>Local businesses</span>
+      <span class="role-pill"><i data-lucide="layers-3"></i>All sectors</span>
+      <span class="role-pill"><i data-lucide="briefcase"></i>Freelancers</span>
+      <span class="role-pill"><i data-lucide="hand-coins"></i>Investors</span>
+    </div>
+  </section>
+
+  <aside class="landing-auth">
+    <div class="auth-tabs">
+      <div id="tabSignIn" class="auth-tab active" onclick="switchAuthTab('signin')">Sign In</div>
+      <div id="tabSignUp" class="auth-tab" onclick="switchAuthTab('signup')">Register</div>
+    </div>
+
+    <div id="signInSection">
+      <div class="auth-header">
+        <h2>Welcome back</h2>
+        <p>Open your dashboard and continue networking.</p>
+      </div>
+      <div id="signInError" class="error-msg"></div>
+
+      <form onsubmit="handleSignIn(event)">
+        <div class="form-group">
+          <label for="signEmail">Email Address</label>
+          <input type="email" id="signEmail" class="form-control" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="signPass">Passcode</label>
+          <input type="password" id="signPass" class="form-control" placeholder="Enter passcode" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          <i data-lucide="arrow-right"></i>Sign In
+        </button>
+      </form>
+
+      <div class="divider">Role previews</div>
+
+      <div class="quick-demo-card" onclick="quickLogin('sarah@connecthub.in')">
+        <div class="demo-avatar">SJ</div>
+        <div class="demo-info">
+          <h4>Sarah Jenkins</h4>
+          <span>Freelancer dashboard</span>
+        </div>
+        <i data-lucide="chevron-right" style="margin-left:auto;width:16px;color:#7b8794;"></i>
+      </div>
+      <div class="quick-demo-card" onclick="quickLogin('rohan@connecthub.in')">
+        <div class="demo-avatar" style="background:#0f766e;">RS</div>
+        <div class="demo-info">
+          <h4>Rohan Sharma</h4>
+          <span>Startup dashboard</span>
+        </div>
+        <i data-lucide="chevron-right" style="margin-left:auto;width:16px;color:#7b8794;"></i>
+      </div>
+      <div class="quick-demo-card" onclick="quickLogin('ananya@connecthub.in')">
+        <div class="demo-avatar" style="background:#087f5b;">AS</div>
+        <div class="demo-info">
+          <h4>Ananya Sen</h4>
+          <span>Investor dashboard</span>
+        </div>
+        <i data-lucide="chevron-right" style="margin-left:auto;width:16px;color:#7b8794;"></i>
+      </div>
+    </div>
+
+    <div id="signUpSection" style="display:none;">
+      <div class="auth-header">
+        <h2>Create your profile</h2>
+        <p>Choose a role. Your dashboard will connect to the shared marketplace.</p>
+      </div>
+      <div id="signUpError" class="error-msg"></div>
+
+      <label style="font-size:0.8rem;font-weight:800;color:#526071;display:block;margin-bottom:0.5rem;">I am a</label>
+      <div class="role-chips">
+        <div class="role-chip active" data-role="freelancer" onclick="selectRole(this)">Freelancer</div>
+        <div class="role-chip" data-role="startup_admin" onclick="selectRole(this)">Startup Owner</div>
+        <div class="role-chip" data-role="investor" onclick="selectRole(this)">Investor</div>
+      </div>
+      <input type="hidden" id="regRole" value="freelancer">
+
+      <form onsubmit="handleSignUp(event)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="regName" class="form-control" placeholder="Priya Singh" required>
+          </div>
+          <div class="form-group">
+            <label>WhatsApp</label>
+            <input type="text" id="regPhone" class="form-control" placeholder="9876543210">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="regEmail" class="form-control" placeholder="you@example.com" required>
+          </div>
+          <div class="form-group">
+            <label>Passcode</label>
+            <input type="password" id="regPass" class="form-control" placeholder="Create passcode" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label id="titleLabel">Skill / Professional Title</label>
+          <input type="text" id="regTitle" class="form-control" placeholder="Growth designer, developer, editor" required>
+        </div>
+
+        <div id="startupFields" class="conditional-block" style="display:none;">
+          <div class="form-group">
+            <label>Business Name</label>
+            <input type="text" id="regCompany" class="form-control" placeholder="Your startup name">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Sector</label>
+              <select id="regSector" class="form-control">
+                <option>Commerce & Retail</option>
+                <option>Food & Hospitality</option>
+                <option>Property & Infrastructure</option>
+                <option>Health & Wellness</option>
+                <option>Education & Training</option>
+                <option>Finance & Legal</option>
+                <option>Logistics & Mobility</option>
+                <option>SaaS & Technology</option>
+                <option>Consumer Services</option>
+                <option>Media & Entertainment</option>
+                <option>Manufacturing & Hardware</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Funding Goal</label>
+              <input type="text" id="regTargetFunding" class="form-control" placeholder="Rs 10 Lakh">
+            </div>
+          </div>
+        </div>
+
+        <div id="investorFields" class="conditional-block" style="display:none;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Firm / Angel Network</label>
+            <input type="text" id="regFirm" class="form-control" placeholder="India Seed Fund">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          <i data-lucide="check"></i>Create Account
+        </button>
+      </form>
+    </div>
+
+    <p class="helper-copy" style="text-align:center;margin-top:1.4rem;">
+      Need help? Call <a href="tel:6301394850" style="font-weight:800;text-decoration:none;">6301394850</a><br>
+      2026 ConnectHub India
+    </p>
+  </aside>
+</div>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  lucide.createIcons();
+
+  const existingUser = getCurrentUser();
+  if (existingUser) window.location.href = getDashboardUrl(existingUser.role);
+
+  function switchAuthTab(tab) {
+    document.getElementById('tabSignIn').classList.toggle('active', tab === 'signin');
+    document.getElementById('tabSignUp').classList.toggle('active', tab === 'signup');
+    document.getElementById('signInSection').style.display = tab === 'signin' ? 'block' : 'none';
+    document.getElementById('signUpSection').style.display = tab === 'signup' ? 'block' : 'none';
+    lucide.createIcons();
+  }
+
+  function selectRole(chip) {
+    document.querySelectorAll('.role-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    const role = chip.dataset.role;
+    document.getElementById('regRole').value = role;
+    document.getElementById('startupFields').style.display = role === 'startup_admin' ? 'block' : 'none';
+    document.getElementById('investorFields').style.display = role === 'investor' ? 'block' : 'none';
+
+    const labels = {
+      freelancer: 'Skill / Professional Title',
+      startup_admin: 'Your Role in the Business',
+      investor: 'Designation'
+    };
+    const placeholders = {
+      freelancer: 'Growth designer, developer, editor',
+      startup_admin: 'Founder',
+      investor: 'Angel Investor'
+    };
+    document.getElementById('titleLabel').textContent = labels[role];
+    document.getElementById('regTitle').placeholder = placeholders[role];
+  }
+
+  async function handleSignIn(event) {
+    event.preventDefault();
+    const email = document.getElementById('signEmail').value;
+    const pass = document.getElementById('signPass').value;
+    try {
+      const auth = await authenticateUser(email, pass);
+      if (auth.success) {
+        await syncFromBackend();
+        window.location.href = getDashboardUrl(auth.user.role);
+        return;
+      }
+      throw new Error(auth.message);
+    } catch (error) {
+      const el = document.getElementById('signInError');
+      el.textContent = error.message;
+      el.style.display = 'block';
+    }
+  }
+
+  async function quickLogin(email) {
+    const auth = await authenticateUser(email, 'demo');
+    if (auth.success) {
+      await syncFromBackend();
+      window.location.href = getDashboardUrl(auth.user.role);
+    }
+  }
+
+  async function handleSignUp(event) {
+    event.preventDefault();
+    const role = document.getElementById('regRole').value;
+    const name = document.getElementById('regName').value;
+    const email = document.getElementById('regEmail').value;
+    const pass = document.getElementById('regPass').value;
+    const title = document.getElementById('regTitle').value;
+    const additionalInfo = {};
+
+    if (role === 'startup_admin') {
+      additionalInfo.companyName = document.getElementById('regCompany').value;
+      additionalInfo.sector = document.getElementById('regSector').value;
+      additionalInfo.targetFunding = document.getElementById('regTargetFunding').value;
+    } else if (role === 'investor') {
+      additionalInfo.firmName = document.getElementById('regFirm').value;
+    }
+
+    try {
+      const result = await registerUser(name, email, pass, role, title, additionalInfo);
+      if (result.success) {
+        await syncFromBackend();
+        window.location.href = getDashboardUrl(result.user.role);
+        return;
+      }
+      throw new Error(result.message);
+    } catch (error) {
+      const el = document.getElementById('signUpError');
+      el.textContent = error.message;
+      el.style.display = 'block';
+    }
+  }
+</script>
+</body>
+</html>

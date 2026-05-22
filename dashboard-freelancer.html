@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectHub - Freelancer Dashboard</title>
+  <link rel="stylesheet" href="index.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f766e">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="app-container">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/logo.png" alt="ConnectHub">
+      <span>ConnectHub</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item active" id="t-gigs" onclick="go('gigs')"><a><i data-lucide="briefcase"></i>Startup Gigs</a></li>
+      <li class="sidebar-item" id="t-mads" onclick="go('mads')"><a><i data-lucide="megaphone"></i>Service Ads</a></li>
+      <li class="sidebar-item" id="t-calc" onclick="go('calc')"><a><i data-lucide="calculator"></i>Rate Estimator</a></li>
+      <li class="sidebar-item" id="t-apps" onclick="go('apps')"><a><i data-lucide="file-check"></i>Applications</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="user-profile-badge">
+        <div id="av" class="user-avatar">FL</div>
+        <div class="user-info">
+          <span id="uname" class="user-name">-</span>
+          <span id="urole" class="user-role">Freelancer</span>
+        </div>
+        <button class="btn btn-secondary btn-icon" onclick="handleLogout()" title="Logout" style="margin-left:auto;">
+          <i data-lucide="log-out"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <nav class="top-navbar">
+      <div class="page-title"><h1 id="ptitle">Startup Gigs</h1></div>
+      <span class="badge badge-indigo"><i data-lucide="briefcase"></i>Freelancer</span>
+    </nav>
+
+    <div id="body" class="content-body"></div>
+
+    <footer class="app-footer">
+      <span>2026 <strong>ConnectHub India</strong></span>
+      <span>Support: <a href="tel:6301394850" style="font-weight:800;text-decoration:none;">6301394850</a></span>
+      <div class="footer-links"><a href="#">Privacy</a><a href="#">Terms</a></div>
+    </footer>
+  </main>
+</div>
+
+<div id="applyModal" class="modal-overlay">
+  <div class="modal-content glass-panel">
+    <div class="modal-header">
+      <h3 id="applyTitle" class="modal-title">Apply for Gig</h3>
+      <button class="close-btn" onclick="closeModal('applyModal')">&times;</button>
+    </div>
+    <form onsubmit="submitApp(event)">
+      <div class="form-group"><label>Your Bid Rate (Rs/hr)</label><input type="number" id="bidRate" class="form-control" required></div>
+      <div class="form-group"><label>Short Note</label><textarea id="bidNote" class="form-control" rows="3" placeholder="Tell the startup why you fit this work." required></textarea></div>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('applyModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Application</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="adModal" class="modal-overlay">
+  <div class="modal-content glass-panel">
+    <div class="modal-header">
+      <h3 class="modal-title">Publish Service Ad</h3>
+      <button class="close-btn" onclick="closeModal('adModal')">&times;</button>
+    </div>
+    <form onsubmit="submitAd(event)">
+      <div class="form-group"><label>Service Title</label><input type="text" id="adTitle" class="form-control" placeholder="Brand design, app development, video editing" required></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+        <div class="form-group"><label>Package Price</label><input type="text" id="adPrice" class="form-control" placeholder="Rs 8,000" required></div>
+        <div class="form-group"><label>Category</label><select id="adCategory" class="form-control">
+          <option>Branding & Creative</option><option>Video & Reels</option><option>Website & App Development</option>
+          <option>Marketing & Growth</option><option>Photography</option><option>Sales & Lead Generation</option>
+          <option>Operations & Automation</option><option>Finance & Compliance</option><option>Other</option>
+        </select></div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="adDesc" class="form-control" rows="3" placeholder="Describe what startup owners will receive." required></textarea></div>
+      <div class="form-group"><label>Skills / Tags</label><input type="text" id="adTags" class="form-control" placeholder="Figma, React, sales, reels, automation"></div>
+      <div class="form-group media-picker">
+        <label for="adMedia">Photo or reel for your ad</label>
+        <input type="file" id="adMedia" class="form-control" accept="image/*,video/*">
+        <small>Show your work with an image/video preview. Best under 2.5 MB for this static app.</small>
+      </div>
+      <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('adModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Publish Ad</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="ai-bot.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  const user = getCurrentUser();
+  if (!user || user.role !== 'freelancer') window.location.href = 'index.html';
+  document.getElementById('av').textContent = user.avatarInitials;
+  document.getElementById('uname').textContent = user.name;
+  document.getElementById('urole').textContent = user.title;
+
+  let currentJobId = '';
+  syncFromBackend().then(() => go('gigs'));
+
+  function go(view) {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('t-' + view)?.classList.add('active');
+    const titles = { gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications' };
+    document.getElementById('ptitle').textContent = titles[view] || '';
+    const b = document.getElementById('body');
+    if (view === 'gigs') renderGigs(b);
+    else if (view === 'mads') renderMyAds(b);
+    else if (view === 'calc') renderCalc(b);
+    else if (view === 'apps') renderApps(b);
+    lucide.createIcons();
+  }
+
+  function renderGigs(b) {
+    const db = getDB();
+    const activeJobs = db.jobs.filter(j => j.status === 'Active');
+    const cards = activeJobs.map(job => {
+      const st = db.startups.find(s => s.id === job.startupId) || {};
+      return `
+        <div class="glass-card ad-card">
+          ${renderMedia(job.media, job.mediaType)}
+          <div class="ad-header">
+            <div class="ad-company-info">
+              <div class="ad-logo" style="background:${st.logoColor || '#0f766e'}20;color:${st.logoColor || '#0f766e'};">${st.logoInitials || 'ST'}</div>
+              <div class="ad-titles">
+                <span class="ad-title">${job.title}</span>
+                <span class="ad-company-name">${st.name || 'Startup'} - ${st.sector || 'Business'}</span>
+              </div>
+            </div>
+            <span class="badge badge-indigo">${st.stage || 'Open'}</span>
+          </div>
+          <p class="ad-body">${job.description}</p>
+          <div class="ad-meta">${job.tags.map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+          <div class="ad-footer">
+            <div class="ad-price"><span class="price-label">STARTING RATE</span><span class="price-amount">Rs ${job.hourlyRate}/hr</span></div>
+            <button class="btn btn-primary" onclick="openApply('${job.id}','${job.title.replace(/'/g, "\\'")}',${job.hourlyRate})">Apply</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    b.innerHTML = `
+      <div class="hero-strip">
+        <div>
+          <h2>Find work from Indian startups</h2>
+          <p>Apply to opportunities from startups across sectors. Your applications appear in the startup dashboard.</p>
+        </div>
+        <button class="btn btn-primary" onclick="go('mads')"><i data-lucide="megaphone"></i>Post Service Ad</button>
+      </div>
+      <div class="dashboard-grid-3">${cards || emptyState('No gigs posted yet. Publish a service ad so startups can find you directly.')}</div>
+      ${renderStartupMediaFeed(db)}`;
+  }
+
+  function renderMyAds(b) {
+    const db = getDB();
+    const myAds = db.freelancerAds.filter(a => a.freelancerName === user.name);
+    const cards = myAds.map(ad => renderAdCard(ad, true)).join('');
+
+    b.innerHTML = `
+      <div class="chain-strip">
+        <div>
+          <h2>Your ad becomes visible inside Startup dashboards</h2>
+          <p>This is the chain system: publish a service ad with a photo/reel, and startup owners can discover it in Browse Freelancers.</p>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('adModal').classList.add('active')"><i data-lucide="plus"></i>New Ad</button>
+      </div>
+      <div class="dashboard-grid-3">${cards || emptyState('No service ads yet. Publish your first offer for startup clients.')}</div>`;
+    lucide.createIcons();
+  }
+
+  function renderStartupMediaFeed(db) {
+    const posts = db.startupPromotions || [];
+    if (!posts.length) return "";
+    return `
+      <div class="glass-panel" style="padding:1.1rem;">
+        <h3 style="font-size:0.95rem;margin-bottom:1rem;">Startup Media Feed</h3>
+        <div class="dashboard-grid-3">
+          ${posts.map(post => `
+            <div class="glass-card ad-card">
+              ${renderMedia(post.media, post.mediaType)}
+              <div class="ad-header">
+                <div class="ad-titles">
+                  <span class="ad-title">${post.title}</span>
+                  <span class="ad-company-name">${post.startupName}</span>
+                </div>
+                <span class="badge badge-indigo">Startup Post</span>
+              </div>
+              <p class="ad-body">${post.description}</p>
+              <div class="ad-meta">${(post.tags || []).map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  function renderAdCard(ad, mine) {
+    return `
+      <div class="glass-card ad-card">
+        ${renderMedia(ad.media, ad.mediaType)}
+        <div class="ad-header">
+          <div class="ad-company-info">
+            <div class="user-avatar" style="width:36px;height:36px;">${user.avatarInitials}</div>
+            <div class="ad-titles">
+              <span class="ad-title">${ad.title}</span>
+              <span class="ad-company-name">${ad.category || 'Service'} - ${ad.freelancerName}</span>
+            </div>
+          </div>
+          <span class="badge badge-indigo">Visible to startups</span>
+        </div>
+        <p class="ad-body">${ad.description}</p>
+        <div class="ad-meta">${(ad.tags || []).map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+        <div class="ad-footer">
+          <div class="ad-price"><span class="price-label">PACKAGE</span><span class="price-amount">${ad.price}</span></div>
+          ${mine ? `<button class="btn btn-secondary" onclick="deleteAd('${ad.id}')">Remove</button>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function renderCalc(b) {
+    b.innerHTML = `
+      <div class="glass-panel" style="padding:1.25rem;max-width:760px;">
+        <h3 style="margin-bottom:1rem;font-size:1rem;">Simple Rate Estimator</h3>
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:1rem;">
+          <div>
+            <div class="form-group"><label>Hourly Rate (Rs/hr)</label><input type="number" id="cRate" class="form-control" value="500" oninput="recalc()"></div>
+            <div class="form-group"><label>Estimated Hours</label><input type="number" id="cHrs" class="form-control" value="20" oninput="recalc()"></div>
+            <div class="form-group"><label>Complexity</label>
+              <select id="cMult" class="form-control" onchange="recalc()">
+                <option value="1">Standard</option>
+                <option value="1.25">Moderate</option>
+                <option value="1.5">Custom</option>
+                <option value="2">High Complexity</option>
+              </select>
+            </div>
+          </div>
+          <div class="calculator-results" style="text-align:center;display:flex;flex-direction:column;justify-content:center;">
+            <p style="font-size:0.72rem;color:#7b8794;font-weight:800;">ESTIMATED BID</p>
+            <h2 id="cTotal" style="font-size:2rem;color:#0f766e;margin:0.3rem 0;">Rs 10,000</h2>
+            <p id="cBreak" style="font-size:0.78rem;color:#526071;">Rs 500 x 20hrs x 1x</p>
+            <div style="border-top:1px solid #e5eaf1;margin-top:1rem;padding-top:1rem;">
+              <div style="display:flex;justify-content:space-between;font-size:0.8rem;"><span>Platform Fee (2.5%)</span><strong id="cFee" style="color:#c24141;">-Rs 250</strong></div>
+              <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-top:0.3rem;"><strong>Net Earnings</strong><strong id="cNet" style="color:#087f5b;">Rs 9,750</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    recalc();
+  }
+
+  function recalc() {
+    const r = +document.getElementById('cRate').value || 0;
+    const h = +document.getElementById('cHrs').value || 0;
+    const m = +document.getElementById('cMult').value || 1;
+    const total = Math.round(r * h * m);
+    const fee = Math.round(total * 0.025);
+    document.getElementById('cTotal').textContent = `Rs ${total.toLocaleString('en-IN')}`;
+    document.getElementById('cBreak').textContent = `Rs ${r} x ${h}hrs x ${m}x`;
+    document.getElementById('cFee').textContent = `-Rs ${fee.toLocaleString('en-IN')}`;
+    document.getElementById('cNet').textContent = `Rs ${(total - fee).toLocaleString('en-IN')}`;
+  }
+
+  function renderApps(b) {
+    const db = getDB();
+    const myApps = db.applications.filter(a => a.candidateName === user.name);
+    const rows = myApps.map(a => {
+      const color = {Applied:'badge-indigo', Interviewing:'badge-amber', Accepted:'badge-green', Declined:'badge-amber'}[a.status] || 'badge-indigo';
+      return `<tr>
+        <td><strong>${a.jobTitle}</strong><div style="font-size:0.72rem;color:#7b8794;">${a.startupName}</div></td>
+        <td>Rs ${a.proposedRate}/hr</td>
+        <td>${a.appliedDate}</td>
+        <td><span class="badge ${color}">${a.status}</span></td>
+      </tr>`;
+    }).join('');
+    b.innerHTML = `<div class="glass-panel" style="padding:1rem;">
+      <div class="table-container">
+        <table class="custom-table">
+          <thead><tr><th>Gig</th><th>Bid Rate</th><th>Date</th><th>Status</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#7b8794;padding:2rem;">No applications yet. Apply to a gig to start the chain.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  function openApply(id, title, rate) {
+    currentJobId = id;
+    document.getElementById('applyTitle').textContent = `Apply: ${title}`;
+    document.getElementById('bidRate').value = rate;
+    document.getElementById('bidNote').value = '';
+    document.getElementById('applyModal').classList.add('active');
+  }
+
+  function submitApp(e) {
+    e.preventDefault();
+    const db = getDB();
+    const job = db.jobs.find(j => j.id === currentJobId);
+    const st = db.startups.find(s => s.id === job.startupId);
+    db.applications.push({
+      id: 'app-' + Date.now(),
+      jobId: currentJobId,
+      startupName: st.name,
+      jobTitle: job.title,
+      proposedRate: +document.getElementById('bidRate').value,
+      appliedDate: new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }),
+      status: 'Applied',
+      candidateName: user.name
+    });
+    job.applicants = (job.applicants || 0) + 1;
+    saveDB(db);
+    closeModal('applyModal');
+    go('apps');
+  }
+
+  async function submitAd(e) {
+    e.preventDefault();
+    const db = getDB();
+    const tags = document.getElementById('adTags').value.split(',').map(t => t.trim()).filter(Boolean);
+    let media = null;
+    try {
+      media = await fileToMedia(document.getElementById('adMedia'));
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+    db.freelancerAds.push({
+      id: 'fa-' + Date.now(),
+      freelancerName: user.name,
+      title: document.getElementById('adTitle').value,
+      price: document.getElementById('adPrice').value,
+      category: document.getElementById('adCategory').value,
+      description: document.getElementById('adDesc').value,
+      tags: tags.length ? tags : ['General'],
+      appliedDate: new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }),
+      contactPhone: '6301394850',
+      media,
+      mediaType: media?.type || ""
+    });
+    saveDB(db);
+    e.target.reset();
+    closeModal('adModal');
+    go('mads');
+  }
+
+  function deleteAd(id) {
+    if (!confirm('Remove this service ad?')) return;
+    const db = getDB();
+    db.freelancerAds = db.freelancerAds.filter(a => a.id !== id);
+    saveDB(db);
+    go('mads');
+  }
+
+  function emptyState(message) {
+    return `<div class="glass-card" style="grid-column:1/-1;text-align:center;padding:2rem;color:#7b8794;">${message}</div>`;
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+</script>
+</body>
+</html>
