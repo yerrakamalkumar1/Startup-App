@@ -597,19 +597,18 @@
       revealLoginPortal();
     });
 
-    setTimeout(async () => {
-      const played = await playLaunchTone();
-      if (played) {
-        revealLoginPortal();
-      } else {
-        enterButton?.classList.add('active');
-        enterButton?.focus();
-      }
+    window.addEventListener('pointerdown', playLaunchTone, { once: true });
+
+    setTimeout(() => {
+      playLaunchTone();
+      setTimeout(revealLoginPortal, 300);
     }, 1100);
   });
 
   function revealLoginPortal() {
-    document.getElementById('appSplash')?.classList.add('hide');
+    const splash = document.getElementById('appSplash');
+    if (!splash || splash.classList.contains('hide')) return;
+    splash.classList.add('hide');
   }
 
   async function playLaunchTone() {
