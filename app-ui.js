@@ -273,64 +273,106 @@ const AppUX = (() => {
 
   function installMessageDock() {
     const user = getCurrentUser?.();
-    if (!user || document.getElementById("messageDockBtn")) return;
-    const button = document.createElement("button");
-    button.id = "messageDockBtn";
-    button.className = "ai-bot-toggle";
-    button.title = "Messages";
-    button.style.bottom = "96px";
-    button.innerHTML = '<i data-lucide="message-circle"></i>';
-    button.addEventListener("click", openMessageDock);
-    document.body.appendChild(button);
-
-    const modal = document.createElement("div");
-    modal.id = "messageDock";
-    modal.className = "modal-overlay";
-    modal.innerHTML = `<div class="modal-content glass-panel">
-      <div class="modal-header">
-        <h3>Messages & Network</h3>
-        <button class="btn btn-secondary btn-icon" type="button" onclick="document.getElementById('messageDock').classList.remove('active')"><i data-lucide="x"></i></button>
+    if (!user || document.getElementById("messageDock")) return;
+    const page = document.createElement("section");
+    page.id = "messageDock";
+    page.className = "message-page";
+    page.innerHTML = `
+      <div class="message-page-header">
+        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.closeMessages()"><i data-lucide="arrow-left"></i></button>
+        <div><h3>Messages</h3><p>Inbox and direct chat</p></div>
       </div>
       <div id="messageDockBody"></div>
-    </div>`;
-    document.body.appendChild(modal);
+    `;
+    document.body.appendChild(page);
     if (window.lucide) window.lucide.createIcons();
   }
 
   function openMessageDock() {
-    const user = getCurrentUser?.();
+    const page = document.getElementById("messageDock");
+    if (!page) return;
+    page.classList.add("active");
+    document.body.classList.add("messages-open");
+    setBottomActive("messages");
+    renderInbox();
+    markVisibleMessagesRead();
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeMessages() {
+    document.getElementById("messageDock")?.classList.remove("active");
+    document.body.classList.remove("messages-open");
+    updateBottomNav();
+  }
+
+  function renderInbox() {
+    const user = getCurrentUser();
     const db = getDB();
     const profiles = getAllProfiles().filter(profile => profile.name !== user.name);
-    const selected = profiles[0]?.name || "";
-    document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(selected);
-    document.getElementById("messageDock").classList.add("active");
-    markVisibleMessagesRead();
+    const rows = profiles.map(profile => {
+      const last = [...(db.messages || [])].reverse().find(m =>
+        (m.from === user.name && m.to === profile.name) || (m.from === profile.name && m.to === user.name)
+      );
+      const unread = (db.messages || []).filter(m => m.from === profile.name && m.to === user.name && !m.read).length;
+      const online = (window.ConnectHubOnlineUsers || []).includes(profile.name);
+      const safeName = profile.name.replace(/'/g, "\\'");
+      return `<button class="message-row" onclick="AppUX.openChat('${safeName}')">
+        <span class="message-avatar-wrap">${avatarMarkup(profile, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
+        <span class="message-row-main">
+          <strong>${profile.name}</strong>
+          <small>@${(profile.email || profile.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}</small>
+          <em>${last?.text || "Start a conversation"}</em>
+        </span>
+        <span class="message-row-meta"><small>${last ? "now" : ""}</small>${unread ? `<b>${unread}</b>` : ""}</span>
+      </button>`;
+    }).join("");
+
+    document.getElementById("messageDockBody").innerHTML = `
+      <div class="message-search"><i data-lucide="search"></i><input id="messageSearch" placeholder="Search messages" oninput="AppUX.filterMessages(this.value)"></div>
+      <div id="messageRows" class="message-list">${rows || '<div class="empty-message-state">No profiles available.</div>'}</div>
+      <button class="new-message-inline" onclick="AppUX.focusMessageSearch()">New Message</button>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function filterMessages(query) {
+    const q = String(query || "").toLowerCase();
+    document.querySelectorAll(".message-row").forEach(row => {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? "grid" : "none";
+    });
+  }
+
+  function focusMessageSearch() {
+    document.getElementById("messageSearch")?.focus();
+  }
+
+  function openChat(selectedName) {
+    const body = document.getElementById("messageDockBody");
+    if (!body) return;
+    body.innerHTML = renderMessageDockBody(selectedName);
     if (window.lucide) window.lucide.createIcons();
   }
 
   function renderMessageDockBody(selectedName) {
     const user = getCurrentUser();
     const db = getDB();
-    const profiles = getAllProfiles().filter(profile => profile.name !== user.name);
+    const profile = getAllProfiles().find(item => item.name === selectedName) || { name: selectedName, title: "Connect Hub member" };
+    const online = (window.ConnectHubOnlineUsers || []).includes(selectedName);
     const messages = db.messages.filter(m =>
       (m.from === user.name && m.to === selectedName) || (m.from === selectedName && m.to === user.name)
     );
-    return `<div class="form-group">
-      <label>Talk to</label>
-      <select id="msgTo" class="form-control" onchange="document.getElementById('messageDockBody').innerHTML = AppUX.renderMessageDockBody(this.value)">
-        ${profiles.map(profile => `<option ${profile.name === selectedName ? "selected" : ""}>${profile.name}</option>`).join("")}
-      </select>
+    return `<div class="chat-full-header">
+      <button class="btn btn-secondary btn-icon" onclick="AppUX.renderInbox()" type="button"><i data-lucide="arrow-left"></i></button>
+      ${avatarMarkup(profile, "user-avatar")}
+      <div><strong>${profile.name}</strong><small>${online ? "Online" : "Offline"} · ${profile.title || profile.role || "Member"}</small></div>
     </div>
-    <div class="message-panel">
+    <div class="message-panel full-chat-panel">
       ${messages.map(message => `<div class="message-bubble ${message.from === user.name ? "mine" : ""}">${message.text}</div>`).join("") || '<p style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
     </div>
-    <div style="display:flex;gap:0.5rem;margin-top:0.8rem;">
-      <input id="msgText" class="form-control" placeholder="Write a message...">
+    <div class="chat-compose">
+      <input id="msgTo" type="hidden" value="${selectedName}">
+      <input id="msgText" class="form-control" placeholder="Message ${profile.name.split(" ")[0]}...">
       <button class="btn btn-primary" onclick="AppUX.sendDockMessage()"><i data-lucide="send"></i></button>
-    </div>
-    <div style="margin-top:1rem;">
-      <h4 style="font-size:0.85rem;margin-bottom:0.5rem;">My Network</h4>
-      ${(db.connections || []).filter(c => [c.from, c.to].includes(user.name)).map(c => `<span class="badge badge-green">${c.from === user.name ? c.to : c.from} - ${c.status}</span>`).join(" ") || '<span style="color:#7b8794;font-size:0.8rem;">No connections yet.</span>'}
     </div>`;
   }
 
@@ -618,5 +660,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat };
 })();
