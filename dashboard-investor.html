@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="index.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f766e">
-  <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
 </head>
 <body>
 <div class="app-container">
@@ -109,13 +110,20 @@
   }
 
   function renderExplore(b) {
+    const db = getDB();
+    const cities = [...new Set(db.startups.map(st => st.city).filter(Boolean))];
     b.innerHTML = `
       <div>
-        <div style="position:relative;margin-bottom:1rem;">
-          <input type="text" id="sSearch" class="form-control" placeholder="Search by startup name, sector or stage..." oninput="filterStartups()" style="padding-left:2.1rem;">
-          <i data-lucide="search" style="position:absolute;left:0.65rem;top:50%;transform:translateY(-50%);width:14px;color:#5e5e5e;"></i>
+        ${renderCompleteness(user)}
+        <div class="filter-row" style="margin:1rem 0;">
+          <div style="position:relative;">
+            <input type="text" id="sSearch" class="form-control" placeholder="Search by startup, sector, stage, city..." oninput="filterStartups()" style="padding-left:2.1rem;">
+            <i data-lucide="search" style="position:absolute;left:0.65rem;top:50%;transform:translateY(-50%);width:14px;color:#5e5e5e;"></i>
+          </div>
+          <select id="sCity" class="form-control" onchange="filterStartups()"><option value="">All cities</option>${cities.map(city => `<option>${city}</option>`).join('')}</select>
+          <select id="sSector" class="form-control" onchange="filterStartups()"><option value="">All sectors</option>${STARTUP_SECTORS.map(sector => `<option>${sector}</option>`).join('')}</select>
         </div>
-        <p style="color:#5e5e5e;font-size:0.8rem;margin-bottom:1rem;">Browse Indian cafes, restaurants, and real estate startups seeking capital.</p>
+        <p style="color:#5e5e5e;font-size:0.8rem;margin-bottom:1rem;">Browse Indian startups across sectors seeking capital, sponsors, and strategic support.</p>
         <div id="stGrid" class="dashboard-grid-3"></div>
       </div>`;
     filterStartups();
@@ -124,10 +132,15 @@
 
   function filterStartups() {
     const q = (document.getElementById('sSearch')?.value||'').toLowerCase();
+    const city = document.getElementById('sCity')?.value || '';
+    const sector = document.getElementById('sSector')?.value || '';
     const db = getDB();
-    const list = db.startups.filter(s =>
-      s.name.toLowerCase().includes(q) || s.sector.toLowerCase().includes(q) || s.stage.toLowerCase().includes(q)
+    let list = db.startups.filter(s =>
+      (!city || s.city === city) &&
+      (!sector || s.sector === sector) &&
+      (!q || s.name.toLowerCase().includes(q) || s.sector.toLowerCase().includes(q) || s.stage.toLowerCase().includes(q) || (s.city || '').toLowerCase().includes(q))
     );
+    list = searchItems(list, q, ['name','sector','stage','city','state','description']);
     const grid = document.getElementById('stGrid');
     if (!grid) return;
     grid.innerHTML = list.map(st => {
@@ -141,7 +154,7 @@
               <div style="width:36px;height:36px;border-radius:6px;background:${st.logoColor}20;color:${st.logoColor};border:1px solid ${st.logoColor}40;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">${st.logoInitials}</div>
               <div>
                 <div style="font-weight:700;font-size:0.9rem;color:#191919;">${st.name}</div>
-                <div style="font-size:0.7rem;color:#5e5e5e;">${st.sector}</div>
+                <div style="font-size:0.7rem;color:#5e5e5e;">${st.sector} ${st.city ? '- ' + st.city : ''}</div>
               </div>
             </div>
             <span class="badge badge-indigo">${st.stage}</span>
@@ -191,6 +204,15 @@
         </div>
       </div>`;
     lucide.createIcons();
+  }
+
+  function renderCompleteness(profile) {
+    const pct = calculateProfileCompleteness(profile);
+    return `<div class="profile-complete">
+      <div style="display:flex;justify-content:space-between;gap:1rem;"><strong>Profile strength</strong><span>${pct}% complete</span></div>
+      <div class="profile-complete-track"><span class="profile-complete-fill" style="width:${pct}%"></span></div>
+      <p style="color:#7b8794;font-size:0.78rem;">Add location and bio so founders can trust sponsor outreach.</p>
+    </div>`;
   }
 
   function rsvp(evId) {

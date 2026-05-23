@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="index.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f766e">
-  <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
 </head>
 <body>
 <div class="app-container">
@@ -114,7 +115,7 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'gigs', profileView: 'mads' });
+  AppUX.init({ homeView: 'gigs', profileView: 'profile' });
 
   let currentJobId = '';
   syncFromBackend().then(() => go('gigs'));
@@ -122,13 +123,14 @@
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications' };
+    const titles = { gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications', profile:'Profile' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const b = document.getElementById('body');
     if (view === 'gigs') renderGigs(b);
     else if (view === 'mads') renderMyAds(b);
     else if (view === 'calc') renderCalc(b);
     else if (view === 'apps') renderApps(b);
+    else if (view === 'profile') renderProfile(b);
     lucide.createIcons();
     AppUX.onView(view);
   }
@@ -168,6 +170,7 @@
         </div>
         <button class="btn btn-primary" onclick="go('mads')"><i data-lucide="megaphone"></i>Post Service Ad</button>
       </div>
+      ${renderCompleteness(user)}
       <div class="dashboard-grid-3">${cards || emptyState('No gigs posted yet. Publish a service ad so startups can find you directly.')}</div>
       ${renderStartupMediaFeed(db)}`;
   }
@@ -219,7 +222,7 @@
         ${renderMedia(ad.media, ad.mediaType)}
         <div class="ad-header">
           <div class="ad-company-info">
-            <div class="user-avatar" style="width:36px;height:36px;">${user.avatarInitials}</div>
+            ${avatarMarkup(user, 'user-avatar')}
             <div class="ad-titles">
               <span class="ad-title">${ad.title}</span>
               <span class="ad-company-name">${ad.category || 'Service'} - ${ad.freelancerName}</span>
@@ -351,6 +354,8 @@
       tags: tags.length ? tags : ['General'],
       appliedDate: new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }),
       contactPhone: '6301394850',
+      city: user.city || '',
+      state: user.state || '',
       media,
       mediaType: media?.type || ""
     });
@@ -366,6 +371,72 @@
     db.freelancerAds = db.freelancerAds.filter(a => a.id !== id);
     saveDB(db);
     go('mads');
+  }
+
+  function renderCompleteness(profile) {
+    const pct = calculateProfileCompleteness(profile);
+    return `<div class="profile-complete">
+      <div style="display:flex;justify-content:space-between;gap:1rem;"><strong>Profile strength</strong><span>${pct}% complete</span></div>
+      <div class="profile-complete-track"><span class="profile-complete-fill" style="width:${pct}%"></span></div>
+      <p style="color:#7b8794;font-size:0.78rem;">Completed profiles rank higher when startups search freelancers.</p>
+    </div>`;
+  }
+
+  function renderProfile(b) {
+    const fresh = getCurrentUser();
+    b.innerHTML = `<div class="glass-panel" style="padding:1.25rem;max-width:780px;">
+      <h3 style="font-size:1rem;margin-bottom:1rem;">Profile Settings</h3>
+      ${renderCompleteness(fresh)}
+      <form onsubmit="saveMyProfile(event)" style="margin-top:1rem;">
+        <div class="profile-editor">
+          <div>
+            <div class="avatar-preview">${avatarMarkup(fresh, 'user-avatar')}</div>
+            <input id="profilePhoto" class="form-control" type="file" accept="image/png,image/jpeg,image/webp" style="margin-top:0.7rem;">
+          </div>
+          <div>
+            <div class="form-group"><label>Full name</label><input id="profileName" class="form-control" value="${fresh.name || ''}" required></div>
+            <div class="form-group"><label>Title / Skills</label><input id="profileTitle" class="form-control" value="${fresh.title || ''}" required></div>
+          </div>
+        </div>
+        <div class="form-group"><label>Bio</label><textarea id="profileBio" class="form-control" rows="3">${fresh.bio || ''}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+          <div class="form-group"><label>City</label><input id="profileCity" class="form-control" value="${fresh.city || ''}"></div>
+          <div class="form-group"><label>State</label><input id="profileState" class="form-control" value="${fresh.state || ''}"></div>
+        </div>
+        <div style="display:flex;gap:0.6rem;justify-content:flex-end;flex-wrap:wrap;">
+          <button type="button" class="btn btn-secondary" onclick="detectProfileLocation()"><i data-lucide="map-pin"></i>Detect Location</button>
+          <button class="btn btn-primary" type="submit">Save Profile</button>
+        </div>
+      </form>
+    </div>`;
+    lucide.createIcons();
+  }
+
+  async function saveMyProfile(e) {
+    e.preventDefault();
+    let avatarPhoto = null;
+    try { avatarPhoto = await fileToAvatar(document.getElementById('profilePhoto')); } catch (error) { alert(error.message); return; }
+    const patch = {
+      name: document.getElementById('profileName').value,
+      title: document.getElementById('profileTitle').value,
+      bio: document.getElementById('profileBio').value,
+      city: document.getElementById('profileCity').value,
+      state: document.getElementById('profileState').value,
+      skills: document.getElementById('profileTitle').value.split(',').map(t => t.trim()).filter(Boolean)
+    };
+    if (avatarPhoto) patch.avatarPhoto = avatarPhoto;
+    Object.assign(user, updateCurrentProfile(patch));
+    AppUX.applyUserChrome();
+    go('profile');
+  }
+
+  async function detectProfileLocation() {
+    try {
+      const location = await requestBrowserLocation();
+      document.getElementById('profileCity').value = location.city || document.getElementById('profileCity').value;
+      document.getElementById('profileState').value = location.state || document.getElementById('profileState').value;
+      updateCurrentProfile({ location, city: location.city || user.city, state: location.state || user.state });
+    } catch (error) { alert(error.message); }
   }
 
   function emptyState(message) {

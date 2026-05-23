@@ -11,6 +11,8 @@ const INITIAL_DB = {
       raised: "Rs 12 Lakh",
       target: "Rs 20 Lakh",
       description: "Growing local commerce startup building a faster ordering, fulfilment, and customer-retention system.",
+      city: "Hyderabad",
+      state: "Telangana",
       logoColor: "#ea580c",
       logoInitials: "CP",
       views: [45, 60, 80, 110, 125, 140, 155],
@@ -25,6 +27,8 @@ const INITIAL_DB = {
       raised: "Rs 80 Lakh",
       target: "Rs 1.5 Crore",
       description: "Hyperlocal platform connecting customers, verified operators, and service partners in high-trust sectors.",
+      city: "Bengaluru",
+      state: "Karnataka",
       logoColor: "#2563eb",
       logoInitials: "HH",
       views: [90, 115, 130, 145, 160, 190, 210],
@@ -39,6 +43,8 @@ const INITIAL_DB = {
       raised: "Rs 3 Lakh",
       target: "Rs 10 Lakh",
       description: "Consumer-services startup using operations tech, creator marketing, and local partner networks.",
+      city: "Mumbai",
+      state: "Maharashtra",
       logoColor: "#dc2626",
       logoInitials: "TE",
       views: [25, 30, 45, 55, 60, 75, 80],
@@ -92,6 +98,8 @@ const INITIAL_DB = {
       category: "Branding & Creative",
       description: "Launch graphics, offer creatives, carousel posts, and campaign templates for early-stage teams.",
       tags: ["Graphic Design", "Branding", "Social Media"],
+      city: "Hyderabad",
+      state: "Telangana",
       appliedDate: "18 May 2026",
       contactPhone: "6301394850"
     },
@@ -103,6 +111,8 @@ const INITIAL_DB = {
       category: "Video & Reels",
       description: "Polished short videos with captions, hooks, transitions, and platform-ready export formats.",
       tags: ["Video Editing", "Reels", "Premiere Pro"],
+      city: "Hyderabad",
+      state: "Telangana",
       appliedDate: "20 May 2026",
       contactPhone: "6301394850"
     }
@@ -163,6 +173,10 @@ const DEMO_USERS = {
     role: "freelancer",
     title: "Brand & Growth Designer",
     avatarInitials: "SJ",
+    city: "Hyderabad",
+    state: "Telangana",
+    bio: "Brand and growth designer for launch-stage Indian startups.",
+    skills: ["Branding", "Social Media", "Reels"],
     earnings: "Rs 18,500",
     activeContracts: 1
   },
@@ -172,13 +186,19 @@ const DEMO_USERS = {
     title: "Founder, NexaLocal Commerce",
     avatarInitials: "RS",
     startupId: "st-1",
-    companyName: "NexaLocal Commerce"
+    companyName: "NexaLocal Commerce",
+    city: "Hyderabad",
+    state: "Telangana",
+    bio: "Founder building local commerce systems for Indian businesses."
   },
   "ananya@connecthub.in": {
     name: "Ananya Sen",
     role: "investor",
     title: "Partner, India Venture Fund",
     avatarInitials: "AS",
+    city: "Mumbai",
+    state: "Maharashtra",
+    bio: "Angel sponsor backing useful Indian startup networks.",
     fundsCommitted: "Rs 5,00,000",
     portfolioSize: 1
   }
@@ -259,6 +279,20 @@ async function resetPasswordWithOtp(email, otp, password) {
   });
 }
 
+async function requestRegistrationOtp(email) {
+  return apiRequest("/api/register/request-otp", {
+    method: "POST",
+    body: JSON.stringify({ email: normalizeEmail(email) })
+  });
+}
+
+async function verifyRegistrationOtp(email, otp) {
+  return apiRequest("/api/register/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ email: normalizeEmail(email), otp })
+  });
+}
+
 async function createRazorpayOrder(amount, purpose, notes = {}) {
   return apiRequest("/api/payments/create-order", {
     method: "POST",
@@ -325,8 +359,12 @@ function getPlatformStats() {
 
 function ensureDBShape(db) {
   if (!Array.isArray(db.startupPromotions)) db.startupPromotions = [];
+  if (!Array.isArray(db.connections)) db.connections = [];
+  if (!Array.isArray(db.messages)) db.messages = [];
+  if (!Array.isArray(db.notifications)) db.notifications = [];
   db.freelancerAds = (db.freelancerAds || []).map(ad => ({ media: null, mediaType: "", ...ad }));
   db.jobs = (db.jobs || []).map(job => ({ media: null, mediaType: "", ...job }));
+  db.startups = (db.startups || []).map(startup => ({ city: "", state: "", ...startup }));
   return db;
 }
 
@@ -345,6 +383,21 @@ function fileToMedia(fileInput) {
   });
 }
 
+function fileToAvatar(fileInput) {
+  const file = fileInput?.files?.[0];
+  if (!file) return Promise.resolve(null);
+  const isSupported = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+  if (!isSupported) return Promise.reject(new Error("Use a JPG, PNG, or WebP profile photo."));
+  if (file.size > 900 * 1024) return Promise.reject(new Error("Keep profile photos under 900 KB for this free demo storage."));
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ dataUrl: reader.result, type: file.type, name: file.name });
+    reader.onerror = () => reject(new Error("Could not read that profile photo."));
+    reader.readAsDataURL(file);
+  });
+}
+
 function renderMedia(media, mediaType) {
   if (!media) return "";
   const type = mediaType || media.type || "";
@@ -354,6 +407,18 @@ function renderMedia(media, mediaType) {
   return `<img class="post-media" src="${media.dataUrl || media}" alt="Advertisement media">`;
 }
 
+function avatarMarkup(profile, className = "user-avatar") {
+  const initials = profile?.avatarInitials || initialsForName(profile?.name || profile?.companyName || "CH");
+  if (profile?.avatarPhoto?.dataUrl) {
+    return `<img class="${className} avatar-img" src="${profile.avatarPhoto.dataUrl}" alt="${profile.name || 'Profile'}">`;
+  }
+  return `<div class="${className}">${initials}</div>`;
+}
+
+function initialsForName(name) {
+  return String(name || "CH").split(" ").map(word => word[0]).join("").toUpperCase().substring(0, 2);
+}
+
 function getCurrentUser() {
   const userStr = localStorage.getItem("connecthub_user");
   return userStr ? JSON.parse(userStr) : null;
@@ -361,6 +426,17 @@ function getCurrentUser() {
 
 function setCurrentUser(user) {
   localStorage.setItem("connecthub_user", JSON.stringify(user));
+}
+
+function saveCurrentUser(user) {
+  setCurrentUser(user);
+  const email = normalizeEmail(user.email);
+  if (!email) return;
+  const users = getRegisteredUsers();
+  if (users[email]) {
+    users[email].profile = user;
+    localStorage.setItem("connecthub_registered_users", JSON.stringify(users));
+  }
 }
 
 function clearSession() {
@@ -415,9 +491,16 @@ async function registerUser(name, email, password, role, title, additionalInfo) 
   const initials = name.split(" ").map(w => w[0]).join("").toUpperCase().substring(0, 2);
   const userProfile = {
     name,
+    email,
     role,
     title,
-    avatarInitials: initials
+    avatarInitials: initials,
+    avatarPhoto: additionalInfo.avatarPhoto || null,
+    city: additionalInfo.city || "",
+    state: additionalInfo.state || "",
+    location: additionalInfo.location || null,
+    bio: additionalInfo.bio || "",
+    skills: additionalInfo.skills || []
   };
 
   if (role === "freelancer") {
@@ -434,6 +517,8 @@ async function registerUser(name, email, password, role, title, additionalInfo) 
       raised: "Rs 0",
       target: additionalInfo.targetFunding || "Rs 5 Lakh",
       description: "Local Indian startup looking for freelancers, partners, and sponsors.",
+      city: additionalInfo.city || "",
+      state: additionalInfo.state || "",
       logoColor: "#0f766e",
       logoInitials: initials,
       views: [10, 15, 20, 22, 28, 35, 40],
@@ -467,4 +552,166 @@ function getDashboardUrl(role) {
 function handleLogout() {
   clearSession();
   window.location.href = "index.html";
+}
+
+function calculateProfileCompleteness(profile) {
+  const checks = [
+    profile?.name,
+    profile?.title,
+    profile?.bio,
+    profile?.avatarPhoto?.dataUrl,
+    profile?.city,
+    profile?.state,
+    profile?.skills?.length || profile?.companyName,
+    profile?.location?.latitude
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function getAllProfiles() {
+  const users = [
+    ...Object.entries(DEMO_USERS).map(([email, profile]) => ({ ...profile, email })),
+    ...Object.values(getRegisteredUsers()).map(entry => entry.profile)
+  ];
+  return users.map(profile => ({
+    ...profile,
+    completeness: calculateProfileCompleteness(profile)
+  })).sort((a, b) => b.completeness - a.completeness);
+}
+
+function getMarketplaceProfiles(role = "") {
+  return getAllProfiles().filter(profile => !role || profile.role === role);
+}
+
+function updateCurrentProfile(patch) {
+  const user = getCurrentUser();
+  if (!user) return null;
+  const updated = { ...user, ...patch };
+  updated.avatarInitials = updated.avatarInitials || initialsForName(updated.name);
+  saveCurrentUser(updated);
+
+  const db = getDB();
+  if (updated.role === "startup_admin" && updated.startupId) {
+    const startup = db.startups.find(s => s.id === updated.startupId);
+    if (startup) {
+      startup.city = updated.city || startup.city;
+      startup.state = updated.state || startup.state;
+      startup.description = updated.bio || startup.description;
+    }
+  }
+  saveDB(db);
+  return updated;
+}
+
+function searchItems(items, query, keys) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return items;
+  if (window.Fuse) {
+    return new Fuse(items, {
+      keys,
+      threshold: 0.34,
+      ignoreLocation: true,
+      includeScore: true
+    }).search(q).map(result => result.item);
+  }
+  return items
+    .map(item => {
+      const text = keys.map(key => {
+        const value = key.split(".").reduce((obj, part) => obj?.[part], item);
+        return Array.isArray(value) ? value.join(" ") : value;
+      }).join(" ").toLowerCase();
+      const direct = text.includes(q) ? 2 : 0;
+      const fuzzy = q.split("").every(char => text.includes(char)) ? 1 : 0;
+      return { item, score: direct + fuzzy };
+    })
+    .filter(result => result.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(result => result.item);
+}
+
+function requestBrowserLocation() {
+  if (!("geolocation" in navigator)) return Promise.reject(new Error("Location is not supported on this device."));
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(async position => {
+      const location = {
+        latitude: Number(position.coords.latitude.toFixed(6)),
+        longitude: Number(position.coords.longitude.toFixed(6)),
+        accuracy: Math.round(position.coords.accuracy || 0)
+      };
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${location.latitude}&lon=${location.longitude}`;
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        const data = await res.json();
+        const address = data.address || {};
+        location.city = address.city || address.town || address.village || address.county || "";
+        location.state = address.state || "";
+      } catch {
+        location.city = "";
+        location.state = "";
+      }
+      resolve(location);
+    }, reject, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+  });
+}
+
+function connectUsers(targetName) {
+  const user = getCurrentUser();
+  if (!user || !targetName || targetName === user.name) return;
+  const db = getDB();
+  const existing = db.connections.find(c =>
+    [c.from, c.to].includes(user.name) && [c.from, c.to].includes(targetName)
+  );
+  if (existing) return existing;
+  const request = {
+    id: "conn-" + Date.now(),
+    from: user.name,
+    to: targetName,
+    status: "Pending",
+    createdAt: new Date().toISOString()
+  };
+  db.connections.push(request);
+  db.notifications.push({
+    id: "not-" + Date.now(),
+    to: targetName,
+    type: "connection",
+    text: `${user.name} sent you a connection request.`,
+    read: false,
+    createdAt: new Date().toISOString()
+  });
+  saveDB(db);
+  return request;
+}
+
+function getUnreadCount() {
+  const user = getCurrentUser();
+  if (!user) return 0;
+  const db = getDB();
+  return db.messages.filter(m => m.to === user.name && !m.read).length +
+    db.notifications.filter(n => n.to === user.name && !n.read).length;
+}
+
+function sendLocalMessage(to, text) {
+  const user = getCurrentUser();
+  if (!user || !to || !text) return null;
+  const db = getDB();
+  const message = {
+    id: "msg-" + Date.now(),
+    from: user.name,
+    to,
+    text: String(text).slice(0, 600),
+    read: false,
+    createdAt: new Date().toISOString()
+  };
+  db.messages.push(message);
+  db.notifications.push({
+    id: "not-" + Date.now(),
+    to,
+    type: "message",
+    text: `New message from ${user.name}`,
+    read: false,
+    createdAt: message.createdAt
+  });
+  saveDB(db);
+  if (window.ConnectHubSocket) window.ConnectHubSocket.emit("message:send", message);
+  return message;
 }

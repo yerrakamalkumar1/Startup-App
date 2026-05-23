@@ -3,6 +3,12 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const https = require("https");
+let Server = null;
+try {
+  ({ Server } = require("socket.io"));
+} catch {
+  Server = null;
+}
 let nodemailer = null;
 try {
   nodemailer = require("nodemailer");
@@ -133,7 +139,10 @@ const INITIAL_DB = {
     }
   ],
   events: [],
-  investments: []
+  investments: [],
+  connections: [],
+  messages: [],
+  notifications: []
 };
 
 function ensureDataFiles() {
@@ -310,7 +319,18 @@ function verifyRazorpaySignature({ razorpay_order_id, razorpay_payment_id, razor
 
 function createUserProfile({ name, role, title, additionalInfo = {} }) {
   const initials = initialsFor(name);
-  const profile = { name, role, title, avatarInitials: initials };
+  const profile = {
+    name,
+    role,
+    title,
+    avatarInitials: initials,
+    avatarPhoto: additionalInfo.avatarPhoto || null,
+    city: additionalInfo.city || "",
+    state: additionalInfo.state || "",
+    location: additionalInfo.location || null,
+    bio: additionalInfo.bio || "",
+    skills: additionalInfo.skills || []
+  };
 
   if (role === "freelancer") {
     profile.earnings = "Rs 0";
@@ -327,6 +347,8 @@ function createUserProfile({ name, role, title, additionalInfo = {} }) {
       raised: "Rs 0",
       target: additionalInfo.targetFunding || "Rs 5 Lakh",
       description: "Startup looking for freelancers, partners, and sponsors.",
+      city: additionalInfo.city || "",
+      state: additionalInfo.state || "",
       logoColor: "#0f766e",
       logoInitials: initials,
       views: [10, 15, 20, 22, 28, 35, 40],
@@ -425,10 +447,33 @@ async function handleApi(req, res) {
       return sendJson(res, 409, { success: false, message: "Email account already registered." });
     }
     const profile = createUserProfile(body);
+    profile.email = email;
     const passwordData = hashPassword(body.password);
     users[email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
     writeJson(USERS_FILE, users);
     return sendJson(res, 200, { success: true, user: profile, db: readJson(DB_FILE, INITIAL_DB) });
+  }
+
+  if (req.url === "/api/register/request-otp" && req.method === "POST") {
+    const { email: rawEmail } = await readBody(req);
+    const email = normalizeEmail(rawEmail);
+    const users = readJson(USERS_FILE, {});
+    if (!email) return sendJson(res, 400, { success: false, message: "Email is required." });
+    if (DEMO_USERS[email] || users[email]) {
+      return sendJson(res, 409, { success: false, message: "Email account already registered." });
+    }
+    const otp = createOtp(`register:${email}`);
+    await sendOtpEmail(email, otp);
+    return sendJson(res, 200, { success: true, message: "Registration OTP sent to your email." });
+  }
+
+  if (req.url === "/api/register/verify-otp" && req.method === "POST") {
+    const { email: rawEmail, otp } = await readBody(req);
+    const email = normalizeEmail(rawEmail);
+    if (!verifyOtp(`register:${email}`, otp)) {
+      return sendJson(res, 400, { success: false, message: "Invalid or expired registration OTP." });
+    }
+    return sendJson(res, 200, { success: true, message: "Email verified." });
   }
 
   if (req.url === "/api/password/request" && req.method === "POST") {
@@ -503,12 +548,64 @@ async function handleApi(req, res) {
 
 ensureDataFiles();
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   if (req.url.startsWith("/api/")) {
     handleApi(req, res).catch(error => sendJson(res, 500, { success: false, message: error.message }));
     return;
   }
   serveStatic(req, res);
-}).listen(PORT, () => {
+});
+
+if (Server) {
+  const io = new Server(server, { cors: { origin: "*" } });
+  const onlineUsers = new Map();
+
+  io.on("connection", socket => {
+    socket.on("user:online", name => {
+      const safeName = String(name || "").slice(0, 80);
+      if (!safeName) return;
+      socket.data.name = safeName;
+      onlineUsers.set(safeName, socket.id);
+      io.emit("presence:update", Array.from(onlineUsers.keys()));
+    });
+
+    socket.on("message:send", message => {
+      const safeMessage = {
+        id: `msg-${Date.now()}`,
+        from: String(message?.from || socket.data.name || "").slice(0, 80),
+        to: String(message?.to || "").slice(0, 80),
+        text: String(message?.text || "").slice(0, 600),
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      if (!safeMessage.from || !safeMessage.to || !safeMessage.text) return;
+
+      const db = readJson(DB_FILE, INITIAL_DB);
+      db.messages = db.messages || [];
+      db.notifications = db.notifications || [];
+      db.messages.push(safeMessage);
+      db.notifications.push({
+        id: `not-${Date.now()}`,
+        to: safeMessage.to,
+        type: "message",
+        text: `New message from ${safeMessage.from}`,
+        read: false,
+        createdAt: safeMessage.createdAt
+      });
+      writeJson(DB_FILE, db);
+
+      socket.emit("message:new", safeMessage);
+      const targetSocket = onlineUsers.get(safeMessage.to);
+      if (targetSocket) io.to(targetSocket).emit("message:new", safeMessage);
+    });
+
+    socket.on("disconnect", () => {
+      if (socket.data.name) onlineUsers.delete(socket.data.name);
+      io.emit("presence:update", Array.from(onlineUsers.keys()));
+    });
+  });
+}
+
+server.listen(PORT, () => {
   console.log(`Connect Hub backend running at http://localhost:${PORT}`);
 });

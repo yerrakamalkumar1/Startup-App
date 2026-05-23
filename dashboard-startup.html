@@ -7,8 +7,9 @@
   <link rel="stylesheet" href="index.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f766e">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
 </head>
 <body>
 <div class="app-container">
@@ -181,6 +182,7 @@
           <button class="btn btn-primary" onclick="openPromoModal()"><i data-lucide="image-plus"></i>Post Photo/Reel</button>
         </div>
       </div>
+      ${renderCompleteness(user)}
       <div class="dashboard-grid-3">
         <div class="glass-card stat-card">
           <div><span class="stat-label">Profile Views</span><span class="stat-value">${st.views.slice(-1)[0]}</span><span class="stat-change">This week</span></div>
@@ -260,6 +262,7 @@
   function renderBrowse(b) {
     const db = getDB();
     const ads = db.freelancerAds;
+    const cities = [...new Set(ads.map(ad => ad.city).filter(Boolean))];
     b.innerHTML = `
       <div class="chain-strip">
         <div>
@@ -268,9 +271,13 @@
         </div>
         <span class="badge badge-green">${ads.length} available</span>
       </div>
-      <div style="position:relative;">
-        <input type="text" id="fsearch" class="form-control" placeholder="Search designers, developers, marketers, editors..." oninput="filterAds()" style="padding-left:2.2rem;">
-        <i data-lucide="search" style="position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);width:16px;color:#7b8794;"></i>
+      <div class="filter-row">
+        <div style="position:relative;">
+          <input type="text" id="fsearch" class="form-control" placeholder="Search skills, services, freelancers..." oninput="filterAds()" style="padding-left:2.2rem;">
+          <i data-lucide="search" style="position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);width:16px;color:#7b8794;"></i>
+        </div>
+        <select id="fcity" class="form-control" onchange="filterAds()"><option value="">All cities</option>${cities.map(city => `<option>${city}</option>`).join('')}</select>
+        <select id="fcat" class="form-control" onchange="filterAds()"><option value="">All services</option>${SERVICE_CATEGORIES.map(cat => `<option>${cat}</option>`).join('')}</select>
       </div>
       <div id="adsGrid" class="dashboard-grid-3">${renderAdCards(ads)}</div>`;
     lucide.createIcons();
@@ -282,10 +289,10 @@
         ${renderMedia(ad.media, ad.mediaType)}
         <div class="ad-header">
           <div class="ad-company-info">
-            <div class="user-avatar" style="width:36px;height:36px;">${ad.freelancerName.split(' ').map(w => w[0]).join('').substring(0,2)}</div>
+            ${avatarMarkup(getMarketplaceProfiles('freelancer').find(p => p.name === ad.freelancerName) || { name: ad.freelancerName }, 'user-avatar')}
             <div class="ad-titles">
               <span class="ad-title">${ad.title}</span>
-              <span class="ad-company-name">${ad.freelancerName} - ${ad.category || 'Service'}</span>
+              <span class="ad-company-name">${ad.freelancerName} - ${ad.city || 'India'} - ${ad.category || 'Service'}</span>
             </div>
           </div>
           <span class="badge badge-indigo">Freelancer Ad</span>
@@ -294,6 +301,7 @@
         <div class="ad-meta">${(ad.tags || []).map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
         <div class="ad-footer">
           <div class="ad-price"><span class="price-label">PACKAGE</span><span class="price-amount">${ad.price}</span></div>
+          <button class="btn btn-secondary" onclick="sendConnection('${ad.freelancerName.replace(/'/g, "\\'")}')">Connect</button>
           <button class="btn btn-primary" onclick="openHire('${ad.id}')">Contact</button>
         </div>
       </div>`).join('') : emptyState('No freelancer ads yet. They will appear here as soon as freelancers publish them.');
@@ -301,15 +309,36 @@
 
   function filterAds() {
     const q = document.getElementById('fsearch').value.toLowerCase();
+    const city = document.getElementById('fcity')?.value || '';
+    const cat = document.getElementById('fcat')?.value || '';
     const db = getDB();
-    const filtered = db.freelancerAds.filter(ad =>
-      ad.title.toLowerCase().includes(q) ||
-      ad.freelancerName.toLowerCase().includes(q) ||
-      (ad.category || '').toLowerCase().includes(q) ||
-      (ad.tags || []).some(t => t.toLowerCase().includes(q))
+    let filtered = db.freelancerAds.filter(ad =>
+      (!city || ad.city === city) &&
+      (!cat || ad.category === cat) &&
+      (!q ||
+        ad.title.toLowerCase().includes(q) ||
+        ad.freelancerName.toLowerCase().includes(q) ||
+        (ad.category || '').toLowerCase().includes(q) ||
+        (ad.city || '').toLowerCase().includes(q) ||
+        (ad.tags || []).some(t => t.toLowerCase().includes(q)))
     );
+    filtered = searchItems(filtered, q, ['title','freelancerName','category','city','tags']);
     document.getElementById('adsGrid').innerHTML = renderAdCards(filtered);
     lucide.createIcons();
+  }
+
+  function renderCompleteness(profile) {
+    const pct = calculateProfileCompleteness(profile);
+    return `<div class="profile-complete">
+      <div style="display:flex;justify-content:space-between;gap:1rem;"><strong>Profile strength</strong><span>${pct}% complete</span></div>
+      <div class="profile-complete-track"><span class="profile-complete-fill" style="width:${pct}%"></span></div>
+      <p style="color:#7b8794;font-size:0.78rem;">Add photo, bio, city and location to rank higher in marketplace search.</p>
+    </div>`;
+  }
+
+  function sendConnection(name) {
+    const req = connectUsers(name);
+    alert(req?.status === 'Pending' ? 'Connection request sent.' : 'Already connected or requested.');
   }
 
   function openHire(adId) {
@@ -338,10 +367,22 @@
   function renderProfile(b) {
     const db = getDB();
     const st = db.startups.find(s => s.id === myStartup.id) || myStartup;
+    const fresh = getCurrentUser();
     b.innerHTML = `
       <div class="glass-panel" style="padding:1.25rem;max-width:760px;">
         <h3 style="font-size:1rem;margin-bottom:1rem;">Business Profile</h3>
+        ${renderCompleteness(fresh)}
         <form onsubmit="saveProfile(event)">
+          <div class="profile-editor" style="margin:1rem 0;">
+            <div>
+              <div class="avatar-preview">${avatarMarkup(fresh, 'user-avatar')}</div>
+              <input id="pPhoto" class="form-control" type="file" accept="image/png,image/jpeg,image/webp" style="margin-top:0.7rem;">
+            </div>
+            <div>
+              <div class="form-group"><label>Founder Name</label><input type="text" id="pUserName" class="form-control" value="${fresh.name || ''}" required></div>
+              <div class="form-group"><label>Founder Title</label><input type="text" id="pUserTitle" class="form-control" value="${fresh.title || ''}" required></div>
+            </div>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
             <div class="form-group"><label>Business Name</label><input type="text" id="pName" class="form-control" value="${st.name}" required></div>
             <div class="form-group"><label>Sector</label><select id="pSector" class="form-control">${STARTUP_SECTORS.map(s => `<option ${s === st.sector ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
@@ -350,24 +391,55 @@
             <div class="form-group"><label>Valuation</label><input type="text" id="pVal" class="form-control" value="${st.valuation}" required></div>
             <div class="form-group"><label>Funding Stage</label><select id="pStage" class="form-control">${['Pre-seed','Seed','Series A','Series B'].map(s => `<option ${s === st.stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div class="form-group"><label>City</label><input type="text" id="pCity" class="form-control" value="${st.city || fresh.city || ''}"></div>
+            <div class="form-group"><label>State</label><input type="text" id="pState" class="form-control" value="${st.state || fresh.state || ''}"></div>
+          </div>
           <div class="form-group"><label>Short Pitch</label><textarea id="pDesc" class="form-control" rows="4" required>${st.description}</textarea></div>
-          <div style="display:flex;justify-content:flex-end;"><button type="submit" class="btn btn-primary">Save Profile</button></div>
+          <div style="display:flex;justify-content:flex-end;gap:0.6rem;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary" onclick="detectBusinessLocation()"><i data-lucide="map-pin"></i>Detect Location</button>
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+          </div>
         </form>
       </div>`;
+    lucide.createIcons();
   }
 
-  function saveProfile(e) {
+  async function saveProfile(e) {
     e.preventDefault();
     const db = getDB();
     const st = db.startups.find(s => s.id === myStartup.id);
+    let avatarPhoto = null;
+    try { avatarPhoto = await fileToAvatar(document.getElementById('pPhoto')); } catch (error) { alert(error.message); return; }
     st.name = document.getElementById('pName').value;
     st.sector = document.getElementById('pSector').value;
     st.valuation = document.getElementById('pVal').value;
     st.stage = document.getElementById('pStage').value;
     st.description = document.getElementById('pDesc').value;
+    st.city = document.getElementById('pCity').value;
+    st.state = document.getElementById('pState').value;
     saveDB(db);
+    const patch = {
+      name: document.getElementById('pUserName').value,
+      title: document.getElementById('pUserTitle').value,
+      city: st.city,
+      state: st.state,
+      bio: st.description
+    };
+    if (avatarPhoto) patch.avatarPhoto = avatarPhoto;
+    Object.assign(user, updateCurrentProfile(patch));
     document.getElementById('topLabel').textContent = st.name;
+    AppUX.applyUserChrome();
     alert('Profile saved.');
+  }
+
+  async function detectBusinessLocation() {
+    try {
+      const location = await requestBrowserLocation();
+      document.getElementById('pCity').value = location.city || document.getElementById('pCity').value;
+      document.getElementById('pState').value = location.state || document.getElementById('pState').value;
+      updateCurrentProfile({ location, city: location.city || user.city, state: location.state || user.state });
+    } catch (error) { alert(error.message); }
   }
 
   function renderCandidates(b) {
