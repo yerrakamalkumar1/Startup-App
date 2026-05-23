@@ -132,7 +132,16 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'analytics', profileView: 'profile' });
+  AppUX.init({
+    homeView: 'analytics',
+    exploreView: 'browse',
+    profileView: 'profile',
+    onProfileSaved: updated => {
+      const db = getDB();
+      myStartup = db.startups.find(s => s.id === updated.startupId) || myStartup;
+      document.getElementById('topLabel').textContent = myStartup.name;
+    }
+  });
 
   let db0 = getDB();
   let myStartup = db0.startups.find(s => s.id === user.startupId) || db0.startups[0];
@@ -365,44 +374,7 @@
   }
 
   function renderProfile(b) {
-    const db = getDB();
-    const st = db.startups.find(s => s.id === myStartup.id) || myStartup;
-    const fresh = getCurrentUser();
-    b.innerHTML = `
-      <div class="glass-panel" style="padding:1.25rem;max-width:760px;">
-        <h3 style="font-size:1rem;margin-bottom:1rem;">Business Profile</h3>
-        ${renderCompleteness(fresh)}
-        <form onsubmit="saveProfile(event)">
-          <div class="profile-editor" style="margin:1rem 0;">
-            <div>
-              <div class="avatar-preview">${avatarMarkup(fresh, 'user-avatar')}</div>
-              <input id="pPhoto" class="form-control" type="file" accept="image/png,image/jpeg,image/webp" style="margin-top:0.7rem;">
-            </div>
-            <div>
-              <div class="form-group"><label>Founder Name</label><input type="text" id="pUserName" class="form-control" value="${fresh.name || ''}" required></div>
-              <div class="form-group"><label>Founder Title</label><input type="text" id="pUserTitle" class="form-control" value="${fresh.title || ''}" required></div>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <div class="form-group"><label>Business Name</label><input type="text" id="pName" class="form-control" value="${st.name}" required></div>
-            <div class="form-group"><label>Sector</label><select id="pSector" class="form-control">${STARTUP_SECTORS.map(s => `<option ${s === st.sector ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <div class="form-group"><label>Valuation</label><input type="text" id="pVal" class="form-control" value="${st.valuation}" required></div>
-            <div class="form-group"><label>Funding Stage</label><select id="pStage" class="form-control">${['Pre-seed','Seed','Series A','Series B'].map(s => `<option ${s === st.stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <div class="form-group"><label>City</label><input type="text" id="pCity" class="form-control" value="${st.city || fresh.city || ''}"></div>
-            <div class="form-group"><label>State</label><input type="text" id="pState" class="form-control" value="${st.state || fresh.state || ''}"></div>
-          </div>
-          <div class="form-group"><label>Short Pitch</label><textarea id="pDesc" class="form-control" rows="4" required>${st.description}</textarea></div>
-          <div style="display:flex;justify-content:flex-end;gap:0.6rem;flex-wrap:wrap;">
-            <button type="button" class="btn btn-secondary" onclick="detectBusinessLocation()"><i data-lucide="map-pin"></i>Detect Location</button>
-            <button type="submit" class="btn btn-primary">Save Profile</button>
-          </div>
-        </form>
-      </div>`;
-    lucide.createIcons();
+    AppUX.renderEditProfilePage(b);
   }
 
   async function saveProfile(e) {

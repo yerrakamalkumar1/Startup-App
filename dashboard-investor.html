@@ -91,59 +91,91 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'explore', profileView: 'portfolio' });
+  AppUX.init({ homeView: 'explore', exploreView: 'explore', profileView: 'profile' });
 
   let investingId = '';
+  let roleFilter = 'All';
   syncFromBackend().then(() => go('explore'));
 
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { explore:'Explore Indian Startups', events:'Investment Events', portfolio:'My Portfolio' };
+    const titles = { explore:'Explore Indian Startups', events:'Investment Events', portfolio:'My Portfolio', profile:'Edit Profile' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const b = document.getElementById('body');
     if (view === 'explore') renderExplore(b);
     else if (view === 'events') renderEvents(b);
     else if (view === 'portfolio') renderPortfolio(b);
+    else if (view === 'profile') renderProfile(b);
     lucide.createIcons();
     AppUX.onView(view);
   }
 
   function renderExplore(b) {
-    const db = getDB();
-    const cities = [...new Set(db.startups.map(st => st.city).filter(Boolean))];
+    const items = getUniversalMarketplaceItems();
+    const cities = [...new Set(items.map(item => item.city).filter(Boolean))];
     b.innerHTML = `
       <div>
         ${renderCompleteness(user)}
         <div class="filter-row" style="margin:1rem 0;">
           <div style="position:relative;">
-            <input type="text" id="sSearch" class="form-control" placeholder="Search by startup, sector, stage, city..." oninput="filterStartups()" style="padding-left:2.1rem;">
+            <input type="text" id="sSearch" class="form-control" placeholder="Search skill, sector, funding, city..." oninput="filterStartups()" style="padding-left:2.1rem;">
             <i data-lucide="search" style="position:absolute;left:0.65rem;top:50%;transform:translateY(-50%);width:14px;color:#5e5e5e;"></i>
           </div>
           <select id="sCity" class="form-control" onchange="filterStartups()"><option value="">All cities</option>${cities.map(city => `<option>${city}</option>`).join('')}</select>
           <select id="sSector" class="form-control" onchange="filterStartups()"><option value="">All sectors</option>${STARTUP_SECTORS.map(sector => `<option>${sector}</option>`).join('')}</select>
         </div>
-        <p style="color:#5e5e5e;font-size:0.8rem;margin-bottom:1rem;">Browse Indian startups across sectors seeking capital, sponsors, and strategic support.</p>
+        <div class="role-filter-chips">
+          ${['All','Freelancer','Startup','Investor'].map(role => `<button class="${roleFilter === role ? 'active' : ''}" onclick="setRoleFilter('${role}')">${role}</button>`).join('')}
+        </div>
+        <p style="color:#5e5e5e;font-size:0.8rem;margin:0.8rem 0 1rem;">Explore freelancers, startups, and investors across Indian cities.</p>
         <div id="stGrid" class="dashboard-grid-3"></div>
       </div>`;
     filterStartups();
     lucide.createIcons();
   }
 
+  function setRoleFilter(role) {
+    roleFilter = role;
+    renderExplore(document.getElementById('body'));
+  }
+
   function filterStartups() {
     const q = (document.getElementById('sSearch')?.value||'').toLowerCase();
     const city = document.getElementById('sCity')?.value || '';
     const sector = document.getElementById('sSector')?.value || '';
-    const db = getDB();
-    let list = db.startups.filter(s =>
-      (!city || s.city === city) &&
-      (!sector || s.sector === sector) &&
-      (!q || s.name.toLowerCase().includes(q) || s.sector.toLowerCase().includes(q) || s.stage.toLowerCase().includes(q) || (s.city || '').toLowerCase().includes(q))
+    let list = getUniversalMarketplaceItems().filter(item =>
+      (roleFilter === 'All' || item.type === roleFilter) &&
+      (!city || item.city === city) &&
+      (!sector || item.sector === sector) &&
+      (!q || item.name.toLowerCase().includes(q) || (item.sector || '').toLowerCase().includes(q) || (item.title || '').toLowerCase().includes(q) || (item.city || '').toLowerCase().includes(q) || (item.funding || '').toLowerCase().includes(q))
     );
-    list = searchItems(list, q, ['name','sector','stage','city','state','description']);
+    list = searchItems(list, q, ['name','sector','title','city','state','description','funding']);
     const grid = document.getElementById('stGrid');
     if (!grid) return;
-    grid.innerHTML = list.map(st => {
+    grid.innerHTML = list.map(item => {
+      if (!item.startup) {
+        const online = (window.ConnectHubOnlineUsers || []).includes(item.personName);
+        return `<div class="glass-card" style="display:flex;flex-direction:column;gap:0.85rem;">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:0.7rem;">
+            <div style="display:flex;gap:0.65rem;align-items:center;">
+              ${avatarMarkup(item.avatarProfile, 'user-avatar')}
+              <div>
+                <div style="font-weight:800;font-size:0.9rem;color:var(--text-primary);">${item.name}</div>
+                <div style="font-size:0.72rem;color:var(--text-muted);">${item.title || item.type}</div>
+              </div>
+            </div>
+            <span class="presence-dot ${online ? 'online' : ''}"></span>
+          </div>
+          <p style="font-size:0.8rem;color:var(--text-secondary);min-height:3.1rem;">${item.description || 'Open to networking on Connect Hub.'}</p>
+          <div class="ad-meta"><span class="badge badge-indigo">${item.type}</span><span class="badge badge-green">${item.city || 'India'}${item.state ? ', ' + item.state : ''}</span></div>
+          <div style="display:flex;gap:0.5rem;justify-content:flex-end;border-top:1px solid var(--border-color);padding-top:0.75rem;">
+            <button class="btn btn-secondary" onclick="connectUsers('${item.personName.replace(/'/g, "\\'")}'); AppUX.showToast('Connection request sent')">Connect</button>
+            <button class="btn btn-primary" onclick="sendLocalMessage('${item.personName.replace(/'/g, "\\'")}','Hi, I found your profile on Connect Hub.'); AppUX.showToast('Message sent')">Message</button>
+          </div>
+        </div>`;
+      }
+      const st = item.startup;
       const raised = parseFloat(st.raised.replace(/[^0-9.]/g,''))||0;
       const target = parseFloat(st.target.replace(/[^0-9.]/g,''))||1;
       const pct = Math.min(100, Math.round(raised/target*100));
@@ -256,6 +288,10 @@
           </table>
         </div>
       </div>`;
+  }
+
+  function renderProfile(b) {
+    AppUX.renderEditProfilePage(b);
   }
 
   function openInvest(id, name) {

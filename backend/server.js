@@ -476,6 +476,24 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, message: "Email verified." });
   }
 
+  if (req.url === "/api/profile/update" && req.method === "POST") {
+    const { email: rawEmail, profile } = await readBody(req);
+    const email = normalizeEmail(rawEmail || profile?.email);
+    const users = readJson(USERS_FILE, {});
+    if (!email || !users[email]) {
+      return sendJson(res, 404, { success: false, message: "Profile account not found." });
+    }
+    const safeProfile = {
+      ...users[email].profile,
+      ...profile,
+      email,
+      avatarPhoto: profile?.avatarPhoto || users[email].profile.avatarPhoto || null
+    };
+    users[email].profile = safeProfile;
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, user: safeProfile });
+  }
+
   if (req.url === "/api/password/request" && req.method === "POST") {
     const { email: rawEmail } = await readBody(req);
     const email = normalizeEmail(rawEmail);

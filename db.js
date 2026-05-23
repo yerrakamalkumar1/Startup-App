@@ -437,6 +437,12 @@ function saveCurrentUser(user) {
     users[email].profile = user;
     localStorage.setItem("connecthub_registered_users", JSON.stringify(users));
   }
+  if (CONNECTHUB_BACKEND_URL) {
+    apiRequest("/api/profile/update", {
+      method: "POST",
+      body: JSON.stringify({ email, profile: user })
+    }).catch(error => console.warn("ConnectHub profile save failed:", error.message));
+  }
 }
 
 function clearSession() {
@@ -581,6 +587,39 @@ function getAllProfiles() {
 
 function getMarketplaceProfiles(role = "") {
   return getAllProfiles().filter(profile => !role || profile.role === role);
+}
+
+function getUniversalMarketplaceItems() {
+  const db = getDB();
+  const profiles = getAllProfiles().map(profile => ({
+    type: profile.role === "startup_admin" ? "Startup" : profile.role === "investor" ? "Investor" : "Freelancer",
+    role: profile.role,
+    name: profile.companyName || profile.name,
+    personName: profile.name,
+    title: profile.title,
+    sector: profile.role === "freelancer" ? (profile.skills || []).join(", ") : profile.role === "investor" ? "Funding & Sponsorship" : "Startup",
+    city: profile.city || "",
+    state: profile.state || "",
+    description: profile.bio || profile.title || "",
+    avatarProfile: profile,
+    completeness: profile.completeness
+  }));
+  const startups = (db.startups || []).map(startup => ({
+    type: "Startup",
+    role: "startup_admin",
+    id: startup.id,
+    name: startup.name,
+    personName: startup.name,
+    title: startup.stage,
+    sector: startup.sector,
+    funding: startup.target,
+    city: startup.city || "",
+    state: startup.state || "",
+    description: startup.description,
+    startup,
+    completeness: startup.city ? 80 : 60
+  }));
+  return [...startups, ...profiles].sort((a, b) => (b.completeness || 0) - (a.completeness || 0));
 }
 
 function updateCurrentProfile(patch) {

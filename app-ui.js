@@ -2,6 +2,8 @@ const AppUX = (() => {
   let audioCtx = null;
   let homeView = "";
   let profileView = "";
+  let exploreView = "";
+  let onProfileSaved = null;
   let historyStack = [];
   let currentView = "";
 
@@ -39,6 +41,8 @@ const AppUX = (() => {
   function init(options = {}) {
     homeView = options.homeView || homeView;
     profileView = options.profileView || homeView;
+    exploreView = options.exploreView || options.browseView || homeView;
+    onProfileSaved = options.onProfileSaved || null;
     document.addEventListener("pointerdown", unlockAudio, { once: true });
     installShellControls();
     installProfileMenu();
@@ -47,6 +51,7 @@ const AppUX = (() => {
     installDarkMode();
     installRealtime();
     installMessageDock();
+    installBottomNav();
     applyUserChrome();
   }
 
@@ -165,13 +170,63 @@ const AppUX = (() => {
       count.style.display = unread ? "inline-flex" : "none";
       badge.appendChild(count);
     }
+    const bottomProfile = document.getElementById("bottomProfileAvatar");
+    if (bottomProfile) {
+      bottomProfile.innerHTML = user.avatarPhoto?.dataUrl
+        ? `<img class="avatar-img" src="${user.avatarPhoto.dataUrl}" alt="${user.name || "Profile"}">`
+        : `<span>${user.avatarInitials || ""}</span>`;
+    }
+    document.getElementById("uname") && (document.getElementById("uname").textContent = user.name || "");
+    document.getElementById("urole") && (document.getElementById("urole").textContent = user.title || "");
+  }
+
+  function installBottomNav() {
+    if (document.getElementById("bottomNav")) return;
+    const nav = document.createElement("nav");
+    nav.id = "bottomNav";
+    nav.className = "bottom-nav";
+    nav.innerHTML = `
+      <button type="button" data-bottom-view="${homeView}" data-bottom-tab="home"><i data-lucide="home"></i><span>Home</span></button>
+      <button type="button" data-bottom-view="${exploreView}" data-bottom-tab="explore"><i data-lucide="search"></i><span>Explore</span></button>
+      <button type="button" data-bottom-action="messages" data-bottom-tab="messages"><i data-lucide="message-circle"></i><span>Messages</span><small id="bottomMsgBadge"></small></button>
+      <button type="button" data-bottom-view="${profileView}" data-bottom-tab="profile"><span id="bottomProfileAvatar" class="bottom-avatar"></span><span>Profile</span></button>
+    `;
+    nav.addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      playSound("nav");
+      if (button.dataset.bottomAction === "messages") {
+        openMessageDock();
+        setBottomActive("messages");
+        return;
+      }
+      if (button.dataset.bottomView && window.go) window.go(button.dataset.bottomView);
+    });
+    document.body.appendChild(nav);
+    updateBottomNav();
+    updateUnreadBadge();
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function setBottomActive(tab) {
+    document.querySelectorAll(".bottom-nav button").forEach(button => {
+      button.classList.toggle("active", button.dataset.bottomTab === tab);
+    });
+  }
+
+  function updateBottomNav() {
+    let tab = "";
+    if (currentView === profileView) tab = "profile";
+    else if (currentView === exploreView) tab = "explore";
+    else if (currentView === homeView) tab = "home";
+    setBottomActive(tab);
   }
 
   function installDarkMode() {
     const saved = localStorage.getItem("connecthub_theme") || "light";
     document.documentElement.dataset.theme = saved;
     if (document.getElementById("themeToggle")) return;
-    const nav = document.querySelector(".top-navbar > div:last-child");
+    const nav = document.querySelector(".top-navbar > div:last-child") || document.querySelector(".top-navbar");
     if (!nav) return;
     const button = document.createElement("button");
     button.id = "themeToggle";
@@ -306,10 +361,16 @@ const AppUX = (() => {
 
   function updateUnreadBadge() {
     const badge = document.getElementById("unreadBadge");
-    if (!badge) return;
     const unread = getUnreadCount?.() || 0;
-    badge.textContent = unread;
-    badge.style.display = unread ? "inline-flex" : "none";
+    if (badge) {
+      badge.textContent = unread;
+      badge.style.display = unread ? "inline-flex" : "none";
+    }
+    const bottomBadge = document.getElementById("bottomMsgBadge");
+    if (bottomBadge) {
+      bottomBadge.textContent = unread;
+      bottomBadge.style.display = unread ? "inline-flex" : "none";
+    }
   }
 
   function installButtonSounds() {
@@ -387,7 +448,136 @@ const AppUX = (() => {
     animateContent();
     refreshPulse();
     updateBackButton();
+    updateBottomNav();
     playSound("nav");
+  }
+
+  function renderEditProfilePage(container) {
+    const user = getCurrentUser();
+    const db = getDB();
+    const startup = user?.startupId ? db.startups.find(s => s.id === user.startupId) : null;
+    const pct = calculateProfileCompleteness(user);
+    const roleFields = user.role === "startup_admin"
+      ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+          <div class="form-group"><label>Business Name</label><input id="editBusinessName" class="form-control" value="${startup?.name || user.companyName || ""}"></div>
+          <div class="form-group"><label>Sector</label><select id="editSector" class="form-control">${STARTUP_SECTORS.map(s => `<option ${s === (startup?.sector || "") ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+        </div>
+        <div class="form-group"><label>Funding Goal</label><input id="editFundingGoal" class="form-control" value="${startup?.target || ""}" placeholder="Rs 10 Lakh"></div>`
+      : user.role === "investor"
+        ? `<div class="form-group"><label>Firm / Angel Network</label><input id="editFirm" class="form-control" value="${user.firmName || ""}" placeholder="Angel network name"></div>`
+        : `<div class="form-group"><label>Skill / Professional Title</label><input id="editTitle" class="form-control" value="${user.title || ""}" placeholder="Designer, developer, marketer"></div>`;
+
+    container.innerHTML = `<div class="glass-panel edit-profile-page">
+      <h3>Edit Profile</h3>
+      <div class="profile-complete">
+        <div style="display:flex;justify-content:space-between;gap:1rem;"><strong>Profile</strong><span>${pct}% complete</span></div>
+        <div class="profile-complete-track"><span class="profile-complete-fill" style="width:${pct}%"></span></div>
+      </div>
+      <form onsubmit="AppUX.saveEditProfile(event)" style="margin-top:1rem;">
+        <div class="profile-editor">
+          <div>
+            <label class="avatar-upload-preview" for="editPhoto">${user.avatarPhoto?.dataUrl ? `<img src="${user.avatarPhoto.dataUrl}" alt="Profile photo">` : `<span>${user.avatarInitials || "CH"}</span>`}</label>
+            <input id="editPhoto" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          </div>
+          <div>
+            <div class="form-group"><label>Full Name</label><input id="editName" class="form-control" value="${user.name || ""}" required></div>
+            ${user.role !== "freelancer" ? `<div class="form-group"><label>Professional Title</label><input id="editTitle" class="form-control" value="${user.title || ""}" required></div>` : ""}
+          </div>
+        </div>
+        <div class="form-group"><label>Bio / Short Pitch</label><textarea id="editBio" class="form-control" rows="3" maxlength="200" oninput="document.getElementById('bioCount').textContent=this.value.length">${user.bio || ""}</textarea><small><span id="bioCount">${(user.bio || "").length}</span>/200</small></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+          <div class="form-group"><label>City</label><input id="editCity" class="form-control" value="${user.city || startup?.city || ""}"></div>
+          <div class="form-group"><label>State</label><input id="editState" class="form-control" value="${user.state || startup?.state || ""}"></div>
+        </div>
+        ${roleFields}
+        <div class="form-group"><label>WhatsApp Number</label><input id="editWhatsapp" class="form-control" value="${user.whatsapp || ""}" inputmode="tel" placeholder="9876543210"></div>
+        <div class="edit-profile-actions">
+          <button type="button" class="btn btn-secondary" onclick="AppUX.useCurrentLocationForProfile()"><i data-lucide="map-pin"></i>Use Current Location</button>
+          <button class="btn btn-primary" type="submit"><i data-lucide="save"></i>Save Profile</button>
+        </div>
+      </form>
+    </div>`;
+
+    document.getElementById("editPhoto")?.addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        document.querySelector(".avatar-upload-preview").innerHTML = `<img src="${reader.result}" alt="Profile photo preview">`;
+      };
+      reader.readAsDataURL(file);
+    });
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  async function saveEditProfile(event) {
+    event.preventDefault();
+    const user = getCurrentUser();
+    const db = getDB();
+    let avatarPhoto = null;
+    try {
+      avatarPhoto = await fileToAvatar(document.getElementById("editPhoto"));
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
+
+    const patch = {
+      name: document.getElementById("editName").value.trim(),
+      title: document.getElementById("editTitle")?.value.trim() || user.title,
+      bio: document.getElementById("editBio").value.trim().slice(0, 200),
+      city: document.getElementById("editCity").value.trim(),
+      state: document.getElementById("editState").value.trim(),
+      whatsapp: document.getElementById("editWhatsapp").value.trim(),
+      firmName: document.getElementById("editFirm")?.value.trim() || user.firmName || ""
+    };
+    if (avatarPhoto) patch.avatarPhoto = avatarPhoto;
+
+    if (user.role === "startup_admin" && user.startupId) {
+      const startup = db.startups.find(s => s.id === user.startupId);
+      if (startup) {
+        startup.name = document.getElementById("editBusinessName")?.value.trim() || startup.name;
+        startup.sector = document.getElementById("editSector")?.value || startup.sector;
+        startup.target = document.getElementById("editFundingGoal")?.value.trim() || startup.target;
+        startup.city = patch.city;
+        startup.state = patch.state;
+        patch.companyName = startup.name;
+      }
+      saveDB(db);
+    }
+
+    const updated = updateCurrentProfile(patch);
+    applyUserChrome();
+    if (onProfileSaved) onProfileSaved(updated);
+    showToast("Profile updated successfully");
+    if (window.go && profileView) window.go(profileView);
+  }
+
+  async function useCurrentLocationForProfile() {
+    try {
+      const location = await requestBrowserLocation();
+      const city = document.getElementById("editCity");
+      const state = document.getElementById("editState");
+      if (city && location.city) city.value = location.city;
+      if (state && location.state) state.value = location.state;
+      updateCurrentProfile({ location, city: location.city || city?.value || "", state: location.state || state?.value || "" });
+      showToast("Location added to profile");
+    } catch (error) {
+      showToast(error.message || "Could not detect location", "error");
+    }
+  }
+
+  function showToast(message, type = "success") {
+    let toast = document.getElementById("appToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "appToast";
+      toast.className = "app-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `app-toast active ${type}`;
+    setTimeout(() => toast.classList.remove("active"), 2400);
   }
 
   function animateContent() {
@@ -428,5 +618,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast };
 })();

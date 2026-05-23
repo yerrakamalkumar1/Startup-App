@@ -556,6 +556,30 @@ h1, h2, h3, h4 {
   gap: 0.6rem;
 }
 
+.role-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.role-filter-chips button {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  transition: var(--transition);
+}
+
+.role-filter-chips button.active {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-soft);
+  color: var(--accent-blue);
+}
+
 .profile-editor {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
@@ -567,6 +591,160 @@ h1, h2, h3, h4 {
   width: 88px;
   height: 88px;
   border-radius: 24px;
+}
+
+.avatar-upload-preview {
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid var(--accent-blue-soft);
+  border-radius: 999px;
+  background: var(--accent-blue);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: 900;
+  box-shadow: var(--shadow-sm);
+}
+
+.avatar-upload-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edit-profile-page {
+  max-width: 760px;
+  padding: 1.25rem;
+}
+
+.edit-profile-page h3 {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.edit-profile-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding-top: 0.8rem;
+  background: linear-gradient(180deg, transparent, var(--bg-secondary) 28%);
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  z-index: 950;
+  display: none;
+  width: min(calc(100% - 20px), 520px);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+  transform: translateX(-50%);
+  backdrop-filter: blur(16px);
+}
+
+:root[data-theme="dark"] .bottom-nav {
+  background: rgba(18, 25, 35, 0.96);
+}
+
+.bottom-nav button {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 52px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 800;
+  transition: var(--transition);
+}
+
+.bottom-nav button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.bottom-nav button.active {
+  background: var(--accent-blue-soft);
+  color: var(--accent-blue);
+}
+
+.bottom-avatar {
+  width: 21px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 900;
+}
+
+#bottomMsgBadge {
+  position: absolute;
+  top: 4px;
+  right: 22%;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 900;
+}
+
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 92px;
+  z-index: 1600;
+  max-width: min(92vw, 420px);
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: #0f766e;
+  color: #fff;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 12px);
+  transition: var(--transition);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.app-toast.error {
+  background: #b91c1c;
+}
+
+.app-toast.active {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .presence-dot {
@@ -1173,7 +1351,19 @@ h1, h2, h3, h4 {
   }
 
   .content-body {
-    padding: 0.85rem;
+    padding: 0.85rem 0.85rem 6.4rem;
+  }
+
+  .app-footer {
+    padding-bottom: 6.2rem;
+  }
+
+  .bottom-nav {
+    display: grid;
+  }
+
+  #messageDockBtn {
+    display: none;
   }
 
   .dashboard-grid-2,
@@ -1184,6 +1374,14 @@ h1, h2, h3, h4 {
   .filter-row,
   .profile-editor {
     grid-template-columns: 1fr;
+  }
+
+  .edit-profile-actions {
+    justify-content: stretch;
+  }
+
+  .edit-profile-actions .btn {
+    flex: 1;
   }
 
   .ad-footer,

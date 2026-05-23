@@ -115,7 +115,7 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'gigs', profileView: 'profile' });
+  AppUX.init({ homeView: 'gigs', exploreView: 'mads', profileView: 'profile' });
 
   let currentJobId = '';
   syncFromBackend().then(() => go('gigs'));
@@ -383,33 +383,7 @@
   }
 
   function renderProfile(b) {
-    const fresh = getCurrentUser();
-    b.innerHTML = `<div class="glass-panel" style="padding:1.25rem;max-width:780px;">
-      <h3 style="font-size:1rem;margin-bottom:1rem;">Profile Settings</h3>
-      ${renderCompleteness(fresh)}
-      <form onsubmit="saveMyProfile(event)" style="margin-top:1rem;">
-        <div class="profile-editor">
-          <div>
-            <div class="avatar-preview">${avatarMarkup(fresh, 'user-avatar')}</div>
-            <input id="profilePhoto" class="form-control" type="file" accept="image/png,image/jpeg,image/webp" style="margin-top:0.7rem;">
-          </div>
-          <div>
-            <div class="form-group"><label>Full name</label><input id="profileName" class="form-control" value="${fresh.name || ''}" required></div>
-            <div class="form-group"><label>Title / Skills</label><input id="profileTitle" class="form-control" value="${fresh.title || ''}" required></div>
-          </div>
-        </div>
-        <div class="form-group"><label>Bio</label><textarea id="profileBio" class="form-control" rows="3">${fresh.bio || ''}</textarea></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
-          <div class="form-group"><label>City</label><input id="profileCity" class="form-control" value="${fresh.city || ''}"></div>
-          <div class="form-group"><label>State</label><input id="profileState" class="form-control" value="${fresh.state || ''}"></div>
-        </div>
-        <div style="display:flex;gap:0.6rem;justify-content:flex-end;flex-wrap:wrap;">
-          <button type="button" class="btn btn-secondary" onclick="detectProfileLocation()"><i data-lucide="map-pin"></i>Detect Location</button>
-          <button class="btn btn-primary" type="submit">Save Profile</button>
-        </div>
-      </form>
-    </div>`;
-    lucide.createIcons();
+    AppUX.renderEditProfilePage(b);
   }
 
   async function saveMyProfile(e) {
