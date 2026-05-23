@@ -454,28 +454,6 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, user: profile, db: readJson(DB_FILE, INITIAL_DB) });
   }
 
-  if (req.url === "/api/register/request-otp" && req.method === "POST") {
-    const { email: rawEmail } = await readBody(req);
-    const email = normalizeEmail(rawEmail);
-    const users = readJson(USERS_FILE, {});
-    if (!email) return sendJson(res, 400, { success: false, message: "Email is required." });
-    if (DEMO_USERS[email] || users[email]) {
-      return sendJson(res, 409, { success: false, message: "Email account already registered." });
-    }
-    const otp = createOtp(`register:${email}`);
-    await sendOtpEmail(email, otp);
-    return sendJson(res, 200, { success: true, message: "Registration OTP sent to your email." });
-  }
-
-  if (req.url === "/api/register/verify-otp" && req.method === "POST") {
-    const { email: rawEmail, otp } = await readBody(req);
-    const email = normalizeEmail(rawEmail);
-    if (!verifyOtp(`register:${email}`, otp)) {
-      return sendJson(res, 400, { success: false, message: "Invalid or expired registration OTP." });
-    }
-    return sendJson(res, 200, { success: true, message: "Email verified." });
-  }
-
   if (req.url === "/api/profile/update" && req.method === "POST") {
     const { email: rawEmail, profile } = await readBody(req);
     const email = normalizeEmail(rawEmail || profile?.email);

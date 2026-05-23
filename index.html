@@ -531,38 +531,6 @@
           <label id="titleLabel">Skill / Professional Title</label>
           <input type="text" id="regTitle" class="form-control" placeholder="Growth designer, developer, editor" required>
         </div>
-        <div class="form-group">
-          <label>Profile Photo</label>
-          <input type="file" id="regAvatar" class="form-control" accept="image/png,image/jpeg,image/webp">
-        </div>
-        <div class="form-group">
-          <label>Bio / Short Pitch</label>
-          <textarea id="regBio" class="form-control" rows="2" placeholder="Tell people what you do and who you help."></textarea>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
-          <div class="form-group">
-            <label>City</label>
-            <input type="text" id="regCity" class="form-control" placeholder="Hyderabad">
-          </div>
-          <div class="form-group">
-            <label>State</label>
-            <input type="text" id="regState" class="form-control" placeholder="Telangana">
-          </div>
-        </div>
-        <button type="button" class="btn btn-secondary" style="width:100%;margin-bottom:0.9rem;" onclick="detectRegistrationLocation()">
-          <i data-lucide="map-pin"></i>Use Current Location
-        </button>
-        <input type="hidden" id="regLat">
-        <input type="hidden" id="regLng">
-        <input type="hidden" id="regOtpOk" value="">
-        <div id="regOtpPanel" class="reset-panel">
-          <div id="regOtpMsg" class="error-msg" style="display:none;"></div>
-          <div class="form-group">
-            <label>Email OTP</label>
-            <input type="text" id="regOtp" class="form-control" placeholder="6 digit OTP" inputmode="numeric">
-          </div>
-          <button type="button" class="btn btn-secondary" style="width:100%;" onclick="sendRegistrationOtp()">Send / Resend OTP</button>
-        </div>
 
         <div id="startupFields" class="conditional-block" style="display:none;">
           <div class="form-group">
@@ -768,42 +736,11 @@
     const email = document.getElementById('regEmail').value;
     const pass = document.getElementById('regPass').value;
     const title = document.getElementById('regTitle').value;
-    if (CONNECTHUB_BACKEND_URL && document.getElementById('regOtpOk').value !== email) {
-      document.getElementById('regOtpPanel').classList.add('active');
-      const otp = document.getElementById('regOtp').value.trim();
-      try {
-        if (!otp) {
-          const sent = await requestRegistrationOtp(email);
-          showRegistrationOtpMessage(sent.message || 'OTP sent to email.', true);
-          return;
-        }
-        const verified = await verifyRegistrationOtp(email, otp);
-        document.getElementById('regOtpOk').value = email;
-        showRegistrationOtpMessage(verified.message || 'Email verified.', true);
-      } catch (error) {
-        showRegistrationOtpMessage(error.message);
-        return;
-      }
-    }
     const additionalInfo = {
-      city: document.getElementById('regCity').value.trim(),
-      state: document.getElementById('regState').value.trim(),
-      bio: document.getElementById('regBio').value.trim(),
-      skills: title.split(',').map(t => t.trim()).filter(Boolean),
-      location: document.getElementById('regLat').value ? {
-        latitude: Number(document.getElementById('regLat').value),
-        longitude: Number(document.getElementById('regLng').value)
-      } : null
+      phone: document.getElementById('regPhone').value.trim(),
+      whatsapp: document.getElementById('regPhone').value.trim(),
+      skills: title.split(',').map(t => t.trim()).filter(Boolean)
     };
-
-    try {
-      additionalInfo.avatarPhoto = await fileToAvatar(document.getElementById('regAvatar'));
-    } catch (error) {
-      const el = document.getElementById('signUpError');
-      el.textContent = error.message;
-      el.style.display = 'block';
-      return;
-    }
 
     if (role === 'startup_admin') {
       additionalInfo.companyName = document.getElementById('regCompany').value;
@@ -825,44 +762,6 @@
       const el = document.getElementById('signUpError');
       el.textContent = error.message;
       el.style.display = 'block';
-    }
-  }
-
-  async function detectRegistrationLocation() {
-    const button = event?.target?.closest('button');
-    if (button) button.disabled = true;
-    try {
-      const location = await requestBrowserLocation();
-      document.getElementById('regLat').value = location.latitude;
-      document.getElementById('regLng').value = location.longitude;
-      if (location.city) document.getElementById('regCity').value = location.city;
-      if (location.state) document.getElementById('regState').value = location.state;
-    } catch (error) {
-      const el = document.getElementById('signUpError');
-      el.textContent = error.message || 'Could not detect location.';
-      el.style.display = 'block';
-    } finally {
-      if (button) button.disabled = false;
-    }
-  }
-
-  function showRegistrationOtpMessage(message, ok = false) {
-    const el = document.getElementById('regOtpMsg');
-    el.textContent = message;
-    el.style.display = 'block';
-    el.style.color = ok ? '#087f5b' : '#b91c1c';
-    el.style.background = ok ? '#ecfdf5' : '#fff1f2';
-    el.style.borderColor = ok ? '#bbf7d0' : '#fecdd3';
-  }
-
-  async function sendRegistrationOtp() {
-    const email = document.getElementById('regEmail').value.trim();
-    if (!email) return showRegistrationOtpMessage('Enter email first.');
-    try {
-      const sent = await requestRegistrationOtp(email);
-      showRegistrationOtpMessage(sent.message || 'OTP sent to email.', true);
-    } catch (error) {
-      showRegistrationOtpMessage(error.message);
     }
   }
 </script>

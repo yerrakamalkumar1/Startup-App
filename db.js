@@ -279,20 +279,6 @@ async function resetPasswordWithOtp(email, otp, password) {
   });
 }
 
-async function requestRegistrationOtp(email) {
-  return apiRequest("/api/register/request-otp", {
-    method: "POST",
-    body: JSON.stringify({ email: normalizeEmail(email) })
-  });
-}
-
-async function verifyRegistrationOtp(email, otp) {
-  return apiRequest("/api/register/verify-otp", {
-    method: "POST",
-    body: JSON.stringify({ email: normalizeEmail(email), otp })
-  });
-}
-
 async function createRazorpayOrder(amount, purpose, notes = {}) {
   return apiRequest("/api/payments/create-order", {
     method: "POST",
