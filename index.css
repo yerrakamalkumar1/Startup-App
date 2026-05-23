@@ -22,12 +22,12 @@
 }
 
 :root[data-theme="dark"] {
-  --bg-primary: #0d1117;
-  --bg-secondary: #121923;
-  --text-primary: #eef4ff;
-  --text-secondary: #b9c4d0;
-  --text-muted: #8793a2;
-  --border-color: #263142;
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #e5e7eb;
+  --text-muted: #f3f4f6;
+  --border-color: #374151;
   --accent-blue-soft: #123b38;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 18px 34px rgba(0, 0, 0, 0.28);
@@ -51,6 +51,21 @@ body {
 
 button, input, select, textarea {
   font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+.glass-card,
+.glass-panel,
+.sidebar-item,
+.message-row,
+.explore-card,
+.ai-bot-toggle,
+.ai-bot-container {
+  transition: all 0.2s ease;
 }
 
 a {
@@ -116,9 +131,145 @@ h1, h2, h3, h4 {
   font-size: 0.85rem;
   font-weight: 700;
   text-decoration: none;
-  transition: var(--transition);
+  transition: all 0.2s ease;
   white-space: nowrap;
   transform: translateZ(0);
+}
+
+:root[data-theme="dark"] body,
+body.dark {
+  background: #0f0f0f;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4,
+body.dark h1,
+body.dark h2,
+body.dark h3,
+body.dark h4 {
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] p,
+:root[data-theme="dark"] label,
+:root[data-theme="dark"] span,
+:root[data-theme="dark"] small,
+:root[data-theme="dark"] td,
+:root[data-theme="dark"] th,
+body.dark p,
+body.dark label,
+body.dark span,
+body.dark small,
+body.dark td,
+body.dark th {
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .glass-card,
+:root[data-theme="dark"] .glass-panel,
+:root[data-theme="dark"] .modal-content,
+:root[data-theme="dark"] .app-footer,
+:root[data-theme="dark"] .top-navbar,
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .message-page-header,
+:root[data-theme="dark"] .message-row,
+:root[data-theme="dark"] .explore-card,
+body.dark .glass-card,
+body.dark .glass-panel,
+body.dark .modal-content,
+body.dark .app-footer,
+body.dark .top-navbar,
+body.dark .sidebar,
+body.dark .message-page-header,
+body.dark .message-row,
+body.dark .explore-card {
+  background: #1a1a1a;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .form-control,
+body.dark input,
+body.dark select,
+body.dark textarea,
+body.dark .form-control {
+  background: #1e1e1e;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder,
+body.dark input::placeholder,
+body.dark textarea::placeholder {
+  color: #9ca3af;
+}
+
+:root[data-theme="dark"] .sidebar-item a,
+:root[data-theme="dark"] .sidebar-footer,
+:root[data-theme="dark"] .bottom-nav button,
+:root[data-theme="dark"] .user-role,
+:root[data-theme="dark"] .footer-links a,
+body.dark .sidebar-item a,
+body.dark .sidebar-footer,
+body.dark .bottom-nav button,
+body.dark .user-role,
+body.dark .footer-links a {
+  color: #f3f4f6;
+}
+
+:root[data-theme="dark"] .btn-primary,
+:root[data-theme="dark"] .btn-emerald,
+:root[data-theme="dark"] .ai-bot-send-btn,
+:root[data-theme="dark"] .new-message-inline,
+:root[data-theme="dark"] button[type="submit"],
+body.dark .btn-primary,
+body.dark .btn-emerald,
+body.dark .ai-bot-send-btn,
+body.dark .new-message-inline,
+body.dark button[type="submit"] {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .btn-secondary,
+:root[data-theme="dark"] .auth-tab,
+:root[data-theme="dark"] .role-chip,
+:root[data-theme="dark"] .custom-table th,
+:root[data-theme="dark"] .custom-table tr:hover td,
+:root[data-theme="dark"] .calculator-results,
+:root[data-theme="dark"] .hero-strip,
+:root[data-theme="dark"] .chain-strip,
+:root[data-theme="dark"] .profile-complete,
+:root[data-theme="dark"] .message-search,
+:root[data-theme="dark"] .bottom-nav,
+body.dark .btn-secondary,
+body.dark .auth-tab,
+body.dark .role-chip,
+body.dark .custom-table th,
+body.dark .custom-table tr:hover td,
+body.dark .calculator-results,
+body.dark .hero-strip,
+body.dark .chain-strip,
+body.dark .profile-complete,
+body.dark .message-search,
+body.dark .bottom-nav {
+  background: #1a1a1a;
+  border-color: #374151;
+  color: #f3f4f6;
+}
+
+:root[data-theme="dark"] .btn,
+:root[data-theme="dark"] button,
+body.dark .btn,
+body.dark button {
+  color: #ffffff;
 }
 
 .btn:active,
@@ -761,23 +912,34 @@ h1, h2, h3, h4 {
 }
 
 .message-panel {
-  display: grid;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 0.6rem;
   max-height: 320px;
-  overflow: auto;
+  overflow-y: auto;
 }
 
 .message-bubble {
-  max-width: 84%;
+  width: fit-content;
+  max-width: 75%;
+  height: auto;
+  min-height: 0;
   padding: 0.65rem 0.75rem;
   border-radius: 12px;
   background: var(--accent-blue-soft);
   color: var(--text-primary);
   font-size: 0.82rem;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.45;
 }
 
 .message-bubble.mine {
-  justify-self: end;
+  align-self: flex-end;
   background: var(--accent-blue);
   color: #fff;
 }
@@ -994,14 +1156,21 @@ h1, h2, h3, h4 {
 
 .full-chat-panel {
   flex: 1;
+  min-height: 0;
   max-height: none;
   padding: 0.4rem 0;
+  overflow-y: auto;
 }
 
 .chat-compose {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.55rem;
+  padding-top: 0.75rem;
+  background: var(--bg-primary);
 }
 
 .explore-directory {
@@ -1367,7 +1536,7 @@ h1, h2, h3, h4 {
   position: fixed;
   right: 24px;
   bottom: 24px;
-  z-index: 999;
+  z-index: 1700;
   width: 56px;
   height: 56px;
   display: flex;
@@ -1379,7 +1548,7 @@ h1, h2, h3, h4 {
   color: white;
   cursor: pointer;
   box-shadow: 0 12px 28px rgba(15, 118, 110, 0.28);
-  transition: var(--transition);
+  transition: all 0.2s ease;
 }
 
 .ai-bot-toggle:hover {
@@ -1396,7 +1565,7 @@ h1, h2, h3, h4 {
   position: fixed;
   right: 24px;
   bottom: 92px;
-  z-index: 999;
+  z-index: 1699;
   width: min(360px, calc(100vw - 32px));
   height: 500px;
   max-height: calc(100vh - 120px);
@@ -1409,31 +1578,63 @@ h1, h2, h3, h4 {
   box-shadow: var(--shadow-md);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(14px);
-  transition: var(--transition);
+  transform: scale(0.94);
+  transform-origin: bottom right;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  will-change: transform, opacity, left, top;
 }
 
 .ai-bot-container.active {
   opacity: 1;
   pointer-events: all;
-  transform: translateY(0);
+  transform: scale(1);
+}
+
+.ai-bot-container.dragging {
+  transition: none;
 }
 
 .ai-bot-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.9rem 1rem;
   background: var(--accent-blue);
   color: white;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
 }
 
 .ai-bot-header h3 {
   display: flex;
   align-items: center;
+  flex: 1;
   gap: 0.45rem;
   color: white;
   font-size: 0.95rem;
+}
+
+.ai-bot-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ai-bot-window-actions button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
 }
 
 .ai-bot-messages {
@@ -1444,6 +1645,38 @@ h1, h2, h3, h4 {
   padding: 0.9rem;
   overflow-y: auto;
   background: #fbfdff;
+}
+
+:root[data-theme="dark"] .ai-bot-container,
+:root[data-theme="dark"] .ai-bot-messages,
+:root[data-theme="dark"] .ai-bot-suggestions,
+:root[data-theme="dark"] .ai-bot-input-area,
+body.dark .ai-bot-container,
+body.dark .ai-bot-messages,
+body.dark .ai-bot-suggestions,
+body.dark .ai-bot-input-area {
+  background: #1a1a1a;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .ai-msg.bot,
+body.dark .ai-msg.bot {
+  background: #1e1e1e;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .ai-bot-input-area input,
+body.dark .ai-bot-input-area input {
+  background: #1e1e1e;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .ai-bot-input-area input::placeholder,
+body.dark .ai-bot-input-area input::placeholder {
+  color: #9ca3af;
 }
 
 .ai-msg {

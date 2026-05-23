@@ -20,7 +20,10 @@
     container.innerHTML = `
       <div class="ai-bot-header">
         <h3><i data-lucide="messages-square"></i> ConnectHub Assistant</h3>
-        <button class="close-btn" id="aiBotClose" aria-label="Close assistant" style="color:white;">&times;</button>
+        <div class="ai-bot-window-actions">
+          <button type="button" id="aiBotMinimize" aria-label="Minimize assistant">−</button>
+          <button type="button" id="aiBotClose" aria-label="Close assistant">&times;</button>
+        </div>
       </div>
       <div class="ai-bot-messages" id="aiBotMessages">
         <div class="ai-msg bot">
@@ -49,21 +52,34 @@
   function setupChatLogic() {
     const toggleBtn = document.getElementById("aiBotToggle");
     const container = document.getElementById("aiBotContainer");
+    const header = container.querySelector(".ai-bot-header");
     const closeBtn = document.getElementById("aiBotClose");
+    const minimizeBtn = document.getElementById("aiBotMinimize");
     const sendBtn = document.getElementById("aiBotSend");
     const inputField = document.getElementById("aiBotInput");
     const messagesBox = document.getElementById("aiBotMessages");
+    let dragState = null;
 
     toggleBtn.addEventListener("click", () => {
       container.classList.add("active");
-      toggleBtn.style.display = "none";
+      resetIfOffscreen();
       inputField.focus();
     });
 
-    closeBtn.addEventListener("click", () => {
+    function hideAssistant() {
       container.classList.remove("active");
       toggleBtn.style.display = "flex";
-    });
+    }
+
+    closeBtn.addEventListener("click", hideAssistant);
+    minimizeBtn.addEventListener("click", hideAssistant);
+
+    header.addEventListener("mousedown", startDrag);
+    document.addEventListener("mousemove", dragMove);
+    document.addEventListener("mouseup", endDrag);
+    header.addEventListener("touchstart", startDrag, { passive: false });
+    document.addEventListener("touchmove", dragMove, { passive: false });
+    document.addEventListener("touchend", endDrag);
 
     sendBtn.addEventListener("click", handleUserMessage);
     inputField.addEventListener("keypress", event => {
@@ -92,6 +108,56 @@
       bubble.innerHTML = text;
       messagesBox.appendChild(bubble);
       messagesBox.scrollTop = messagesBox.scrollHeight;
+    }
+
+    function getPoint(event) {
+      const touch = event.touches?.[0] || event.changedTouches?.[0];
+      return touch ? { x: touch.clientX, y: touch.clientY } : { x: event.clientX, y: event.clientY };
+    }
+
+    function startDrag(event) {
+      if (event.target.closest("button")) return;
+      event.preventDefault();
+      const point = getPoint(event);
+      const rect = container.getBoundingClientRect();
+      dragState = {
+        offsetX: point.x - rect.left,
+        offsetY: point.y - rect.top
+      };
+      container.classList.add("dragging");
+      container.style.right = "auto";
+      container.style.bottom = "auto";
+      container.style.left = `${rect.left}px`;
+      container.style.top = `${rect.top}px`;
+    }
+
+    function dragMove(event) {
+      if (!dragState) return;
+      event.preventDefault();
+      const point = getPoint(event);
+      const rect = container.getBoundingClientRect();
+      const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
+      const maxTop = Math.max(8, window.innerHeight - rect.height - 8);
+      const left = Math.min(Math.max(8, point.x - dragState.offsetX), maxLeft);
+      const top = Math.min(Math.max(8, point.y - dragState.offsetY), maxTop);
+      container.style.left = `${left}px`;
+      container.style.top = `${top}px`;
+    }
+
+    function endDrag() {
+      if (!dragState) return;
+      dragState = null;
+      container.classList.remove("dragging");
+    }
+
+    function resetIfOffscreen() {
+      const rect = container.getBoundingClientRect();
+      const out = rect.left < 0 || rect.top < 0 || rect.left > window.innerWidth - 40 || rect.top > window.innerHeight - 40;
+      if (!out) return;
+      container.style.left = "";
+      container.style.top = "";
+      container.style.right = "24px";
+      container.style.bottom = "92px";
     }
   }
 
