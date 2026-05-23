@@ -3,291 +3,767 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ConnectHub India</title>
+  <title>Connect Hub - Indian Startup Network</title>
+  <link rel="stylesheet" href="index.css">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0d7377">
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-</head>
-<body>
-  <div id="root"></div>
-
-  <script type="text/babel">
-    const { useMemo, useState } = React;
-    const brand = "#0d7377";
-
-    const users = [
-      { id:"kamaldev", name:"Kamal Kumar", role:"Full Stack Freelancer", city:"Hyderabad", state:"Telangana", avatar:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=180&q=80", verified:true, online:true, followers:"12.4K", following:824, posts:38, bio:"Building clean web apps, startup dashboards, and mobile-first product experiences for Indian founders." },
-      { id:"nexalocal", name:"NexaLocal Commerce", role:"Startup", city:"Bengaluru", state:"Karnataka", avatar:"https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=180&q=80", verified:true, online:true, followers:"8.7K", following:312, posts:24, bio:"Local commerce startup connecting operators, creators, and growth partners across India." },
-      { id:"ananyafund", name:"Ananya Sen", role:"Angel Investor", city:"Mumbai", state:"Maharashtra", avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=180&q=80", verified:true, online:false, followers:"21K", following:540, posts:42, bio:"Backing early Indian startups in SaaS, local commerce, logistics, and creative-led growth." },
-      { id:"priyadesign", name:"Priya Singh", role:"Brand Designer", city:"Pune", state:"Maharashtra", avatar:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=180&q=80", verified:false, online:true, followers:"6.1K", following:428, posts:19, bio:"Brand kits, pitch decks, launch creatives, and reels for growing startup teams." },
-      { id:"urbanops", name:"UrbanOps Labs", role:"Startup", city:"Delhi", state:"Delhi", avatar:"https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=180&q=80", verified:false, online:false, followers:"3.8K", following:190, posts:16, bio:"Operations tools and creator-powered local business growth systems." },
-      { id:"rahulgrowth", name:"Rahul Mehta", role:"Growth Marketer", city:"Chennai", state:"Tamil Nadu", avatar:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=180&q=80", verified:false, online:true, followers:"9.2K", following:677, posts:31, bio:"Performance campaigns, lead funnels, and WhatsApp growth systems for Indian startups." }
-    ];
-
-    const feedPosts = [
-      { id:1, user:users[0], time:"12m", text:"Finished a mobile-first service marketplace dashboard today. Clean navigation, fast profile editing, and better discovery matter more than extra noise.", likes:124, comments:18, shares:9 },
-      { id:2, user:users[1], time:"36m", text:"Looking for freelance video editors and launch designers for a new campaign across tier-2 Indian cities.", likes:298, comments:42, shares:31 },
-      { id:3, user:users[2], time:"1h", text:"Founder profiles with clear location, traction, and specific asks get faster investor replies.", likes:412, comments:55, shares:48 },
-      { id:4, user:users[3], time:"3h", text:"A good launch kit needs a sharp offer, repeatable visual system, and short proof-of-work reels.", likes:176, comments:22, shares:14 }
-    ];
-
-    const conversationsSeed = [
-      { id:"c1", user:users[1], last:"Can you share your portfolio and pricing?", time:"2m", unread:2, messages:[{from:"them", text:"Hey Kamal, we saw your dashboard work."},{from:"them", text:"Can you share your portfolio and pricing?"},{from:"me", text:"Yes, I can send a short plan today."}] },
-      { id:"c2", user:users[2], last:"Your ConnectHub idea has potential.", time:"18m", unread:1, messages:[{from:"them", text:"Your ConnectHub idea has potential."},{from:"me", text:"Thank you. I am improving the marketplace flow now."}] },
-      { id:"c3", user:users[3], last:"I can design the brand kit this week.", time:"1h", unread:0, messages:[{from:"me", text:"Can you help with startup ad creatives?"},{from:"them", text:"I can design the brand kit this week."}] }
-    ];
-
-    function initials(name) {
-      return name.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase();
+  <meta name="theme-color" content="#0f766e">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      background: #ffffff;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    function Avatar({ user, size = 46, ring = false, online = false }) {
-      return (
-        <div className={ring ? "avatarRing" : "avatarWrap"} style={{ width:size, height:size }}>
-          <div className="avatar" style={{ width:size - (ring ? 6 : 0), height:size - (ring ? 6 : 0) }}>
-            {user.avatar ? <img src={user.avatar} alt={user.name} /> : <span>{initials(user.name)}</span>}
-          </div>
-          {online && <span className={`onlineDot ${user.online ? "on" : ""}`} />}
-        </div>
-      );
+    .app-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      background: #ffffff;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
     }
 
-    function Header({ title, showBack, onBack }) {
-      return (
-        <header className="topHeader">
-          <button className="iconBtn" aria-label="Menu">☰</button>
-          <button className="iconBtn back" aria-label="Back" onClick={onBack}>{showBack ? "‹" : ""}</button>
-          <h1>{title}</h1>
-          <span className="rolePill">Freelancer</span>
-        </header>
-      );
+    .app-splash.hide {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
     }
 
-    function Home() {
-      return (
-        <main className="screenBody">
-          <section className="stories">
-            {users.map(user => (
-              <button className="story" key={user.id}>
-                <Avatar user={user} size={62} ring />
-                <span>{user.name.split(" ")[0]}</span>
-              </button>
-            ))}
-          </section>
-          <section className="feed">
-            {feedPosts.map(post => (
-              <article className="postCard" key={post.id}>
-                <div className="postHead">
-                  <Avatar user={post.user} />
-                  <div>
-                    <div className="nameLine">
-                      <strong>{post.user.name}</strong>
-                      {post.user.verified && <span className="verified">✓</span>}
-                    </div>
-                    <p>{post.user.role} · {post.time}</p>
-                  </div>
-                </div>
-                <p className="postText">{post.text}</p>
-                <div className="postActions">
-                  <button>♡ {post.likes}</button>
-                  <button>💬 {post.comments}</button>
-                  <button>↗ {post.shares}</button>
-                </div>
-              </article>
-            ))}
-          </section>
-        </main>
-      );
+    .splash-logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 24px;
+      box-shadow: 0 16px 36px rgba(15, 118, 110, 0.16);
+      animation: logoLift 0.75s ease both, logoGlow 1.2s ease-in-out infinite alternate;
     }
 
-    function Explore({ onOpenProfile }) {
-      const [query, setQuery] = useState("");
-      const filtered = useMemo(() => {
-        const q = query.toLowerCase();
-        return users.filter(user => user.name.toLowerCase().includes(q) || user.id.toLowerCase().includes(q) || user.role.toLowerCase().includes(q));
-      }, [query]);
-      return (
-        <main className="screenBody exploreScreen">
-          <div className="stickySearch">
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, @id, or role" />
-          </div>
-          <div className="avatarGrid">
-            {filtered.map(user => (
-              <button key={user.id} className="gridUser" onClick={() => onOpenProfile(user)}>
-                <Avatar user={user} size={104} />
-                <span>{user.name}</span>
-                <small>@{user.id}</small>
-              </button>
-            ))}
-          </div>
-        </main>
-      );
+    .splash-brand {
+      color: var(--accent-blue);
+      font-size: 1.45rem;
+      font-weight: 800;
+      animation: textDrop 0.8s cubic-bezier(0.2, 0.9, 0.2, 1.1) 0.08s both;
     }
 
-    function FullProfile({ user, onMessage }) {
-      return (
-        <main className="screenBody profileView">
-          <div className="profileHero">
-            <Avatar user={user} size={92} />
-            <div className="profileStats">
-              <strong>{user.posts}</strong><span>Posts</span>
-              <strong>{user.followers}</strong><span>Followers</span>
-              <strong>{user.following}</strong><span>Following</span>
-            </div>
-          </div>
-          <h2>{user.name} {user.verified && <span className="verified">✓</span>}</h2>
-          <p className="muted">@{user.id} · {user.role} · {user.city}</p>
-          <p className="bio">{user.bio}</p>
-          <div className="profileActions">
-            <button className="primaryBtn">Follow</button>
-            <button className="secondaryBtn" onClick={onMessage}>Message</button>
-          </div>
-          <div className="postGrid">
-            {Array.from({ length:9 }).map((_, index) => <div className="miniPost" key={index}>{index + 1}</div>)}
-          </div>
-        </main>
-      );
+    .splash-loader {
+      width: 160px;
+      height: 5px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #d9f7ef;
+      animation: fadeUp 0.75s ease 0.14s both;
     }
 
-    function Messages({ conversations, setConversations, openChat, setOpenChat }) {
-      const [query, setQuery] = useState("");
-      const [draft, setDraft] = useState("");
-      const chat = conversations.find(item => item.id === openChat);
+    .splash-loader span {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0f766e, #2dd4bf);
+      transform-origin: left;
+      animation: splashLoad 1.05s ease both;
+    }
 
-      if (chat) {
-        const send = () => {
-          if (!draft.trim()) return;
-          setConversations(prev => prev.map(item => item.id === chat.id ? { ...item, last:draft, time:"now", messages:[...item.messages, { from:"me", text:draft }] } : item));
-          setDraft("");
-        };
-        return (
-          <main className="screenBody chatScreen">
-            <div className="chatHeader">
-              <Avatar user={chat.user} size={42} online />
-              <div><strong>{chat.user.name}</strong><p>{chat.user.online ? "Online" : "Offline"} · @{chat.user.id}</p></div>
-            </div>
-            <div className="chatBubbles">
-              {chat.messages.map((message, index) => <div key={index} className={`bubble ${message.from === "me" ? "sent" : "received"}`}>{message.text}</div>)}
-            </div>
-            <div className="chatInput">
-              <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="Message..." />
-              <button onClick={send}>Send</button>
-            </div>
-          </main>
-        );
+    .splash-footer {
+      position: absolute;
+      bottom: 28px;
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-align: center;
+      animation: fadeUp 0.75s ease 0.16s both;
+    }
+
+    .splash-enter {
+      display: none;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.72rem 1.1rem;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent-blue);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 800;
+      box-shadow: 0 14px 28px rgba(15, 118, 110, 0.22);
+      animation: fadeUp 0.25s ease both;
+    }
+
+    .splash-enter.active {
+      display: inline-flex;
+    }
+
+    .splash-enter:active {
+      transform: scale(0.98);
+    }
+
+    .landing-wrap {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+      background:
+        radial-gradient(circle at 20% 16%, rgba(15, 118, 110, 0.11), transparent 30%),
+        linear-gradient(180deg, #ffffff 0%, #f3fbf9 100%);
+    }
+
+    .landing-hero {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      padding: 3rem 5vw;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(15, 118, 110, 0.11), transparent 32%),
+        linear-gradient(180deg, #ffffff 0%, #f3fbf9 100%);
+      border-right: 1px solid var(--border-color);
+    }
+
+    .hero-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .hero-logo img {
+      width: 40px;
+      height: 40px;
+    }
+
+    .hero-logo h1 {
+      color: var(--accent-blue);
+      font-size: 1.45rem;
+    }
+
+    .hero-tagline {
+      max-width: 620px;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      font-size: clamp(2.2rem, 5vw, 4.4rem);
+      font-weight: 800;
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .hero-sub {
+      max-width: 600px;
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.6rem;
+    }
+
+    .role-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      max-width: 680px;
+      margin-top: 2rem;
+    }
+
+    .role-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.42rem 0.75rem;
+      background: var(--accent-blue-soft);
+      color: var(--accent-blue);
+      border: 1px solid #a7f3d0;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .landing-auth {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      width: min(100%, 440px);
+      padding: 2rem;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.08);
+      animation: authEnter 0.5s ease 0.9s both;
+    }
+
+    .auth-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .auth-brand img {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+    }
+
+    .auth-brand span {
+      color: var(--accent-blue);
+      font-size: 1.22rem;
+      font-weight: 800;
+    }
+
+    .auth-header {
+      margin-bottom: 1rem;
+    }
+
+    .auth-header h2 {
+      margin-bottom: 0.15rem;
+      font-size: 1.35rem;
+    }
+
+    .auth-header p,
+    .helper-copy {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+    }
+
+    .conditional-block {
+      padding: 0.85rem;
+      margin-bottom: 1rem;
+      background: #f6fffc;
+      border: 1px solid #a7f3d0;
+      border-left: 4px solid var(--accent-blue);
+      border-radius: var(--radius-lg);
+    }
+
+    .role-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 1rem;
+    }
+
+    .role-chip {
+      padding: 0.45rem 0.75rem;
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 800;
+      transition: var(--transition);
+    }
+
+    .role-chip.active {
+      color: var(--accent-blue);
+      background: var(--accent-blue-soft);
+      border-color: #7dd3c7;
+    }
+
+    .error-msg {
+      display: none;
+      margin-bottom: 1rem;
+      padding: 0.65rem 0.75rem;
+      color: #b91c1c;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .forgot-link {
+      display: inline-flex;
+      margin: -0.45rem 0 0.9rem;
+      border: 0;
+      background: transparent;
+      color: var(--accent-blue);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .reset-panel {
+      display: none;
+      padding: 0.85rem;
+      margin-bottom: 1rem;
+      background: #f6fffc;
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius-lg);
+      animation: fadeUp 0.24s ease both;
+    }
+
+    .reset-panel.active {
+      display: block;
+    }
+
+    @keyframes logoLift {
+      from { opacity: 0; transform: translateY(12px) scale(0.94); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes textDrop {
+      from { opacity: 0; transform: translateY(-18px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes logoGlow {
+      from { box-shadow: 0 16px 36px rgba(15, 118, 110, 0.16); }
+      to { box-shadow: 0 18px 44px rgba(15, 118, 110, 0.28); }
+    }
+
+    @keyframes authEnter {
+      from { opacity: 0; transform: translateY(16px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes splashLoad {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
+    @media (max-width: 900px) {
+      .landing-wrap {
+        height: 100dvh;
+        padding: 0.9rem;
       }
 
-      const filtered = conversations.filter(item => item.user.name.toLowerCase().includes(query.toLowerCase()) || item.user.id.toLowerCase().includes(query.toLowerCase()));
-      return (
-        <main className="screenBody inboxScreen">
-          <div className="stickySearch"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search messages" /></div>
-          <div className="conversationList">
-            {filtered.map(item => (
-              <button key={item.id} className="conversation" onClick={() => setOpenChat(item.id)}>
-                <Avatar user={item.user} size={54} online />
-                <div className="conversationText"><strong>{item.user.name}</strong><small>@{item.user.id}</small><p>{item.last}</p></div>
-                <div className="conversationMeta"><span>{item.time}</span>{item.unread > 0 && <b>{item.unread}</b>}</div>
-              </button>
-            ))}
+      .landing-hero {
+        border-right: 0;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+    }
+
+    @media (max-height: 720px) {
+      .landing-auth {
+        padding: 1.25rem;
+      }
+
+      .auth-brand {
+        margin-bottom: 0.75rem;
+      }
+
+      .auth-header {
+        margin-bottom: 0.75rem;
+      }
+
+      .form-group {
+        margin-bottom: 0.75rem;
+      }
+
+      .helper-copy {
+        margin-top: 0.85rem !important;
+      }
+    }
+
+    @media (max-height: 620px) {
+      .auth-brand img {
+        width: 30px;
+        height: 30px;
+      }
+
+      .auth-brand span {
+        font-size: 1rem;
+      }
+
+      .auth-header h2 {
+        font-size: 1.05rem;
+      }
+
+      .auth-header p,
+      .helper-copy {
+        font-size: 0.72rem;
+      }
+
+      .form-control {
+        min-height: 34px;
+        padding: 0.42rem 0.6rem;
+      }
+
+      .role-chip,
+      .auth-tab,
+      .btn {
+        min-height: 32px;
+        padding-top: 0.36rem;
+        padding-bottom: 0.36rem;
+        font-size: 0.76rem;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="appSplash" class="app-splash">
+  <img class="splash-logo" src="assets/logo.png" alt="Connect Hub">
+  <div class="splash-brand">Connect Hub</div>
+  <div class="splash-loader" aria-label="Loading"><span></span></div>
+  <button id="splashEnter" class="splash-enter" type="button">Tap to enter</button>
+  <div class="splash-footer">Connect Hub India<br>Networking for startups, freelancers, and investors</div>
+</div>
+
+<div class="landing-wrap">
+  <section class="landing-hero">
+    <div class="hero-logo">
+      <img src="assets/logo.png" alt="ConnectHub">
+      <h1>ConnectHub</h1>
+    </div>
+
+    <div class="hero-tagline">Network for Indian startups and local business talent.</div>
+    <p class="hero-sub">
+      A clean marketplace where startups across sectors hire freelancers, publish opportunities,
+      share media ads, and meet investors. Every profile connects into one shared business network.
+    </p>
+
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="switchAuthTab('signup')"><i data-lucide="user-plus"></i>Register</button>
+      <button class="btn btn-secondary" onclick="switchAuthTab('signin')"><i data-lucide="log-in"></i>Sign in</button>
+    </div>
+
+    <div class="role-row">
+      <span class="role-pill"><i data-lucide="rocket"></i>Startups</span>
+      <span class="role-pill"><i data-lucide="store"></i>Local businesses</span>
+      <span class="role-pill"><i data-lucide="layers-3"></i>All sectors</span>
+      <span class="role-pill"><i data-lucide="briefcase"></i>Freelancers</span>
+      <span class="role-pill"><i data-lucide="hand-coins"></i>Investors</span>
+    </div>
+  </section>
+
+  <aside class="landing-auth">
+    <div class="auth-brand">
+      <img src="assets/logo.png" alt="Connect Hub">
+      <span>Connect Hub</span>
+    </div>
+    <div class="auth-tabs">
+      <div id="tabSignIn" class="auth-tab active" onclick="switchAuthTab('signin')">Sign In</div>
+      <div id="tabSignUp" class="auth-tab" onclick="switchAuthTab('signup')">Register</div>
+    </div>
+
+    <div id="signInSection">
+      <div class="auth-header">
+        <h2>Welcome back</h2>
+        <p>Open your dashboard and continue networking.</p>
+      </div>
+      <div id="signInError" class="error-msg"></div>
+
+      <form onsubmit="handleSignIn(event)">
+        <div class="form-group">
+          <label for="signEmail">Email Address</label>
+          <input type="email" id="signEmail" class="form-control" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="signPass">Passcode</label>
+          <input type="password" id="signPass" class="form-control" placeholder="Enter passcode" required>
+        </div>
+        <button type="button" class="forgot-link" onclick="toggleResetPanel()">Forgot password?</button>
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          <i data-lucide="arrow-right"></i>Sign In
+        </button>
+      </form>
+
+      <div id="resetPanel" class="reset-panel">
+        <div id="resetMsg" class="error-msg" style="display:none;"></div>
+        <div class="form-group">
+          <label for="resetEmail">Registered Email</label>
+          <input type="email" id="resetEmail" class="form-control" placeholder="you@example.com">
+        </div>
+        <button type="button" class="btn btn-secondary" style="width:100%;margin-bottom:0.75rem;" onclick="sendResetOtp()">Send OTP</button>
+        <div class="form-group">
+          <label for="resetOtp">Email OTP</label>
+          <input type="text" id="resetOtp" class="form-control" placeholder="6 digit OTP" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label for="resetPass">New Passcode</label>
+          <input type="password" id="resetPass" class="form-control" placeholder="Create new passcode">
+        </div>
+        <button type="button" class="btn btn-primary" style="width:100%;" onclick="completePasswordReset()">Reset Passcode</button>
+      </div>
+
+    </div>
+
+    <div id="signUpSection" style="display:none;">
+      <div class="auth-header">
+        <h2>Create your profile</h2>
+        <p>Choose a role. Your dashboard will connect to the shared marketplace.</p>
+      </div>
+      <div id="signUpError" class="error-msg"></div>
+
+      <label style="font-size:0.8rem;font-weight:800;color:#526071;display:block;margin-bottom:0.5rem;">I am a</label>
+      <div class="role-chips">
+        <div class="role-chip active" data-role="freelancer" onclick="selectRole(this)">Freelancer</div>
+        <div class="role-chip" data-role="startup_admin" onclick="selectRole(this)">Startup Owner</div>
+        <div class="role-chip" data-role="investor" onclick="selectRole(this)">Investor</div>
+      </div>
+      <input type="hidden" id="regRole" value="freelancer">
+
+      <form onsubmit="handleSignUp(event)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="regName" class="form-control" placeholder="Priya Singh" required>
           </div>
-          <button className="newMessageBtn">New Message</button>
-        </main>
-      );
-    }
-
-    function Ads() {
-      return (
-        <main className="screenBody">
-          <section className="chainCard">
-            <h2>Service ads chain system</h2>
-            <p>Freelancers post service ads here. Startups discover them in Explore and can contact, message, or hire directly.</p>
-          </section>
-          <button className="primaryBtn wide">+ New Ad</button>
-          <section className="emptyCard"><h3>No ads yet</h3><p>Create your first service ad to appear in startup discovery.</p></section>
-        </main>
-      );
-    }
-
-    function Profile({ dark, setDark }) {
-      const [saved, setSaved] = useState(false);
-      const [bio, setBio] = useState("Building mobile-first apps for Indian startups.");
-      const save = () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1800);
-      };
-      return (
-        <main className="screenBody">
-          <div className="profileTabHeader">
-            <h2>Edit Profile</h2>
-            <button className="modeToggle" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"}</button>
-          </div>
-          <section className="editCard">
-            <div className="progressTop"><span>Profile 60% complete</span><div><i style={{ width:"60%" }} /></div></div>
-            <div className="editAvatar"><Avatar user={users[0]} size={92} /><span>✎</span></div>
-            <label>Full Name<input defaultValue="Kamal Kumar" /></label>
-            <label>Bio / Short Pitch<textarea maxLength={200} value={bio} onChange={e => setBio(e.target.value)} /></label>
-            <small className="charCount">{bio.length}/200</small>
-            <div className="twoCols">
-              <label>City<input defaultValue="Hyderabad" /></label>
-              <label>State<input defaultValue="Telangana" /></label>
-            </div>
-            <div className="inlineActions">
-              <button className="secondaryBtn">Use Location</button>
-              <button className={`saveBtn ${saved ? "saved" : ""}`} onClick={save}>{saved ? "✓ Saved" : "Save Profile"}</button>
-            </div>
-          </section>
-          <footer className="profileFooter"><p>Support: <strong>6301394850</strong></p><a>Privacy</a><a>Terms</a></footer>
-        </main>
-      );
-    }
-
-    function App() {
-      const [tab, setTab] = useState("Home");
-      const [profileUser, setProfileUser] = useState(null);
-      const [openChat, setOpenChat] = useState(null);
-      const [conversations, setConversations] = useState(conversationsSeed);
-      const [dark, setDark] = useState(false);
-      const title = profileUser ? profileUser.name : openChat ? "Messages" : tab;
-      const showBack = Boolean(profileUser || openChat);
-      const goBack = () => { if (profileUser) setProfileUser(null); if (openChat) setOpenChat(null); };
-      const openMessageFor = user => {
-        setProfileUser(null);
-        setTab("Messages");
-        const convo = conversations.find(item => item.user.id === user.id) || conversations[0];
-        setOpenChat(convo.id);
-      };
-      return (
-        <div className={`page ${dark ? "dark" : ""}`}>
-          <div className="phone">
-            <Header title={title} showBack={showBack} onBack={goBack} />
-            {profileUser ? <FullProfile user={profileUser} onMessage={() => openMessageFor(profileUser)} /> :
-              tab === "Home" ? <Home /> :
-              tab === "Explore" ? <Explore onOpenProfile={setProfileUser} /> :
-              tab === "Messages" ? <Messages conversations={conversations} setConversations={setConversations} openChat={openChat} setOpenChat={setOpenChat} /> :
-              tab === "Ads" ? <Ads /> :
-              <Profile dark={dark} setDark={setDark} />}
-            {!profileUser && !openChat && (
-              <nav className="bottomNav">
-                {["Home","Explore","Messages","Ads","Profile"].map(item => (
-                  <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
-                    <span>{item === "Home" ? "⌂" : item === "Explore" ? "⌕" : item === "Messages" ? "◌" : item === "Ads" ? "▣" : "◉"}</span>{item}
-                  </button>
-                ))}
-              </nav>
-            )}
+          <div class="form-group">
+            <label>WhatsApp</label>
+            <input type="text" id="regPhone" class="form-control" placeholder="9876543210">
           </div>
         </div>
-      );
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="regEmail" class="form-control" placeholder="you@example.com" required>
+          </div>
+          <div class="form-group">
+            <label>Passcode</label>
+            <input type="password" id="regPass" class="form-control" placeholder="Create passcode" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label id="titleLabel">Skill / Professional Title</label>
+          <input type="text" id="regTitle" class="form-control" placeholder="Growth designer, developer, editor" required>
+        </div>
+
+        <div id="startupFields" class="conditional-block" style="display:none;">
+          <div class="form-group">
+            <label>Business Name</label>
+            <input type="text" id="regCompany" class="form-control" placeholder="Your startup name">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.65rem;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Sector</label>
+              <select id="regSector" class="form-control">
+                <option>Commerce & Retail</option>
+                <option>Food & Hospitality</option>
+                <option>Property & Infrastructure</option>
+                <option>Health & Wellness</option>
+                <option>Education & Training</option>
+                <option>Finance & Legal</option>
+                <option>Logistics & Mobility</option>
+                <option>SaaS & Technology</option>
+                <option>Consumer Services</option>
+                <option>Media & Entertainment</option>
+                <option>Manufacturing & Hardware</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Funding Goal</label>
+              <input type="text" id="regTargetFunding" class="form-control" placeholder="Rs 10 Lakh">
+            </div>
+          </div>
+        </div>
+
+        <div id="investorFields" class="conditional-block" style="display:none;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Firm / Angel Network</label>
+            <input type="text" id="regFirm" class="form-control" placeholder="India Seed Fund">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          <i data-lucide="check"></i>Create Account
+        </button>
+      </form>
+    </div>
+
+    <p class="helper-copy" style="text-align:center;margin-top:1.4rem;">
+      Need help? Call <a href="tel:6301394850" style="font-weight:800;text-decoration:none;">6301394850</a><br>
+      2026 ConnectHub India
+    </p>
+  </aside>
+</div>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  window.addEventListener('load', () => {
+    const enterButton = document.getElementById('splashEnter');
+    enterButton?.addEventListener('click', async () => {
+      enterButton.disabled = true;
+      await playLaunchTone();
+      revealLoginPortal();
+    });
+
+    window.addEventListener('pointerdown', playLaunchTone, { once: true });
+
+    setTimeout(() => {
+      playLaunchTone();
+      setTimeout(revealLoginPortal, 300);
+    }, 1100);
+  });
+
+  function revealLoginPortal() {
+    const splash = document.getElementById('appSplash');
+    if (!splash || splash.classList.contains('hide')) return;
+    splash.classList.add('hide');
+  }
+
+  async function playLaunchTone() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      if (ctx.state === 'suspended') await ctx.resume();
+      if (ctx.state !== 'running') return false;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.025;
+      gain.connect(ctx.destination);
+      [523, 784, 1046].forEach((frequency, index) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        osc.connect(gain);
+        osc.start(ctx.currentTime + index * 0.06);
+        osc.stop(ctx.currentTime + index * 0.06 + 0.07);
+      });
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
+      setTimeout(() => ctx.close?.(), 420);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  lucide.createIcons();
+
+  const existingUser = getCurrentUser();
+  if (existingUser) window.location.href = getDashboardUrl(existingUser.role);
+
+  function switchAuthTab(tab) {
+    document.getElementById('tabSignIn').classList.toggle('active', tab === 'signin');
+    document.getElementById('tabSignUp').classList.toggle('active', tab === 'signup');
+    document.getElementById('signInSection').style.display = tab === 'signin' ? 'block' : 'none';
+    document.getElementById('signUpSection').style.display = tab === 'signup' ? 'block' : 'none';
+    lucide.createIcons();
+  }
+
+  function selectRole(chip) {
+    document.querySelectorAll('.role-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    const role = chip.dataset.role;
+    document.getElementById('regRole').value = role;
+    document.getElementById('startupFields').style.display = role === 'startup_admin' ? 'block' : 'none';
+    document.getElementById('investorFields').style.display = role === 'investor' ? 'block' : 'none';
+
+    const labels = {
+      freelancer: 'Skill / Professional Title',
+      startup_admin: 'Your Role in the Business',
+      investor: 'Designation'
+    };
+    const placeholders = {
+      freelancer: 'Growth designer, developer, editor',
+      startup_admin: 'Founder',
+      investor: 'Angel Investor'
+    };
+    document.getElementById('titleLabel').textContent = labels[role];
+    document.getElementById('regTitle').placeholder = placeholders[role];
+  }
+
+  async function handleSignIn(event) {
+    event.preventDefault();
+    const email = document.getElementById('signEmail').value;
+    const pass = document.getElementById('signPass').value;
+    try {
+      const auth = await authenticateUser(email, pass);
+      if (auth.success) {
+        await syncFromBackend();
+        window.location.href = getDashboardUrl(auth.user.role);
+        return;
+      }
+      throw new Error(auth.message);
+    } catch (error) {
+      const el = document.getElementById('signInError');
+      el.textContent = error.message;
+      el.style.display = 'block';
+    }
+  }
+
+  function toggleResetPanel() {
+    document.getElementById('resetPanel').classList.toggle('active');
+  }
+
+  function showResetMessage(message, ok = false) {
+    const el = document.getElementById('resetMsg');
+    el.textContent = message;
+    el.style.display = 'block';
+    el.style.color = ok ? '#087f5b' : '#b91c1c';
+    el.style.background = ok ? '#ecfdf5' : '#fff1f2';
+    el.style.borderColor = ok ? '#bbf7d0' : '#fecdd3';
+  }
+
+  async function sendResetOtp() {
+    const email = document.getElementById('resetEmail').value.trim();
+    if (!email) return showResetMessage('Enter your registered email first.');
+    try {
+      const result = await requestPasswordOtp(email);
+      showResetMessage(result.message || 'OTP sent to email.', true);
+    } catch (error) {
+      showResetMessage(error.message);
+    }
+  }
+
+  async function completePasswordReset() {
+    const email = document.getElementById('resetEmail').value.trim();
+    const otp = document.getElementById('resetOtp').value.trim();
+    const password = document.getElementById('resetPass').value;
+    if (!email || !otp || !password) return showResetMessage('Enter email, OTP and new passcode.');
+    try {
+      const result = await resetPasswordWithOtp(email, otp, password);
+      showResetMessage(result.message || 'Password reset successful.', true);
+      document.getElementById('signEmail').value = email;
+      document.getElementById('signPass').value = '';
+    } catch (error) {
+      showResetMessage(error.message);
+    }
+  }
+
+  async function handleSignUp(event) {
+    event.preventDefault();
+    const role = document.getElementById('regRole').value;
+    const name = document.getElementById('regName').value;
+    const email = document.getElementById('regEmail').value;
+    const pass = document.getElementById('regPass').value;
+    const title = document.getElementById('regTitle').value;
+    const additionalInfo = {
+      phone: document.getElementById('regPhone').value.trim(),
+      whatsapp: document.getElementById('regPhone').value.trim(),
+      skills: title.split(',').map(t => t.trim()).filter(Boolean)
+    };
+
+    if (role === 'startup_admin') {
+      additionalInfo.companyName = document.getElementById('regCompany').value;
+      additionalInfo.sector = document.getElementById('regSector').value;
+      additionalInfo.targetFunding = document.getElementById('regTargetFunding').value;
+    } else if (role === 'investor') {
+      additionalInfo.firmName = document.getElementById('regFirm').value;
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-  </script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap');
-    *{box-sizing:border-box} body{margin:0;font-family:'DM Sans',sans-serif;background:#e8eef2;color:#101828}.page{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#dbe7ea,#f7fafb)}.page.dark{background:#111827}.phone{width:390px;height:844px;overflow:hidden;position:relative;background:#fff;border:10px solid #111827;border-radius:38px;box-shadow:0 30px 80px rgba(0,0,0,.25)}.dark .phone{background:#0f172a;color:#edf2f7}.topHeader{height:62px;display:grid;grid-template-columns:38px 30px 1fr auto;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #edf2f7;background:inherit;position:relative;z-index:5}.iconBtn{border:0;background:transparent;font-size:25px;font-weight:800;color:inherit}.iconBtn.back{font-size:34px;line-height:1}.topHeader h1{margin:0;font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rolePill{font-size:12px;font-weight:800;color:#0d7377;background:#e7f8f8;padding:7px 10px;border-radius:999px}.screenBody{height:calc(100% - 62px - 76px);overflow:auto;padding:14px 14px 92px}.stories{display:flex;gap:13px;overflow-x:auto;padding:4px 0 14px}.story{border:0;background:transparent;display:grid;gap:6px;justify-items:center;font-size:12px;color:inherit}.avatarRing{display:grid;place-items:center;border-radius:999px;background:linear-gradient(135deg,#ff7ab6,#ffd166,#0d7377);position:relative}.avatarWrap{position:relative}.avatar{border-radius:999px;overflow:hidden;background:#0d7377;color:#fff;display:grid;place-items:center;font-weight:800;border:3px solid #fff}.avatar img{width:100%;height:100%;object-fit:cover}.onlineDot{position:absolute;right:1px;bottom:2px;width:12px;height:12px;border-radius:50%;background:#aab2bd;border:2px solid #fff}.onlineDot.on{background:#1ec773}.feed{display:grid;gap:12px}.postCard,.editCard,.emptyCard,.chainCard{background:#fff;border:1px solid #edf2f7;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,24,40,.06)}.dark .postCard,.dark .editCard,.dark .emptyCard,.dark .chainCard{background:#162033;border-color:#263247}.postHead{display:flex;gap:10px;align-items:center}.nameLine{display:flex;gap:5px;align-items:center}.verified{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:#0d7377;color:#fff;font-size:11px}.postHead p,.muted{margin:1px 0;color:#667085;font-size:12px}.postText{font-size:14px;line-height:1.45}.postActions{display:flex;justify-content:space-between;border-top:1px solid #edf2f7;padding-top:10px}.postActions button{border:0;background:transparent;color:#475467;font-weight:800}.stickySearch{position:sticky;top:-14px;z-index:3;background:inherit;padding:0 0 12px}.stickySearch input,.chatInput input,label input,label textarea{width:100%;border:1px solid #d9e2e7;border-radius:14px;padding:13px;background:#f8fbfc;font:inherit;color:inherit}.dark .stickySearch input,.dark .chatInput input,.dark label input,.dark label textarea{background:#101828;border-color:#2a364a}.avatarGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.gridUser{border:0;background:transparent;color:inherit;padding:0 0 10px}.gridUser .avatarWrap{margin:auto}.gridUser span{display:block;font-size:12px;font-weight:800;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gridUser small{color:#667085}.profileHero{display:flex;gap:20px;align-items:center}.profileStats{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 14px;text-align:center}.profileStats strong{font-size:17px}.profileStats span{font-size:11px;color:#667085}.profileView h2{margin:14px 0 0}.bio{font-size:14px;line-height:1.45}.profileActions,.inlineActions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.primaryBtn,.secondaryBtn,.saveBtn,.newMessageBtn{border:0;border-radius:14px;padding:13px;font-weight:900;font:inherit}.primaryBtn,.saveBtn{background:#0d7377;color:#fff}.secondaryBtn{background:#edf7f7;color:#0d7377}.wide{width:100%;margin:12px 0}.postGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:16px}.miniPost{aspect-ratio:1;background:linear-gradient(135deg,#d9f2f2,#eef6f7);border-radius:8px;display:grid;place-items:center;color:#0d7377;font-weight:900}.conversationList{display:grid;gap:4px}.conversation{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:0;background:transparent;color:inherit;text-align:left;padding:10px 0}.conversationText strong,.conversationText small,.conversationText p{display:block}.conversationText small,.conversationText p,.conversationMeta span{color:#667085;font-size:12px;margin:1px 0}.conversationMeta{text-align:right}.conversationMeta b{display:inline-grid;place-items:center;background:#0d7377;color:#fff;border-radius:99px;min-width:20px;height:20px;font-size:11px}.newMessageBtn{width:100%;margin-top:16px;background:#0d7377;color:#fff}.chatScreen{display:flex;flex-direction:column;height:calc(100% - 62px)}.chatHeader{display:flex;gap:10px;align-items:center;padding-bottom:12px;border-bottom:1px solid #edf2f7}.chatHeader p{margin:1px 0;color:#667085;font-size:12px}.chatBubbles{flex:1;display:flex;flex-direction:column;gap:8px;padding:14px 0;overflow:auto}.bubble{max-width:78%;padding:11px 13px;border-radius:17px;font-size:14px;line-height:1.35}.sent{align-self:flex-end;background:#0d7377;color:#fff;border-bottom-right-radius:5px}.received{align-self:flex-start;background:#eef2f6;color:#1f2937;border-bottom-left-radius:5px}.chatInput{display:grid;grid-template-columns:1fr auto;gap:8px}.chatInput button{border:0;border-radius:14px;background:#0d7377;color:#fff;font-weight:900;padding:0 14px}.chainCard{border-left:5px solid #0d7377}.chainCard h2,.emptyCard h3{margin:0 0 6px}.chainCard p,.emptyCard p{margin:0;color:#667085;line-height:1.45}.emptyCard{text-align:center;margin-top:14px;padding:28px 14px}.profileTabHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.profileTabHeader h2{margin:0}.modeToggle{border:1px solid #d9e2e7;border-radius:999px;background:#fff;padding:8px 12px;font-weight:800;color:#0d7377}.progressTop span{font-size:13px;font-weight:900}.progressTop div{height:8px;background:#e6edf2;border-radius:999px;margin:8px 0 16px;overflow:hidden}.progressTop i{display:block;height:100%;background:#0d7377;border-radius:inherit}.editAvatar{width:max-content;margin:0 auto 16px;position:relative}.editAvatar>span{position:absolute;right:0;bottom:0;background:#0d7377;color:#fff;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;border:3px solid #fff}label{display:grid;gap:6px;font-size:13px;font-weight:900;margin-bottom:12px}label textarea{min-height:92px;resize:none}.charCount{display:block;text-align:right;color:#667085;margin-top:-8px;margin-bottom:10px}.twoCols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.saveBtn.saved{background:#16a34a}.profileFooter{text-align:center;color:#667085;font-size:13px;margin-top:18px}.profileFooter a{margin:0 10px;color:#0d7377;font-weight:900}.bottomNav{position:absolute;left:0;right:0;bottom:0;height:76px;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:1px solid #edf2f7;padding:8px 6px 10px}.dark .bottomNav{background:#101828;border-color:#263247}.bottomNav button{border:0;background:transparent;color:#667085;font-size:11px;font-weight:900;display:grid;gap:2px;place-items:center}.bottomNav button span{font-size:20px}.bottomNav button.active{color:#0d7377}@media(max-width:520px){.page{padding:0}.phone{width:100vw;height:100vh;border:0;border-radius:0}.screenBody{height:calc(100vh - 62px - 76px)}}
-  </style>
+    try {
+      const result = await registerUser(name, email, pass, role, title, additionalInfo);
+      if (result.success) {
+        await syncFromBackend();
+        window.location.href = getDashboardUrl(result.user.role);
+        return;
+      }
+      throw new Error(result.message);
+    } catch (error) {
+      const el = document.getElementById('signUpError');
+      el.textContent = error.message;
+      el.style.display = 'block';
+    }
+  }
+</script>
 </body>
 </html>
