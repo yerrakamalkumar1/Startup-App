@@ -3,6 +3,7 @@ const AppUX = (() => {
   let homeView = "";
   let profileView = "";
   let exploreView = "";
+  let adsView = "";
   let onProfileSaved = null;
   let historyStack = [];
   let currentView = "";
@@ -42,6 +43,7 @@ const AppUX = (() => {
     homeView = options.homeView || homeView;
     profileView = options.profileView || homeView;
     exploreView = options.exploreView || options.browseView || homeView;
+    adsView = options.adsView || options.serviceAdsView || exploreView;
     onProfileSaved = options.onProfileSaved || null;
     document.addEventListener("pointerdown", unlockAudio, { once: true });
     installShellControls();
@@ -51,6 +53,7 @@ const AppUX = (() => {
     installDarkMode();
     installRealtime();
     installMessageDock();
+    installExplorePage();
     installBottomNav();
     applyUserChrome();
   }
@@ -187,8 +190,9 @@ const AppUX = (() => {
     nav.className = "bottom-nav";
     nav.innerHTML = `
       <button type="button" data-bottom-view="${homeView}" data-bottom-tab="home"><i data-lucide="home"></i><span>Home</span></button>
-      <button type="button" data-bottom-view="${exploreView}" data-bottom-tab="explore"><i data-lucide="search"></i><span>Explore</span></button>
+      <button type="button" data-bottom-action="explore" data-bottom-tab="explore"><i data-lucide="search"></i><span>Explore</span></button>
       <button type="button" data-bottom-action="messages" data-bottom-tab="messages"><i data-lucide="message-circle"></i><span>Messages</span><small id="bottomMsgBadge"></small></button>
+      <button type="button" data-bottom-view="${adsView}" data-bottom-tab="ads"><i data-lucide="megaphone"></i><span>Ads</span></button>
       <button type="button" data-bottom-view="${profileView}" data-bottom-tab="profile"><span id="bottomProfileAvatar" class="bottom-avatar"></span><span>Profile</span></button>
     `;
     nav.addEventListener("click", event => {
@@ -198,6 +202,11 @@ const AppUX = (() => {
       if (button.dataset.bottomAction === "messages") {
         openMessageDock();
         setBottomActive("messages");
+        return;
+      }
+      if (button.dataset.bottomAction === "explore") {
+        openExplorePage();
+        setBottomActive("explore");
         return;
       }
       if (button.dataset.bottomView && window.go) window.go(button.dataset.bottomView);
@@ -286,6 +295,117 @@ const AppUX = (() => {
     `;
     document.body.appendChild(page);
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function installExplorePage() {
+    const user = getCurrentUser?.();
+    if (!user || document.getElementById("exploreDock")) return;
+    const page = document.createElement("section");
+    page.id = "exploreDock";
+    page.className = "explore-page";
+    page.innerHTML = `
+      <div class="message-page-header">
+        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.closeExplore()"><i data-lucide="arrow-left"></i></button>
+        <div><h3>Explore</h3><p>Search users, startups, freelancers and investors</p></div>
+      </div>
+      <div id="exploreDockBody"></div>
+    `;
+    document.body.appendChild(page);
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function openExplorePage() {
+    const page = document.getElementById("exploreDock");
+    if (!page) return;
+    page.classList.add("active");
+    document.body.classList.add("explore-open");
+    setBottomActive("explore");
+    renderExploreDirectory();
+  }
+
+  function closeExplore() {
+    document.getElementById("exploreDock")?.classList.remove("active");
+    document.body.classList.remove("explore-open");
+    updateBottomNav();
+  }
+
+  function userIdFor(profile) {
+    return (profile.email || profile.name || "user")
+      .toLowerCase()
+      .replace(/@.*/, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+  }
+
+  function exploreItems() {
+    const items = getUniversalMarketplaceItems?.() || [];
+    const seen = new Set();
+    return items.filter(item => {
+      const key = `${item.type}-${item.name}-${item.personName || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function renderExploreDirectory(query = "") {
+    const body = document.getElementById("exploreDockBody");
+    if (!body) return;
+    const q = String(query || "").toLowerCase();
+    const items = exploreItems().filter(item => {
+      const profile = item.avatarProfile || { name: item.personName || item.name, email: item.email };
+      const id = userIdFor(profile);
+      const haystack = [item.name, item.personName, id, item.type, item.role, item.title, item.sector, item.city, item.state, item.description]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return !q || haystack.includes(q);
+    });
+    body.innerHTML = `
+      <div class="message-search"><i data-lucide="search"></i><input id="exploreSearch" value="${query.replace(/"/g, "&quot;")}" placeholder="Search name, @id, role, city..." oninput="AppUX.filterExplore(this.value)"></div>
+      <div class="explore-directory">
+        ${items.map(item => renderExploreCard(item)).join("") || '<div class="empty-message-state">No users found.</div>'}
+      </div>
+    `;
+    const input = document.getElementById("exploreSearch");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function filterExplore(query) {
+    renderExploreDirectory(query);
+  }
+
+  function renderExploreCard(item) {
+    const profile = item.avatarProfile || { name: item.personName || item.name, title: item.title, email: item.email };
+    const targetName = (item.personName || profile.name || item.name).replace(/'/g, "\\'");
+    const id = userIdFor(profile);
+    const online = (window.ConnectHubOnlineUsers || []).includes(profile.name);
+    const meta = [item.type, item.sector, item.city].filter(Boolean).join(" • ");
+    return `<article class="explore-card">
+      <div class="explore-card-main">
+        <span class="message-avatar-wrap">${avatarMarkup(profile, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
+        <div>
+          <strong>${item.name || profile.name}</strong>
+          <small>@${id}</small>
+          <p>${meta || profile.title || "Connect Hub member"}</p>
+        </div>
+      </div>
+      <p class="explore-card-bio">${item.description || profile.bio || "Open to networking and collaboration."}</p>
+      <div class="explore-card-actions">
+        <button class="btn btn-secondary" onclick="connectUsers('${targetName}'); AppUX.showToast('Connection request sent')">Connect</button>
+        <button class="btn btn-primary" onclick="AppUX.openMessageTo('${targetName}')">Message</button>
+      </div>
+    </article>`;
+  }
+
+  function openMessageTo(name) {
+    closeExplore();
+    openMessageDock();
+    openChat(name);
   }
 
   function openMessageDock() {
@@ -660,5 +780,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openMessageTo };
 })();
