@@ -424,10 +424,6 @@ const AppUX = (() => {
     page.id = "exploreDock";
     page.className = "explore-page";
     page.innerHTML = `
-      <div class="message-page-header">
-        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.closeExplore()"><i data-lucide="arrow-left"></i></button>
-        <div><h3>Explore</h3><p>Search users, startups, freelancers and investors</p></div>
-      </div>
       <div id="exploreDockBody"></div>
     `;
     document.body.appendChild(page);
@@ -475,17 +471,40 @@ const AppUX = (() => {
     const body = document.getElementById("exploreDockBody");
     if (!body) return;
     const q = String(query || "").toLowerCase();
-    const items = exploreItems().filter(item => {
+    const user = getCurrentUser?.() || {};
+    const allItems = exploreItems();
+    const recents = recentExploreProfiles(allItems);
+    const suggestions = exploreSuggestions(user);
+    const items = allItems.filter(item => {
       const profile = item.avatarProfile || { name: item.personName || item.name, email: item.email };
       const id = userIdFor(profile);
       const haystack = [item.name, item.personName, id, item.type, item.role, item.title, item.sector, item.city, item.state, item.description]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-      return !q || haystack.includes(q);
+      return !q || haystack.includes(q) || suggestionMatch(item, q, user);
     });
     body.innerHTML = `
-      <div class="message-search"><i data-lucide="search"></i><input id="exploreSearch" value="${query.replace(/"/g, "&quot;")}" placeholder="Search name, @id, role, city..." oninput="AppUX.filterExplore(this.value)"></div>
+      <div class="explore-search-shell">
+        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+        <div class="explore-search-input">
+          <i data-lucide="search"></i>
+          <input id="exploreSearch" value="${escapeHTML(query)}" placeholder="Search" oninput="AppUX.filterExplore(this.value)">
+        </div>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.useLocationForExplore()" title="Use current location"><i data-lucide="scan-line"></i></button>
+      </div>
+      ${!q ? `<section class="explore-recents">
+        <div class="explore-section-title"><strong>Recent</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
+        <div class="explore-recent-row">${recents.map(renderExploreRecent).join("") || '<p>No recent profiles yet.</p>'}</div>
+      </section>
+      <section class="explore-suggestions">
+        <h3>Try searching for</h3>
+        ${suggestions.map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item.replace(/'/g, "\\'")}')"><i data-lucide="search"></i><span>${item}</span></button>`).join("")}
+      </section>
+      <section class="explore-news">
+        <h3>Today&apos;s opportunities</h3>
+        <button type="button" onclick="AppUX.applyExploreSuggestion('startups near me')"><span>Startups near me from ConnectHub profiles</span><i data-lucide="map-pin"></i></button>
+      </section>` : ""}
       <div class="explore-directory">
         ${items.map(item => renderExploreCard(item)).join("") || '<div class="empty-message-state">No users found.</div>'}
       </div>
@@ -500,6 +519,80 @@ const AppUX = (() => {
 
   function filterExplore(query) {
     renderExploreDirectory(query);
+  }
+
+  function recentExploreProfiles(items) {
+    let recentIds = [];
+    try {
+      recentIds = JSON.parse(localStorage.getItem("connecthub_explore_recents") || "[]");
+    } catch (error) {
+      recentIds = [];
+    }
+    const byId = new Map(items.map(item => {
+      const profile = item.avatarProfile || { name: item.personName || item.name, email: item.email };
+      return [userIdFor(profile), item];
+    }));
+    const stored = recentIds.map(id => byId.get(id)).filter(Boolean);
+    const fallback = items.filter(item => item.avatarProfile).slice(0, 5);
+    return (stored.length ? stored : fallback).slice(0, 5);
+  }
+
+  function renderExploreRecent(item) {
+    const profile = item.avatarProfile || { name: item.personName || item.name, title: item.title, email: item.email };
+    const id = userIdFor(profile);
+    const label = profile.name || item.name || "Member";
+    return `<a class="explore-recent" href="profile.html?id=${id}" onclick="AppUX.saveExploreRecent('${id}')">
+      ${avatarMarkup(profile, "user-avatar")}
+      <span>${label}</span>
+    </a>`;
+  }
+
+  function exploreSuggestions(user) {
+    const city = user.city || user.location?.city || "";
+    return [
+      "startups near me",
+      city ? `freelancers in ${city}` : "freelancers near me",
+      "investors for seed funding",
+      "startup jobs",
+      "design freelancers",
+      "SaaS founders"
+    ];
+  }
+
+  function suggestionMatch(item, query, user) {
+    if (!query) return true;
+    const city = String(user.city || user.location?.city || "").toLowerCase();
+    const type = String(item.type || "").toLowerCase();
+    const role = String(item.role || "").toLowerCase();
+    const sector = String(item.sector || "").toLowerCase();
+    const itemCity = String(item.city || "").toLowerCase();
+    if (query.includes("near me")) return city ? itemCity === city : Boolean(item.city);
+    if (query.includes("startup")) return type.includes("startup") || role.includes("startup");
+    if (query.includes("freelancer")) return type.includes("freelancer") || role.includes("freelancer");
+    if (query.includes("investor") || query.includes("funding")) return type.includes("investor") || sector.includes("fund");
+    if (query.includes("job")) return type.includes("startup") || sector.includes("startup");
+    return false;
+  }
+
+  function applyExploreSuggestion(query) {
+    renderExploreDirectory(query);
+  }
+
+  function clearExploreRecents() {
+    localStorage.removeItem("connecthub_explore_recents");
+    renderExploreDirectory("");
+  }
+
+  async function useLocationForExplore() {
+    try {
+      const location = await requestBrowserLocation();
+      const user = getCurrentUser();
+      if (user) updateCurrentProfile({ location, city: location.city || user.city, state: location.state || user.state });
+      showToast("Showing nearby profiles");
+      renderExploreDirectory("startups near me");
+    } catch (error) {
+      showToast(error.message || "Location permission needed", "error");
+    }
   }
 
   function renderExploreCard(item) {
@@ -519,7 +612,7 @@ const AppUX = (() => {
       </div>
       <p class="explore-card-bio">${item.description || profile.bio || "Open to networking and collaboration."}</p>
       <div class="explore-card-actions">
-        <a class="btn btn-secondary" href="profile.html?id=${id}">Profile</a>
+        <a class="btn btn-secondary" href="profile.html?id=${id}" onclick="AppUX.saveExploreRecent('${id}')">Profile</a>
         <button class="btn btn-secondary" onclick="connectUsers('${targetName}'); AppUX.showToast('Connection request sent')">Connect</button>
         <button class="btn btn-secondary" onclick="AppUX.reviewUser('${targetName}')">Review</button>
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${targetName}')">Message</button>
@@ -533,6 +626,16 @@ const AppUX = (() => {
     const text = prompt("Short review note", "") || "";
     submitReview?.(name, rating, text);
     showToast("Review submitted");
+  }
+
+  function saveExploreRecent(id) {
+    let recents = [];
+    try {
+      recents = JSON.parse(localStorage.getItem("connecthub_explore_recents") || "[]");
+    } catch (error) {
+      recents = [];
+    }
+    localStorage.setItem("connecthub_explore_recents", JSON.stringify([id, ...recents.filter(item => item !== id)].slice(0, 8)));
   }
 
   function openMessageTo(name) {
@@ -1063,5 +1166,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
 })();
