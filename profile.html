@@ -18,6 +18,26 @@
   <script src="config.js"></script>
   <script src="db.js"></script>
   <script>
+    const savedTheme = localStorage.getItem("connecthub_theme") || "light";
+    document.documentElement.dataset.theme = savedTheme;
+    document.body.classList.toggle("dark", savedTheme === "dark");
+
+    function playProfileBell() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 1046;
+        gain.gain.value = 0.028;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.11);
+        osc.stop(ctx.currentTime + 0.14);
+      } catch {}
+    }
+
     function roleLabel(role) {
       return role === "startup_admin" ? "Startup Owner" : role === "investor" ? "Investor" : "Freelancer";
     }
@@ -39,6 +59,10 @@
         .replace(/'/g, "&#039;");
     }
 
+    function jsArg(value) {
+      return String(value || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    }
+
     function detailLine(profile, startup) {
       const parts = [];
       if (profile.role === "freelancer") parts.push(profile.title || "Freelancer");
@@ -57,9 +81,26 @@
     function collectProfilePosts(profile, startup) {
       const db = getDB();
       const posts = [];
+      (db.profilePosts || [])
+        .filter(post => post.authorEmail === profile.email || post.authorName === profile.name)
+        .forEach(post => posts.push({
+          id: post.id,
+          owner: profile.name,
+          author: post.authorName,
+          title: post.title || "Profile update",
+          text: post.description || post.caption || "",
+          meta: post.meta || roleLabel(profile.role),
+          tags: post.tags || [],
+          media: post.media,
+          mediaType: post.mediaType,
+          date: post.postedDate || "Recently",
+          kind: "profile"
+        }));
       (db.freelancerAds || [])
         .filter(ad => ad.freelancerName === profile.name)
         .forEach(ad => posts.push({
+          id: `ad-${ad.id}`,
+          owner: profile.name,
           author: profile.name,
           title: ad.title,
           text: ad.description,
@@ -67,11 +108,14 @@
           tags: ad.tags || [],
           media: ad.media,
           mediaType: ad.mediaType,
-          date: ad.appliedDate || "Recently"
+          date: ad.appliedDate || "Recently",
+          kind: "ad"
         }));
       (db.startupPromotions || [])
         .filter(post => post.startupName === (profile.companyName || startup?.name || profile.name))
         .forEach(post => posts.push({
+          id: `promo-${post.id}`,
+          owner: profile.name,
           author: post.startupName,
           title: post.title,
           text: post.description,
@@ -79,28 +123,35 @@
           tags: post.tags || [],
           media: post.media,
           mediaType: post.mediaType,
-          date: "Recently"
+          date: post.postedDate || "Recently",
+          kind: "promo"
         }));
       if (startup) {
         (db.jobs || [])
           .filter(job => job.startupId === startup.id)
           .forEach(job => posts.push({
+            id: `job-${job.id}`,
+            owner: profile.name,
             author: startup.name,
             title: job.title,
             text: job.description,
             meta: `Opportunity · Rs ${job.hourlyRate}/hr`,
             tags: job.tags || [],
-            date: job.status || "Active"
+            date: job.status || "Active",
+            kind: "job"
           }));
       }
       if (!posts.length) {
         posts.push({
+          id: `intro-${profileId(profile)}`,
+          owner: profile.name,
           author: profile.name,
           title: `${roleLabel(profile.role)} profile`,
           text: profile.bio || "Open to meaningful business conversations, collaborations, deals, and partnerships on ConnectHub.",
           meta: detailLine(profile, startup),
           tags: profile.skills || [startup?.sector, profile.title].filter(Boolean),
-          date: "Profile"
+          date: "Profile",
+          kind: "intro"
         });
       }
       return posts;
@@ -112,7 +163,18 @@
       return `<div class="profile-post-placeholder"><i data-lucide="${label === "Reel" ? "clapperboard" : "image"}"></i><span>${label}</span></div>`;
     }
 
+    function postStats(postId) {
+      const interactions = getDB().postInteractions || [];
+      return {
+        likes: interactions.filter(item => item.postId === postId && item.type === "like").length,
+        comments: interactions.filter(item => item.postId === postId && item.type === "comment").length,
+        shares: interactions.filter(item => item.postId === postId && item.type === "share").length,
+        liked: interactions.some(item => item.postId === postId && item.type === "like" && item.from === getCurrentUser()?.name)
+      };
+    }
+
     function renderPostCard(profile, post) {
+      const stats = postStats(post.id);
       return `<article class="profile-feed-card">
         <div class="profile-feed-head">
           ${avatarMarkup(profile, "user-avatar")}
@@ -127,9 +189,9 @@
         ${renderMediaBlock(post)}
         <div class="profile-tag-row">${(post.tags || []).filter(Boolean).slice(0, 5).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
         <div class="profile-social-actions">
-          <button type="button"><i data-lucide="thumbs-up"></i>Like</button>
-          <button type="button"><i data-lucide="message-circle"></i>Comment</button>
-          <button type="button"><i data-lucide="send"></i>Share</button>
+          <button class="${stats.liked ? "active" : ""}" type="button" onclick="likeProfilePost('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="thumbs-up"></i><span>${stats.likes || "Like"}</span></button>
+          <button type="button" onclick="commentProfilePost('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="message-circle"></i><span>${stats.comments || "Comment"}</span></button>
+          <button type="button" onclick="shareProfilePost('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="send"></i><span>${stats.shares || "Share"}</span></button>
         </div>
       </article>`;
     }
@@ -184,6 +246,17 @@
           </div>
         </section>
 
+        ${isOwnProfile ? `<section class="profile-info-card profile-post-composer">
+          <h2>Create post</h2>
+          <form onsubmit="submitProfilePost(event, '${profileId(profile)}')">
+            <input id="profilePostTitle" class="form-control" placeholder="Post title" required>
+            <textarea id="profilePostText" class="form-control" rows="3" maxlength="300" placeholder="Share a work update, offer, reel caption, or startup progress" required></textarea>
+            <input id="profilePostTags" class="form-control" placeholder="Tags: design, hiring, funding">
+            <input id="profilePostMedia" class="form-control" type="file" accept="image/*,video/*">
+            <button class="btn btn-primary" type="submit"><i data-lucide="image-plus"></i>Post Photo/Reel</button>
+          </form>
+        </section>` : ""}
+
         <nav class="profile-tabs">
           <a href="#feed">All</a>
           <a href="#media">Reels</a>
@@ -217,6 +290,100 @@
         </section>
       `;
       if (window.lucide) window.lucide.createIcons();
+    }
+
+    async function submitProfilePost(event, profileKey) {
+      event.preventDefault();
+      const user = getCurrentUser();
+      if (!user) return alert("Please login to publish a post.");
+      let media = null;
+      try {
+        media = await fileToMedia(document.getElementById("profilePostMedia"));
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+      const db = getDB();
+      const post = {
+        id: "pp-" + Date.now(),
+        authorName: user.name,
+        authorEmail: user.email,
+        title: document.getElementById("profilePostTitle").value.trim(),
+        description: document.getElementById("profilePostText").value.trim(),
+        tags: document.getElementById("profilePostTags").value.split(",").map(tag => tag.trim()).filter(Boolean),
+        media,
+        mediaType: media?.type || "",
+        postedDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      };
+      db.profilePosts.push(post);
+      const connectedNames = new Set((db.connections || [])
+        .filter(item => (item.status || "Accepted") !== "Declined" && (item.from === user.name || item.to === user.name))
+        .map(item => item.from === user.name ? item.to : item.from)
+        .filter(Boolean));
+      connectedNames.forEach(name => {
+        db.notifications.push({
+          id: "not-" + Date.now() + "-" + name.replace(/[^a-z0-9]/gi, ""),
+          to: name,
+          type: "profile_post",
+          from: user.name,
+          text: `${user.name} shared a new ${media?.type?.startsWith("video/") ? "reel" : media ? "photo" : "post"}.`,
+          targetUrl: `profile.html?id=${encodeURIComponent(profileKey)}#feed`,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      });
+      saveDB(db);
+      event.target.reset();
+      playProfileBell();
+      const profile = getAllProfiles().find(item => profileId(item) === profileKey) || user;
+      render(profile);
+    }
+
+    function addInteraction(postId, ownerName, type, text = "") {
+      const user = getCurrentUser();
+      if (!user) return alert("Please login to interact with posts.");
+      const db = getDB();
+      db.postInteractions = db.postInteractions || [];
+      if (type === "like") {
+        const existing = db.postInteractions.find(item => item.postId === postId && item.type === "like" && item.from === user.name);
+        if (existing) db.postInteractions = db.postInteractions.filter(item => item !== existing);
+        else db.postInteractions.push({ id: `int-${Date.now()}`, postId, type, from: user.name, to: ownerName, createdAt: new Date().toISOString() });
+      } else {
+        db.postInteractions.push({ id: `int-${Date.now()}`, postId, type, from: user.name, to: ownerName, text, createdAt: new Date().toISOString() });
+      }
+      if (ownerName && ownerName !== user.name && (type !== "like" || db.postInteractions.some(item => item.postId === postId && item.type === "like" && item.from === user.name))) {
+        db.notifications.push({
+          id: "not-" + Date.now(),
+          to: ownerName,
+          type: `post_${type}`,
+          from: user.name,
+          text: `${user.name} ${type === "like" ? "liked" : type === "comment" ? "commented on" : "shared"} your post.`,
+          targetUrl: location.pathname + location.search + "#feed",
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+      saveDB(db);
+      playProfileBell();
+      const id = new URLSearchParams(location.search).get("id") || "";
+      const profile = getAllProfiles().find(item => profileId(item) === id || item.name === ownerName);
+      if (profile) render(profile);
+    }
+
+    function likeProfilePost(postId, ownerName) {
+      addInteraction(postId, ownerName, "like");
+    }
+
+    function commentProfilePost(postId, ownerName) {
+      const text = prompt("Write a comment");
+      if (!text) return;
+      addInteraction(postId, ownerName, "comment", text.slice(0, 240));
+    }
+
+    function shareProfilePost(postId, ownerName) {
+      if (navigator.share) navigator.share({ title: document.title, url: location.href }).catch(() => {});
+      else navigator.clipboard?.writeText(location.href);
+      addInteraction(postId, ownerName, "share");
     }
 
     syncFromBackend().finally(() => {

@@ -2287,6 +2287,12 @@ body.dark .explore-news button:hover {
   font-weight: 850;
 }
 
+.profile-social-actions button.active {
+  color: #0f766e;
+  background: #ecfeff;
+  border-radius: 999px;
+}
+
 .profile-social-actions svg {
   width: 19px;
   height: 19px;
@@ -2302,6 +2308,104 @@ body.dark .explore-news button:hover {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #f8fafc;
+}
+
+.profile-post-composer form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.profile-post-composer .btn {
+  justify-self: start;
+}
+
+:root[data-theme="dark"] .public-profile-body,
+body.public-profile-body.dark {
+  background: #0f0f0f;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .public-profile-shell,
+:root[data-theme="dark"] .public-profile-hero,
+:root[data-theme="dark"] .public-profile-topbar,
+:root[data-theme="dark"] .profile-tabs,
+:root[data-theme="dark"] .profile-info-card,
+:root[data-theme="dark"] .profile-feed-card,
+body.public-profile-body.dark .public-profile-shell,
+body.public-profile-body.dark .public-profile-hero,
+body.public-profile-body.dark .public-profile-topbar,
+body.public-profile-body.dark .profile-tabs,
+body.public-profile-body.dark .profile-info-card,
+body.public-profile-body.dark .profile-feed-card {
+  background: #1a1a1a;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .public-profile-topbar,
+:root[data-theme="dark"] .profile-tabs,
+body.public-profile-body.dark .public-profile-topbar,
+body.public-profile-body.dark .profile-tabs {
+  background: rgba(26, 26, 26, 0.96);
+}
+
+:root[data-theme="dark"] .public-profile-topbar strong,
+:root[data-theme="dark"] .public-profile-topbar button,
+:root[data-theme="dark"] .public-profile-topbar a,
+:root[data-theme="dark"] .profile-name-row h1,
+:root[data-theme="dark"] .profile-stats-row strong,
+:root[data-theme="dark"] .profile-info-card h2,
+:root[data-theme="dark"] .profile-feed-head strong,
+:root[data-theme="dark"] .profile-feed-card h3,
+:root[data-theme="dark"] .profile-tabs a,
+body.public-profile-body.dark .public-profile-topbar strong,
+body.public-profile-body.dark .public-profile-topbar button,
+body.public-profile-body.dark .public-profile-topbar a,
+body.public-profile-body.dark .profile-name-row h1,
+body.public-profile-body.dark .profile-stats-row strong,
+body.public-profile-body.dark .profile-info-card h2,
+body.public-profile-body.dark .profile-feed-head strong,
+body.public-profile-body.dark .profile-feed-card h3,
+body.public-profile-body.dark .profile-tabs a {
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .profile-title-line,
+:root[data-theme="dark"] .profile-bio,
+:root[data-theme="dark"] .profile-meta-line span,
+:root[data-theme="dark"] .profile-stats-row span,
+:root[data-theme="dark"] .profile-info-card p,
+:root[data-theme="dark"] .profile-detail-list span,
+:root[data-theme="dark"] .profile-feed-head small,
+:root[data-theme="dark"] .profile-feed-card p,
+:root[data-theme="dark"] .profile-social-actions button,
+body.public-profile-body.dark .profile-title-line,
+body.public-profile-body.dark .profile-bio,
+body.public-profile-body.dark .profile-meta-line span,
+body.public-profile-body.dark .profile-stats-row span,
+body.public-profile-body.dark .profile-info-card p,
+body.public-profile-body.dark .profile-detail-list span,
+body.public-profile-body.dark .profile-feed-head small,
+body.public-profile-body.dark .profile-feed-card p,
+body.public-profile-body.dark .profile-social-actions button {
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .profile-post-placeholder,
+:root[data-theme="dark"] .profile-media-tile,
+:root[data-theme="dark"] .profile-review-list article,
+body.public-profile-body.dark .profile-post-placeholder,
+body.public-profile-body.dark .profile-media-tile,
+body.public-profile-body.dark .profile-review-list article {
+  background: #1e1e1e;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .profile-social-actions button.active,
+body.public-profile-body.dark .profile-social-actions button.active {
+  background: rgba(20, 184, 166, 0.18);
+  color: #99f6e4;
 }
 
 @media (max-width: 700px) {
@@ -2929,6 +3033,68 @@ body.dark .ai-bot-input-area input::placeholder {
 .notification-item > button:hover {
   background: var(--accent-blue-soft);
   color: var(--accent-blue);
+}
+
+.notification-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.notification-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-blue);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.notification-pop {
+  position: fixed;
+  top: 76px;
+  right: 1rem;
+  z-index: 1900;
+  width: min(360px, calc(100vw - 2rem));
+  display: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.55rem;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.96);
+  color: #ffffff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+}
+
+.notification-pop.active {
+  display: grid;
+  animation: menuPop 0.22s ease both;
+}
+
+.notification-pop button {
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.notification-pop-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.notification-pop-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 :root[data-theme="dark"] .badge,

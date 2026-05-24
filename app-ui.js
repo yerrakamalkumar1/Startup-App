@@ -368,6 +368,10 @@ const AppUX = (() => {
       <div class="notification-copy">
         <p><a href="${profileUrl(profile)}" onclick="AppUX.markNotificationsRead()">${actor}</a> ${message}</p>
         <small>${new Date(note.createdAt || Date.now()).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
+        <div class="notification-actions">
+          <button type="button" onclick="AppUX.openNotification('${note.id}')">Open</button>
+          <button type="button" onclick="AppUX.removeNotification('${note.id}')">Remove</button>
+        </div>
       </div>
       <button type="button" title="Mark read" onclick="AppUX.markNotificationsRead()"><i data-lucide="check"></i></button>
     </article>`;
@@ -399,6 +403,14 @@ const AppUX = (() => {
     };
     script.onerror = () => {};
     document.head.appendChild(script);
+    if (!window.__connectHubNotificationPoll) {
+      window.__connectHubNotificationPoll = setInterval(() => {
+        syncFromBackend?.().then(() => {
+          updateUnreadBadge();
+          renderNotificationPanel();
+        }).catch(() => {});
+      }, 20000);
+    }
   }
 
   function installMessageDock() {
@@ -908,6 +920,59 @@ const AppUX = (() => {
       bellCount.textContent = unread;
       bellCount.style.display = unread ? "inline-flex" : "none";
     }
+    const previous = Number(sessionStorage.getItem("connecthub_unread_seen") || "0");
+    if (unread > previous && document.hasFocus()) showNotificationPop();
+    sessionStorage.setItem("connecthub_unread_seen", String(unread));
+  }
+
+  function showNotificationPop() {
+    const user = getCurrentUser?.();
+    if (!user) return;
+    const names = [user.name, user.companyName].filter(Boolean);
+    const latest = (getDB().notifications || [])
+      .filter(note => names.includes(note.to) && !note.read)
+      .slice()
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+    if (!latest) return;
+    playSound("bell");
+    let pop = document.getElementById("notificationPop");
+    if (!pop) {
+      pop = document.createElement("div");
+      pop.id = "notificationPop";
+      pop.className = "notification-pop";
+      document.body.appendChild(pop);
+    }
+    pop.innerHTML = `
+      <button class="notification-pop-main" type="button" onclick="AppUX.openNotification('${latest.id}')">
+        <i data-lucide="bell"></i>
+        <span>${escapeHTML(latest.text || "New notification")}</span>
+      </button>
+      <button type="button" aria-label="Remove notification" onclick="AppUX.removeNotification('${latest.id}')"><i data-lucide="x"></i></button>
+    `;
+    pop.classList.add("active");
+    if (window.lucide) window.lucide.createIcons();
+    clearTimeout(window.__connectHubNotificationPopTimer);
+    window.__connectHubNotificationPopTimer = setTimeout(() => pop.classList.remove("active"), 5200);
+  }
+
+  function openNotification(id) {
+    const db = getDB();
+    const note = (db.notifications || []).find(item => item.id === id);
+    if (!note) return;
+    note.read = true;
+    saveDB(db);
+    updateUnreadBadge();
+    const target = note.targetUrl || profileUrl(getAllProfiles().find(item => item.name === notificationActorName(note)) || {});
+    window.location.href = target || "profile.html";
+  }
+
+  function removeNotification(id) {
+    const db = getDB();
+    db.notifications = (db.notifications || []).filter(note => note.id !== id);
+    saveDB(db);
+    updateUnreadBadge();
+    renderNotificationPanel();
+    document.getElementById("notificationPop")?.classList.remove("active");
   }
 
   function markNotificationsRead() {
@@ -1168,5 +1233,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
 })();

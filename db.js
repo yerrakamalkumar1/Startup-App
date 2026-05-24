@@ -343,6 +343,8 @@ function mergeDBState(localDB, remoteDB) {
     connections: mergeById(local.connections, remote.connections),
     messages: mergeById(local.messages, remote.messages),
     notifications: mergeById(local.notifications, remote.notifications),
+    profilePosts: mergeById(local.profilePosts, remote.profilePosts),
+    postInteractions: mergeById(local.postInteractions, remote.postInteractions),
     investorInterests: mergeById(local.investorInterests, remote.investorInterests),
     reviews: mergeById(local.reviews, remote.reviews),
     registeredProfiles: mergeById(local.registeredProfiles, remote.registeredProfiles)
@@ -365,7 +367,7 @@ function getPlatformStats() {
   const freelancers = users.filter(user => user.role === "freelancer").length;
   const investors = users.filter(user => user.role === "investor").length;
   const startupUsers = users.filter(user => user.role === "startup_admin").length;
-  const livePosts = (db.jobs?.length || 0) + (db.freelancerAds?.length || 0) + (db.startupPromotions?.length || 0);
+  const livePosts = (db.jobs?.length || 0) + (db.freelancerAds?.length || 0) + (db.startupPromotions?.length || 0) + (db.profilePosts?.length || 0);
   return {
     startups: Math.max(db.startups?.length || 0, startupUsers),
     freelancers,
@@ -381,6 +383,8 @@ function ensureDBShape(db) {
   if (!Array.isArray(db.connections)) db.connections = [];
   if (!Array.isArray(db.messages)) db.messages = [];
   if (!Array.isArray(db.notifications)) db.notifications = [];
+  if (!Array.isArray(db.profilePosts)) db.profilePosts = [];
+  if (!Array.isArray(db.postInteractions)) db.postInteractions = [];
   if (!Array.isArray(db.registeredProfiles)) db.registeredProfiles = [];
   if (!Array.isArray(db.investorInterests)) db.investorInterests = [];
   if (!Array.isArray(db.reviews)) db.reviews = [];
@@ -821,6 +825,23 @@ function sendLocalMessage(to, text, extra = {}) {
     window.ConnectHubSocket.emit("message:send", message);
   }
   return message;
+}
+
+function notifyUser(to, text, extra = {}) {
+  const db = getDB();
+  const notification = {
+    id: "not-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+    to,
+    type: extra.type || "activity",
+    from: extra.from || getCurrentUser()?.name || "",
+    text,
+    targetUrl: extra.targetUrl || "",
+    read: false,
+    createdAt: new Date().toISOString()
+  };
+  db.notifications.push(notification);
+  saveDB(db);
+  return notification;
 }
 
 function expressInvestorInterest(startupId, startupName, amount = "", note = "") {
