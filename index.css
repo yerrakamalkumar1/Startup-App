@@ -2415,6 +2415,13 @@ body.dark .explore-news button:hover {
   display: block;
 }
 
+.profile-qr-img {
+  width: min(68vw, 260px);
+  height: auto;
+  display: block;
+  border-radius: 10px;
+}
+
 .ad-footer {
   align-items: center;
   margin-top: auto;

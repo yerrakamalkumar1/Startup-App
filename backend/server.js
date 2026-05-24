@@ -217,7 +217,7 @@ function registeredProfilesFromUsers() {
 
 function publicDB() {
   const db = readJson(DB_FILE, INITIAL_DB);
-  db.registeredProfiles = registeredProfilesFromUsers();
+  db.registeredProfiles = mergeById(db.registeredProfiles || [], registeredProfilesFromUsers());
   if (!Array.isArray(db.investorInterests)) db.investorInterests = [];
   if (!Array.isArray(db.reviews)) db.reviews = [];
   return db;
@@ -249,10 +249,10 @@ function mergeDBState(existingDB, incomingDB) {
     connections: mergeById(existing.connections, incoming.connections),
     messages: mergeById(existing.messages, incoming.messages),
     notifications: mergeById(existing.notifications, incoming.notifications),
+    registeredProfiles: mergeById(existing.registeredProfiles, incoming.registeredProfiles),
     investorInterests: mergeById(existing.investorInterests, incoming.investorInterests),
     reviews: mergeById(existing.reviews, incoming.reviews)
   };
-  delete merged.registeredProfiles;
   return merged;
 }
 
@@ -376,13 +376,26 @@ function allPeople(db = publicDB()) {
   ]
     .map(profile => {
       const startup = profile.startupId ? startupById.get(profile.startupId) : null;
+      const relatedAds = (db.freelancerAds || []).filter(ad => ad.freelancerName === profile.name);
+      const relatedPosts = (db.profilePosts || []).filter(post => post.authorName === profile.name || post.authorEmail === profile.email);
+      const relatedPromos = (db.startupPromotions || []).filter(post => post.startupName === profile.companyName || post.startupName === profile.name);
+      const relatedJobs = (db.jobs || []).filter(job => job.startupId === profile.startupId);
+      const searchTerms = [
+        ...relatedAds.flatMap(ad => [ad.title, ad.category, ad.description, ...(ad.tags || [])]),
+        ...relatedPosts.flatMap(post => [post.title, post.description, post.caption, ...(post.tags || [])]),
+        ...relatedPromos.flatMap(post => [post.title, post.description, ...(post.tags || [])]),
+        ...relatedJobs.flatMap(job => [job.title, job.description, ...(job.tags || [])])
+      ].filter(Boolean);
+      const inferredSkills = searchTerms.filter(term => /design|editor|editing|video|reel|photo|camera|developer|marketing|sales|branding|ai|web|app/i.test(term));
       return {
         ...profile,
         handle: profileHandle(profile),
         companyName: profile.companyName || startup?.name || "",
         sector: startup?.sector || profile.sector || "",
         city: profile.city || startup?.city || "",
-        state: profile.state || startup?.state || ""
+        state: profile.state || startup?.state || "",
+        skills: [...new Set([...(profile.skills || []), ...inferredSkills].map(String))].slice(0, 12),
+        searchText: searchTerms.join(" ")
       };
     })
     .filter(profile => {
@@ -435,7 +448,7 @@ function searchPeople(db, { query = "", role = "", location = "", skills = "", c
     const locationText = [profile.city, profile.state].filter(Boolean).join(" ").toLowerCase();
     const skillsText = [...(profile.skills || []), profile.sector].filter(Boolean).join(" ").toLowerCase();
     const companyText = String(profile.companyName || "").toLowerCase();
-    const haystack = [profile.name, handle, roleText, locationText, skillsText, companyText, profile.bio].join(" ").toLowerCase();
+    const haystack = [profile.name, handle, roleText, locationText, skillsText, companyText, profile.bio, profile.searchText].join(" ").toLowerCase();
     if (filters.role && !roleBucket(profile.role).includes(filters.role) && !roleText.includes(filters.role)) return -1;
     if (filters.location && !locationText.includes(filters.location)) return -1;
     if (filters.skills && !skillsText.includes(filters.skills)) return -1;
@@ -444,6 +457,7 @@ function searchPeople(db, { query = "", role = "", location = "", skills = "", c
     if (String(profile.name || "").toLowerCase() === q) return 100;
     if (handle === q) return 95;
     if (String(profile.name || "").toLowerCase().startsWith(q)) return 90;
+    if (String(profile.name || "").toLowerCase().split(/\s+/).some(part => part.startsWith(q) || q.startsWith(part))) return 86;
     if (roleText.includes(q)) return 70;
     if (locationText.includes(q)) return 55;
     if (skillsText.includes(q)) return 45;

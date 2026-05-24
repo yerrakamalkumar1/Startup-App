@@ -500,8 +500,13 @@ const AppUX = (() => {
       </div>
     `;
     modal.classList.add("active");
-    document.getElementById("profileQrCanvasWrap").innerHTML = generateLocalQrSvg(url);
+    const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=16&data=${encodeURIComponent(url)}`;
+    document.getElementById("profileQrCanvasWrap").innerHTML = `<img class="profile-qr-img" src="${qrApi}" alt="Profile QR code" onerror="this.replaceWith(document.createRange().createContextualFragment(AppUX.generateProfileQrFallback('${encodeURIComponent(url)}')))">`;
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function generateProfileQrFallback(encodedUrl) {
+    return generateLocalQrSvg(decodeURIComponent(encodedUrl || ""));
   }
 
   function closeProfileQrCode() {
@@ -873,7 +878,7 @@ const AppUX = (() => {
       });
       const data = await apiRequest(`/api/people/search?${params.toString()}`);
       if (requestId !== exploreSearchRequestId) return;
-      const results = data.results || [];
+      const results = mergePeopleResults(data.results || [], localPeopleSearch(query));
       if (summary) summary.textContent = query ? `${results.length} people found for "${query}"` : "People you may want to connect with";
       holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
         `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, or company.</div>`;
@@ -886,6 +891,17 @@ const AppUX = (() => {
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function mergePeopleResults(...groups) {
+    const map = new Map();
+    groups.flat().filter(Boolean).forEach(person => {
+      const key = String(person.email || person.handle || person.id || person.name || "").toLowerCase();
+      if (!key) return;
+      const existing = map.get(key) || {};
+      map.set(key, { ...existing, ...person, skills: [...new Set([...(existing.skills || []), ...(person.skills || [])].filter(Boolean))] });
+    });
+    return Array.from(map.values()).sort((a, b) => Number(b.score || 0) - Number(a.score || 0) || String(a.name).localeCompare(String(b.name)));
+  }
+
   function localPeopleSearch(query = "") {
     const db = getDB();
     const user = getCurrentUser?.() || {};
@@ -893,20 +909,23 @@ const AppUX = (() => {
     const currentConnections = new Set((db.connections || [])
       .filter(item => item.from === user.name || item.to === user.name)
       .map(item => item.from === user.name ? item.to : item.from));
-    const people = getAllProfiles().map(profile => {
+    const profiles = mergePeopleResults(getAllProfiles(), user?.name ? [user] : []).map(profile => enrichLocalProfileForSearch(profile, db));
+    const people = profiles.map(profile => {
       const startup = profile.startupId ? (db.startups || []).find(item => item.id === profile.startupId) : null;
       const id = userIdFor(profile);
       const location = [profile.city || startup?.city, profile.state || startup?.state].filter(Boolean).join(", ");
       const role = profile.title || (profile.role === "startup_admin" ? "Startup Owner" : profile.role || "Member");
       const companyName = profile.companyName || startup?.name || "";
       const skills = profile.skills || [];
-      const haystack = [profile.name, id, role, location, skills.join(" "), companyName, profile.bio].join(" ").toLowerCase();
+      const haystack = [profile.name, id, role, location, skills.join(" "), companyName, profile.bio, profile.searchText].join(" ").toLowerCase();
       const score = !q ? 1 :
         String(profile.name || "").toLowerCase() === q ? 100 :
         String(profile.name || "").toLowerCase().startsWith(q) ? 90 :
         id === q ? 95 :
+        fuzzyWordsMatch(profile.name, q) ? 86 :
         role.toLowerCase().includes(q) ? 70 :
         location.toLowerCase().includes(q) ? 55 :
+        skills.join(" ").toLowerCase().includes(q) ? 50 :
         haystack.includes(q) ? 20 : -1;
       return { ...profile, id, handle: id, role, location, companyName, skills, mutualConnections: currentConnections.has(profile.name) ? 1 : 0, profileUrl: profileUrl(profile), score };
     }).filter(profile => {
@@ -918,6 +937,31 @@ const AppUX = (() => {
       return true;
     });
     return people.sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)));
+  }
+
+  function enrichLocalProfileForSearch(profile, db) {
+    const relatedAds = (db.freelancerAds || []).filter(ad => ad.freelancerName === profile.name);
+    const relatedPosts = (db.profilePosts || []).filter(post => post.authorName === profile.name || post.authorEmail === profile.email);
+    const relatedPromos = (db.startupPromotions || []).filter(post => post.startupName === profile.companyName || post.startupName === profile.name);
+    const relatedJobs = (db.jobs || []).filter(job => job.startupId === profile.startupId);
+    const extraTerms = [
+      ...relatedAds.flatMap(ad => [ad.title, ad.category, ad.description, ...(ad.tags || [])]),
+      ...relatedPosts.flatMap(post => [post.title, post.description, post.caption, ...(post.tags || [])]),
+      ...relatedPromos.flatMap(post => [post.title, post.description, ...(post.tags || [])]),
+      ...relatedJobs.flatMap(job => [job.title, job.description, ...(job.tags || [])])
+    ].filter(Boolean);
+    const inferredSkills = extraTerms.filter(term => /design|editor|editing|video|reel|photo|camera|developer|marketing|sales|branding|ai|web|app/i.test(term));
+    return {
+      ...profile,
+      skills: [...new Set([...(profile.skills || []), ...inferredSkills].map(String))].slice(0, 12),
+      searchText: extraTerms.join(" ")
+    };
+  }
+
+  function fuzzyWordsMatch(name, query) {
+    const q = String(query || "").toLowerCase();
+    if (!q) return true;
+    return String(name || "").toLowerCase().split(/\s+/).some(part => part.startsWith(q) || q.startsWith(part));
   }
 
   function renderPeopleSearchCard(person) {
@@ -986,6 +1030,11 @@ const AppUX = (() => {
       }
       const text = await runExploreOCR(file);
       if (text) {
+        const possibleProfile = extractConnectHubProfileFromText(text);
+        if (possibleProfile) {
+          await openScannedProfile(possibleProfile);
+          return;
+        }
         renderExploreDirectory(text.trim());
         showToast("Image text added to search");
       } else {
@@ -1033,6 +1082,16 @@ const AppUX = (() => {
     return "";
   }
 
+  function extractConnectHubProfileFromText(text) {
+    const clean = String(text || "").replace(/\s+/g, "");
+    const urlMatch = clean.match(/https?:\/\/(?:www\.)?connecthub-f2sp\.onrender\.com\/profile\/[a-z0-9_-]+/i);
+    if (urlMatch) return urlMatch[0];
+    const legacyMatch = clean.match(/profile\.html\?id=([a-z0-9_-]+)/i);
+    if (legacyMatch) return `profile/${legacyMatch[1]}`;
+    const handleMatch = clean.match(/@([a-z0-9_]{2,})/i);
+    return handleMatch ? `@${handleMatch[1]}` : "";
+  }
+
   async function scanExploreQr(file) {
     if ("BarcodeDetector" in window) {
       try {
@@ -1064,13 +1123,62 @@ const AppUX = (() => {
       image.src = dataUrl;
     });
     const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
+    const maxSide = 1800;
+    const naturalWidth = img.naturalWidth || img.width;
+    const naturalHeight = img.naturalHeight || img.height;
+    const scale = Math.min(1, maxSide / Math.max(naturalWidth, naturalHeight));
+    canvas.width = Math.max(1, Math.round(naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(naturalHeight * scale));
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = window.jsQR(imageData.data, canvas.width, canvas.height);
-    return code?.data || "";
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return decodeQrFromCanvas(canvas) || decodeQrFromLikelyCrops(canvas) || "";
+  }
+
+  function decodeQrFromCanvas(canvas) {
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const attempts = [
+      ctx.getImageData(0, 0, canvas.width, canvas.height),
+      thresholdImageData(ctx.getImageData(0, 0, canvas.width, canvas.height), false),
+      thresholdImageData(ctx.getImageData(0, 0, canvas.width, canvas.height), true)
+    ];
+    for (const imageData of attempts) {
+      const code = window.jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+      if (code?.data) return code.data;
+    }
+    return "";
+  }
+
+  function decodeQrFromLikelyCrops(canvas) {
+    const crops = [
+      [0.05, 0.05, 0.9, 0.55],
+      [0.1, 0.1, 0.8, 0.45],
+      [0.2, 0.15, 0.6, 0.45],
+      [0, 0, 1, 1]
+    ];
+    for (const [x, y, w, h] of crops) {
+      const crop = document.createElement("canvas");
+      crop.width = 900;
+      crop.height = 900;
+      const ctx = crop.getContext("2d", { willReadFrequently: true });
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(canvas, canvas.width * x, canvas.height * y, canvas.width * w, canvas.height * h, 0, 0, crop.width, crop.height);
+      const decoded = decodeQrFromCanvas(crop);
+      if (decoded) return decoded;
+    }
+    return "";
+  }
+
+  function thresholdImageData(imageData, invert = false) {
+    const data = new Uint8ClampedArray(imageData.data);
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+      const value = (gray > 150) !== invert ? 255 : 0;
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+    }
+    return new ImageData(data, imageData.width, imageData.height);
   }
 
   async function runExploreOCR(file) {
@@ -1951,5 +2059,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
 })();
