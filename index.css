@@ -2390,6 +2390,12 @@ body.dark .explore-news button:hover {
   background: #ffffff;
 }
 
+.profile-qr-svg {
+  width: min(62vw, 220px);
+  height: auto;
+  display: block;
+}
+
 .ad-footer {
   align-items: center;
   margin-top: auto;

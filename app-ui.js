@@ -447,17 +447,6 @@ const AppUX = (() => {
     }
   }
 
-  function loadQRCodeLibrary() {
-    return new Promise((resolve, reject) => {
-      if (window.QRCode?.toCanvas) return resolve();
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js";
-      script.onload = resolve;
-      script.onerror = () => reject(new Error("QR code library could not load."));
-      document.head.appendChild(script);
-    });
-  }
-
   async function openProfileQrCode() {
     closeProfileShareSheet();
     let modal = document.getElementById("profileQrModal");
@@ -479,19 +468,151 @@ const AppUX = (() => {
       </div>
     `;
     modal.classList.add("active");
-    try {
-      await loadQRCodeLibrary();
-      const canvas = document.createElement("canvas");
-      document.getElementById("profileQrCanvasWrap").appendChild(canvas);
-      await window.QRCode.toCanvas(canvas, url, { width: 220, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } });
-    } catch (error) {
-      document.getElementById("profileQrCanvasWrap").innerHTML = `<p>${escapeHTML(error.message || "Could not generate QR code.")}</p>`;
-    }
+    document.getElementById("profileQrCanvasWrap").innerHTML = generateLocalQrSvg(url);
     if (window.lucide) window.lucide.createIcons();
   }
 
   function closeProfileQrCode() {
     document.getElementById("profileQrModal")?.classList.remove("active");
+  }
+
+  function generateLocalQrSvg(text) {
+    const version = 5;
+    const size = 21 + 4 * (version - 1);
+    const dataCodewords = 108;
+    const ecCodewords = 26;
+    const matrix = Array.from({ length: size }, () => Array(size).fill(null));
+    const reserved = Array.from({ length: size }, () => Array(size).fill(false));
+    const utf8 = new TextEncoder().encode(text);
+    if (utf8.length > 106) {
+      return `<p>Profile link is too long for the built-in QR generator.</p>`;
+    }
+
+    const set = (row, col, value, isReserved = true) => {
+      if (row < 0 || col < 0 || row >= size || col >= size) return;
+      matrix[row][col] = Boolean(value);
+      if (isReserved) reserved[row][col] = true;
+    };
+    const addFinder = (row, col) => {
+      for (let r = -1; r <= 7; r++) {
+        for (let c = -1; c <= 7; c++) {
+          const rr = row + r;
+          const cc = col + c;
+          if (rr < 0 || cc < 0 || rr >= size || cc >= size) continue;
+          const dark = r >= 0 && r <= 6 && c >= 0 && c <= 6 &&
+            (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+          set(rr, cc, dark);
+        }
+      }
+    };
+    addFinder(0, 0);
+    addFinder(0, size - 7);
+    addFinder(size - 7, 0);
+    for (let i = 8; i < size - 8; i++) {
+      set(6, i, i % 2 === 0);
+      set(i, 6, i % 2 === 0);
+    }
+    for (let r = -2; r <= 2; r++) {
+      for (let c = -2; c <= 2; c++) {
+        set(30 + r, 30 + c, Math.max(Math.abs(r), Math.abs(c)) === 2 || (r === 0 && c === 0));
+      }
+    }
+    for (let i = 0; i < 8; i++) {
+      reserved[8][i] = true;
+      reserved[i][8] = true;
+      reserved[8][size - 1 - i] = true;
+      reserved[size - 1 - i][8] = true;
+    }
+    reserved[8][8] = true;
+    set(4 * version + 9, 8, true);
+
+    const bits = [];
+    const pushBits = (value, length) => {
+      for (let i = length - 1; i >= 0; i--) bits.push(Boolean((value >> i) & 1));
+    };
+    pushBits(4, 4);
+    pushBits(utf8.length, 8);
+    utf8.forEach(byte => pushBits(byte, 8));
+    const dataBits = dataCodewords * 8;
+    for (let i = 0; i < 4 && bits.length < dataBits; i++) bits.push(false);
+    while (bits.length % 8) bits.push(false);
+    const data = [];
+    for (let i = 0; i < bits.length; i += 8) {
+      data.push(bits.slice(i, i + 8).reduce((sum, bit) => (sum << 1) | (bit ? 1 : 0), 0));
+    }
+    for (let pad = 0; data.length < dataCodewords; pad++) data.push(pad % 2 ? 0x11 : 0xec);
+
+    const exp = Array(512).fill(0);
+    const log = Array(256).fill(0);
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      exp[i] = x;
+      log[x] = i;
+      x <<= 1;
+      if (x & 0x100) x ^= 0x11d;
+    }
+    for (let i = 255; i < 512; i++) exp[i] = exp[i - 255];
+    const gfMul = (a, b) => (a && b ? exp[log[a] + log[b]] : 0);
+    let generator = [1];
+    for (let i = 0; i < ecCodewords; i++) {
+      const next = Array(generator.length + 1).fill(0);
+      generator.forEach((coef, j) => {
+        next[j] ^= coef;
+        next[j + 1] ^= gfMul(coef, exp[i]);
+      });
+      generator = next;
+    }
+    const message = data.concat(Array(ecCodewords).fill(0));
+    for (let i = 0; i < data.length; i++) {
+      const coef = message[i];
+      if (!coef) continue;
+      generator.forEach((gen, j) => {
+        message[i + j] ^= gfMul(gen, coef);
+      });
+    }
+    const codewords = data.concat(message.slice(-ecCodewords));
+    const stream = [];
+    codewords.forEach(byte => pushBitsTo(stream, byte, 8));
+
+    let bitIndex = 0;
+    let upward = true;
+    for (let col = size - 1; col > 0; col -= 2) {
+      if (col === 6) col--;
+      for (let step = 0; step < size; step++) {
+        const row = upward ? size - 1 - step : step;
+        for (let dc = 0; dc < 2; dc++) {
+          const c = col - dc;
+          if (reserved[row][c]) continue;
+          let bit = stream[bitIndex++] || false;
+          if ((row + c) % 2 === 0) bit = !bit;
+          set(row, c, bit, false);
+        }
+      }
+      upward = !upward;
+    }
+
+    const format = "111011111000100";
+    const f = index => format[index] === "1";
+    for (let i = 0; i <= 5; i++) set(8, i, f(i));
+    set(8, 7, f(6));
+    set(8, 8, f(7));
+    set(7, 8, f(8));
+    for (let i = 9; i < 15; i++) set(14 - i, 8, f(i));
+    for (let i = 0; i < 8; i++) set(size - 1 - i, 8, f(i));
+    for (let i = 8; i < 15; i++) set(8, size - 15 + i, f(i));
+
+    const quiet = 4;
+    const module = 6;
+    const dim = (size + quiet * 2) * module;
+    const rects = [];
+    matrix.forEach((row, r) => row.forEach((dark, c) => {
+      if (dark) rects.push(`<rect x="${(c + quiet) * module}" y="${(r + quiet) * module}" width="${module}" height="${module}"/>`);
+    }));
+    return `<svg class="profile-qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" role="img" aria-label="Profile QR code"><rect width="100%" height="100%" fill="#fff"/><g fill="#0f172a">${rects.join("")}</g></svg>`;
+  }
+
+  function pushBitsTo(target, value, length) {
+    for (let i = length - 1; i >= 0; i--) target.push(Boolean((value >> i) & 1));
   }
 
   function renderNotificationItem(note) {
