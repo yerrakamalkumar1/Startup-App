@@ -1742,6 +1742,92 @@ body.dark .explore-news button:hover {
   font-weight: 700;
 }
 
+.mobile-media-picker {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.media-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.media-picker-head span {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-picker-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.media-picker-actions label,
+.media-preview-strip button {
+  min-height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid #bdeee8;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #0f766e;
+  font-weight: 950;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.media-picker-actions label:hover,
+.media-preview-strip button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.12);
+}
+
+.media-picker-actions svg,
+.media-preview-strip svg {
+  width: 21px;
+  height: 21px;
+}
+
+.media-preview-strip {
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: var(--text-secondary);
+  font-weight: 850;
+}
+
+.media-preview-strip img,
+.media-preview-strip video {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+}
+
 .ad-meta {
   display: flex;
   flex-wrap: wrap;
@@ -2400,6 +2486,77 @@ body.public-profile-body.dark .profile-review-list article {
   background: #1e1e1e;
   border-color: #374151;
   color: #ffffff;
+}
+
+:root[data-theme="dark"] .profile-tabs a:first-child,
+body.public-profile-body.dark .profile-tabs a:first-child {
+  background: rgba(125, 211, 252, 0.18);
+  border: 1px solid rgba(125, 211, 252, 0.42);
+  color: #e0f2fe;
+}
+
+:root[data-theme="dark"] .profile-tag-row span,
+body.public-profile-body.dark .profile-tag-row span {
+  background: rgba(20, 184, 166, 0.22);
+  border: 1px solid rgba(94, 234, 212, 0.44);
+  color: #ccfbf1;
+}
+
+:root[data-theme="dark"] .profile-social-actions,
+body.public-profile-body.dark .profile-social-actions {
+  border-color: #374151;
+}
+
+:root[data-theme="dark"] .profile-post-placeholder,
+body.public-profile-body.dark .profile-post-placeholder {
+  background: #202020;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .profile-post-placeholder svg,
+body.public-profile-body.dark .profile-post-placeholder svg {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .media-picker,
+:root[data-theme="dark"] .mobile-media-picker,
+:root[data-theme="dark"] .media-preview-strip,
+body.dark .media-picker,
+body.dark .mobile-media-picker,
+body.dark .media-preview-strip,
+body.public-profile-body.dark .mobile-media-picker,
+body.public-profile-body.dark .media-preview-strip {
+  background: #1e1e1e;
+  border-color: #374151;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .media-picker small,
+:root[data-theme="dark"] .media-picker-head,
+:root[data-theme="dark"] .media-preview-strip,
+body.dark .media-picker small,
+body.dark .media-picker-head,
+body.dark .media-preview-strip,
+body.public-profile-body.dark .media-picker-head,
+body.public-profile-body.dark .media-preview-strip {
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .media-picker-head span,
+body.dark .media-picker-head span,
+body.public-profile-body.dark .media-picker-head span {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .media-picker-actions label,
+:root[data-theme="dark"] .media-preview-strip button,
+body.dark .media-picker-actions label,
+body.dark .media-preview-strip button,
+body.public-profile-body.dark .media-picker-actions label,
+body.public-profile-body.dark .media-preview-strip button {
+  background: #111827;
+  border-color: #374151;
+  color: #5eead4;
 }
 
 :root[data-theme="dark"] .profile-social-actions button.active,

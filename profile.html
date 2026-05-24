@@ -252,7 +252,22 @@
             <input id="profilePostTitle" class="form-control" placeholder="Post title" required>
             <textarea id="profilePostText" class="form-control" rows="3" maxlength="300" placeholder="Share a work update, offer, reel caption, or startup progress" required></textarea>
             <input id="profilePostTags" class="form-control" placeholder="Tags: design, hiring, funding">
-            <input id="profilePostMedia" class="form-control" type="file" accept="image/*,video/*">
+            <div class="mobile-media-picker">
+              <div class="media-picker-head">
+                <strong>Photo or reel</strong>
+                <span id="profileMediaName">No file selected</span>
+              </div>
+              <input id="profilePostMedia" type="file" accept="image/*,video/*" hidden onchange="previewProfilePostMedia(this, 'profilePostCamera')">
+              <input id="profilePostCamera" type="file" accept="image/*,video/*" capture="environment" hidden onchange="previewProfilePostMedia(this, 'profilePostMedia')">
+              <div class="media-picker-actions">
+                <label for="profilePostMedia"><i data-lucide="images"></i><span>Gallery</span></label>
+                <label for="profilePostCamera"><i data-lucide="camera"></i><span>Camera</span></label>
+              </div>
+              <div id="profileMediaPreview" class="media-preview-strip">
+                <button type="button" onclick="document.getElementById('profilePostCamera')?.click()"><i data-lucide="camera"></i></button>
+                <span>Open gallery or camera to add a photo/reel</span>
+              </div>
+            </div>
             <button class="btn btn-primary" type="submit"><i data-lucide="image-plus"></i>Post Photo/Reel</button>
           </form>
         </section>` : ""}
@@ -298,7 +313,10 @@
       if (!user) return alert("Please login to publish a post.");
       let media = null;
       try {
-        media = await fileToMedia(document.getElementById("profilePostMedia"));
+        const galleryInput = document.getElementById("profilePostMedia");
+        const cameraInput = document.getElementById("profilePostCamera");
+        const selectedInput = galleryInput?.files?.length ? galleryInput : cameraInput;
+        media = await fileToMedia(selectedInput);
       } catch (error) {
         alert(error.message);
         return;
@@ -334,9 +352,36 @@
       });
       saveDB(db);
       event.target.reset();
+      resetProfilePostMedia();
       playProfileBell();
       const profile = getAllProfiles().find(item => profileId(item) === profileKey) || user;
       render(profile);
+    }
+
+    function previewProfilePostMedia(input, otherInputId) {
+      const otherInput = document.getElementById(otherInputId);
+      if (otherInput && otherInput !== input) otherInput.value = "";
+      const file = input.files?.[0];
+      const name = document.getElementById("profileMediaName");
+      const preview = document.getElementById("profileMediaPreview");
+      if (!file || !preview) return resetProfilePostMedia();
+      if (name) name.textContent = file.name;
+      const url = URL.createObjectURL(file);
+      const previewMedia = file.type.startsWith("video/")
+        ? `<video src="${url}" muted playsinline></video>`
+        : `<img src="${url}" alt="Selected media preview">`;
+      preview.innerHTML = `${previewMedia}<span>${file.type.startsWith("video/") ? "Reel selected" : "Photo selected"}</span>`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function resetProfilePostMedia() {
+      const name = document.getElementById("profileMediaName");
+      const preview = document.getElementById("profileMediaPreview");
+      if (name) name.textContent = "No file selected";
+      if (preview) {
+        preview.innerHTML = `<button type="button" onclick="document.getElementById('profilePostCamera')?.click()"><i data-lucide="camera"></i></button><span>Open gallery or camera to add a photo/reel</span>`;
+      }
+      if (window.lucide) window.lucide.createIcons();
     }
 
     function addInteraction(postId, ownerName, type, text = "") {
