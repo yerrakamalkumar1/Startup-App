@@ -345,7 +345,7 @@
           type: "profile_post",
           from: user.name,
           text: `${user.name} shared a new ${media?.type?.startsWith("video/") ? "reel" : media ? "photo" : "post"}.`,
-          targetUrl: `profile.html?id=${encodeURIComponent(profileKey)}#feed`,
+          targetUrl: `/profile/${encodeURIComponent(profileKey)}#feed`,
           read: false,
           createdAt: new Date().toISOString()
         });
@@ -433,7 +433,8 @@
 
     syncFromBackend().finally(() => {
       const params = new URLSearchParams(location.search);
-      const id = (params.get("id") || params.get("name") || "").toLowerCase();
+      const pathId = location.pathname.match(/\/profile\/([^/]+)\/?$/)?.[1] || "";
+      const id = decodeURIComponent(pathId || params.get("id") || params.get("name") || "").toLowerCase();
       const profile = getAllProfiles().find(item =>
         String(item.email || "").toLowerCase() === id ||
         profileId(item) === id ||

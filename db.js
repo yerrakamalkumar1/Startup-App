@@ -851,7 +851,7 @@ function connectUsers(targetName) {
   db.notifications.push({
     id: "not-" + Date.now(),
     to: targetName,
-    type: "connection",
+    type: "connection_request",
     text: `${user.name} sent you a connection request.`,
     read: false,
     createdAt: new Date().toISOString()
@@ -1000,7 +1000,7 @@ function submitReview(to, rating, text = "") {
     type: "review",
     from: user.name,
     text: `${user.name} rated you ${review.rating}/5.`,
-    targetUrl: `profile.html?id=${encodeURIComponent(to)}`,
+    targetUrl: `profile/${encodeURIComponent(to)}`,
     read: false,
     createdAt: review.createdAt
   });

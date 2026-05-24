@@ -11,6 +11,11 @@ const AppUX = (() => {
   let exploreVoiceRecognition = null;
   let avatarLongPressTimer = null;
   let avatarLongPressOpened = false;
+  let exploreSearchRequestId = 0;
+  let exploreFilters = { role: "", location: "", skills: "", company: "" };
+  let currentMessageTab = "focused";
+  let currentNotificationTab = "all";
+  let visibleNotificationIds = [];
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -325,29 +330,57 @@ const AppUX = (() => {
     const user = getCurrentUser?.();
     const panel = document.getElementById("notificationPanel");
     if (!user || !panel) return;
-    const db = getDB();
-    const items = (db.notifications || [])
-      .filter(note => note.to === user.name || note.to === user.companyName)
-      .slice()
-      .reverse()
-      .slice(0, 12);
     panel.innerHTML = `
       <div class="notification-panel-head">
         <strong>Notifications</strong>
         <button type="button" onclick="AppUX.markNotificationsRead()">Mark read</button>
       </div>
       <div class="notification-filter-row">
-        <button type="button" class="active">All</button>
-        <button type="button">Messages</button>
-        <button type="button">Network</button>
+        ${["all", "messages", "network"].map(tab => `<button type="button" class="${currentNotificationTab === tab ? "active" : ""}" onclick="AppUX.setNotificationTab('${tab}')">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
       </div>
-      ${items.map(note => renderNotificationItem(note)).join("") || '<p class="notification-empty">No notifications yet.</p>'}
+      <div id="notificationPanelItems"><p class="notification-empty">Loading notifications...</p></div>
     `;
+    loadNotificationItems(currentNotificationTab);
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  async function loadNotificationItems(tab = currentNotificationTab) {
+    const user = getCurrentUser?.();
+    const holder = document.getElementById("notificationPanelItems");
+    if (!user || !holder) return;
+    try {
+      const data = await apiRequest(`/api/notifications?tab=${encodeURIComponent(tab)}&user=${encodeURIComponent(user.name || "")}&company=${encodeURIComponent(user.companyName || "")}`);
+      visibleNotificationIds = (data.notifications || []).map(note => note.id);
+      holder.innerHTML = (data.notifications || []).map(note => renderNotificationItem(note)).join("") ||
+        `<p class="notification-empty">No ${tab} notifications yet.</p>`;
+    } catch {
+      const db = getDB();
+      const items = (db.notifications || [])
+        .filter(note => (note.to === user.name || note.to === user.companyName) && notificationTabMatch(note, tab))
+        .slice()
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      visibleNotificationIds = items.map(note => note.id);
+      holder.innerHTML = items.map(note => renderNotificationItem(note)).join("") ||
+        `<p class="notification-empty">No ${tab} notifications yet.</p>`;
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function setNotificationTab(tab) {
+    currentNotificationTab = tab || "all";
+    renderNotificationPanel();
+  }
+
+  function notificationTabMatch(note, tab) {
+    const type = String(note.type || "").toLowerCase();
+    if (tab === "messages") return ["message", "new_message", "direct_message"].includes(type);
+    if (tab === "network") return ["follow", "connection_request", "connection_accepted", "profile_view", "connection"].includes(type);
+    return true;
   }
 
   function notificationActorName(note) {
     const text = String(note.text || "");
+    if (note.actor) return note.actor;
     if (note.from) return note.from;
     if (text.startsWith("New message from ")) return text.replace("New message from ", "").trim();
     if (text.includes(" sent you ")) return text.split(" sent you ")[0].trim();
@@ -358,14 +391,13 @@ const AppUX = (() => {
 
   function profileUrl(profile) {
     const id = userIdFor(profile || {});
-    return `profile.html?id=${encodeURIComponent(id)}`;
+    return `profile/${encodeURIComponent(id)}`;
   }
 
   function currentPublicProfileUrl() {
     const user = getCurrentUser?.() || {};
-    const path = location.pathname.endsWith("profile.html")
-      ? `${location.pathname}${location.search || ""}`
-      : `/${profileUrl(user)}`;
+    const pathMatch = location.pathname.match(/\/profile\/([^/]+)\/?$/);
+    const path = pathMatch ? location.pathname : `/${profileUrl(user)}`;
     return new URL(path, location.origin || location.href).href;
   }
 
@@ -617,15 +649,16 @@ const AppUX = (() => {
 
   function renderNotificationItem(note) {
     const actorName = notificationActorName(note);
-    const profile = getAllProfiles().find(item => item.name === actorName) || { name: actorName || "Connect Hub", avatarInitials: initialsForName(actorName || "CH") };
+    const profile = getAllProfiles().find(item => item.name === actorName) || { name: actorName || "Connect Hub", avatarInitials: note.avatarInitials || initialsForName(actorName || "CH"), avatarPhoto: note.avatarPhoto || null };
     const text = escapeHTML(note.text || "New notification");
     const actor = escapeHTML(actorName || profile.name || "Connect Hub");
     const message = actorName ? text.replace(actor, "").trim() : text;
+    const href = note.actorProfileUrl || profileUrl(profile);
     return `<article class="notification-item ${note.read ? "" : "unread"}">
-      <a class="notification-avatar-link" href="${profileUrl(profile)}" onclick="AppUX.markNotificationsRead()">${avatarMarkup(profile, "user-avatar")}</a>
+      <a class="notification-avatar-link" href="${href}" onclick="AppUX.markNotificationsRead()">${avatarMarkup(profile, "user-avatar")}</a>
       <div class="notification-copy">
-        <p><a href="${profileUrl(profile)}" onclick="AppUX.markNotificationsRead()">${actor}</a> ${message}</p>
-        <small>${new Date(note.createdAt || Date.now()).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
+        <p><a href="${href}" onclick="AppUX.markNotificationsRead()">${actor}</a> ${message}</p>
+        <small>${relativeTime(note.createdAt)}</small>
         <div class="notification-actions">
           <button type="button" onclick="AppUX.openNotification('${note.id}')">Open</button>
           <button type="button" onclick="AppUX.removeNotification('${note.id}')">Remove</button>
@@ -633,6 +666,17 @@ const AppUX = (() => {
       </div>
       <button type="button" title="Mark read" onclick="AppUX.markNotificationsRead()"><i data-lucide="check"></i></button>
     </article>`;
+  }
+
+  function relativeTime(dateValue) {
+    const diff = Math.max(0, Date.now() - new Date(dateValue || Date.now()).getTime());
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) return "Just now";
+    if (diff < hour) return `${Math.floor(diff / minute)} min ago`;
+    if (diff < day) return `${Math.floor(diff / hour)} hr ago`;
+    return `${Math.floor(diff / day)}d ago`;
   }
 
   function installRealtime() {
@@ -746,15 +790,6 @@ const AppUX = (() => {
     const allItems = exploreItems();
     const recents = recentExploreProfiles(allItems);
     const suggestions = exploreSuggestions(user);
-    const items = allItems.filter(item => {
-      const profile = item.avatarProfile || { name: item.personName || item.name, email: item.email };
-      const id = userIdFor(profile);
-      const haystack = [item.name, item.personName, id, item.type, item.role, item.title, item.sector, item.city, item.state, item.description]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return !q || haystack.includes(q) || suggestionMatch(item, q, user);
-    });
     body.innerHTML = `
       <div class="explore-search-shell">
         <button class="explore-round-action" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
@@ -766,10 +801,13 @@ const AppUX = (() => {
           <div class="explore-search-actions">
             <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Add image or attachment"><i data-lucide="plus"></i></button>
             <button type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
-            <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Camera search"><i data-lucide="scan-line"></i></button>
+            <button type="button" onclick="AppUX.pickExploreImage('camera')" aria-label="Scan profile QR code"><i data-lucide="scan-line"></i></button>
           </div>
         </div>
         <button class="explore-round-action" type="button" onclick="AppUX.useLocationForExplore()" title="Use current location"><i data-lucide="map-pin"></i></button>
+      </div>
+      <div class="explore-filter-row">
+        ${["role", "location", "skills", "company"].map(key => `<button type="button" class="${exploreFilters[key] ? "active" : ""}" onclick="AppUX.openExploreFilter('${key}')">${key[0].toUpperCase() + key.slice(1)}${exploreFilters[key] ? `: ${escapeHTML(exploreFilters[key])}` : ""}</button>`).join("")}
       </div>
       <input id="exploreGalleryInput" type="file" accept="image/*" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <input id="exploreCameraInput" type="file" accept="image/*" capture="environment" hidden onchange="AppUX.handleExploreImageSearch(this)">
@@ -800,8 +838,9 @@ const AppUX = (() => {
         <h3>Today&apos;s opportunities</h3>
         <button type="button" onclick="AppUX.applyExploreSuggestion('startups near me')"><span>Startups near me from ConnectHub profiles</span><i data-lucide="map-pin"></i></button>
       </section>` : ""}
-      <div class="explore-directory">
-        ${items.map(item => renderExploreCard(item)).join("") || '<div class="empty-message-state">No users found.</div>'}
+      <div id="exploreResultsSummary" class="explore-results-summary"></div>
+      <div id="exploreResults" class="explore-directory">
+        <div class="empty-message-state">Searching ConnectHub people...</div>
       </div>
     `;
     const input = document.getElementById("exploreSearch");
@@ -810,10 +849,104 @@ const AppUX = (() => {
       input.setSelectionRange(input.value.length, input.value.length);
     }
     if (window.lucide) window.lucide.createIcons();
+    loadExplorePeopleResults(query);
   }
 
   function filterExplore(query) {
     renderExploreDirectory(query);
+  }
+
+  async function loadExplorePeopleResults(query = "") {
+    const requestId = ++exploreSearchRequestId;
+    const user = getCurrentUser?.() || {};
+    const holder = document.getElementById("exploreResults");
+    const summary = document.getElementById("exploreResultsSummary");
+    if (!holder) return;
+    try {
+      const params = new URLSearchParams({
+        q: query || "",
+        current: user.name || "",
+        role: exploreFilters.role || "",
+        location: exploreFilters.location || "",
+        skills: exploreFilters.skills || "",
+        company: exploreFilters.company || ""
+      });
+      const data = await apiRequest(`/api/people/search?${params.toString()}`);
+      if (requestId !== exploreSearchRequestId) return;
+      const results = data.results || [];
+      if (summary) summary.textContent = query ? `${results.length} people found for "${query}"` : "People you may want to connect with";
+      holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
+        `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, or company.</div>`;
+    } catch {
+      const results = localPeopleSearch(query);
+      if (summary) summary.textContent = query ? `${results.length} local results for "${query}"` : "People you may want to connect with";
+      holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
+        `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, or company.</div>`;
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function localPeopleSearch(query = "") {
+    const db = getDB();
+    const user = getCurrentUser?.() || {};
+    const q = String(query || "").trim().toLowerCase().replace(/^@/, "");
+    const currentConnections = new Set((db.connections || [])
+      .filter(item => item.from === user.name || item.to === user.name)
+      .map(item => item.from === user.name ? item.to : item.from));
+    const people = getAllProfiles().map(profile => {
+      const startup = profile.startupId ? (db.startups || []).find(item => item.id === profile.startupId) : null;
+      const id = userIdFor(profile);
+      const location = [profile.city || startup?.city, profile.state || startup?.state].filter(Boolean).join(", ");
+      const role = profile.title || (profile.role === "startup_admin" ? "Startup Owner" : profile.role || "Member");
+      const companyName = profile.companyName || startup?.name || "";
+      const skills = profile.skills || [];
+      const haystack = [profile.name, id, role, location, skills.join(" "), companyName, profile.bio].join(" ").toLowerCase();
+      const score = !q ? 1 :
+        String(profile.name || "").toLowerCase() === q ? 100 :
+        String(profile.name || "").toLowerCase().startsWith(q) ? 90 :
+        id === q ? 95 :
+        role.toLowerCase().includes(q) ? 70 :
+        location.toLowerCase().includes(q) ? 55 :
+        haystack.includes(q) ? 20 : -1;
+      return { ...profile, id, handle: id, role, location, companyName, skills, mutualConnections: currentConnections.has(profile.name) ? 1 : 0, profileUrl: profileUrl(profile), score };
+    }).filter(profile => {
+      if (profile.score < 0) return false;
+      if (exploreFilters.role && !String(profile.role || profile.roleType || "").toLowerCase().includes(exploreFilters.role.toLowerCase())) return false;
+      if (exploreFilters.location && !String(profile.location || "").toLowerCase().includes(exploreFilters.location.toLowerCase())) return false;
+      if (exploreFilters.skills && !String(profile.skills || "").toLowerCase().includes(exploreFilters.skills.toLowerCase())) return false;
+      if (exploreFilters.company && !String(profile.companyName || "").toLowerCase().includes(exploreFilters.company.toLowerCase())) return false;
+      return true;
+    });
+    return people.sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)));
+  }
+
+  function renderPeopleSearchCard(person) {
+    const safeName = String(person.name || "").replace(/'/g, "\\'");
+    const profile = { ...person, email: person.email || person.handle, title: person.role };
+    return `<article class="explore-card people-search-card">
+      <div class="explore-card-main">
+        <a href="${person.profileUrl || profileUrl(profile)}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">${avatarMarkup(profile, "user-avatar")}</a>
+        <div>
+          <strong>${escapeHTML(person.name || "ConnectHub member")}</strong>
+          <small>@${escapeHTML(person.handle || person.id || userIdFor(profile))}</small>
+          <p>${escapeHTML(person.role || "Member")}</p>
+        </div>
+      </div>
+      <p class="explore-card-bio"><i data-lucide="map-pin"></i> ${escapeHTML(person.location || "India")} · ${Number(person.mutualConnections || 0)} mutual connections</p>
+      <div class="profile-tag-row">${[...(person.skills || []), person.companyName].filter(Boolean).slice(0, 4).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
+      <div class="explore-card-actions">
+        <a class="btn btn-secondary" href="${person.profileUrl || profileUrl(profile)}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">Profile</a>
+        <button class="btn btn-primary" onclick="AppUX.openMessageTo('${safeName}')">Message</button>
+      </div>
+    </article>`;
+  }
+
+  function openExploreFilter(key) {
+    const labels = { role: "Role (freelancer, startup, investor)", location: "Location / city", skills: "Skill", company: "Company name" };
+    const value = prompt(`Filter by ${labels[key] || key}`, exploreFilters[key] || "");
+    if (value === null) return;
+    exploreFilters[key] = value.trim();
+    renderExploreDirectory(document.getElementById("exploreSearch")?.value || "");
   }
 
   function openExploreMediaSheet() {
@@ -848,13 +981,7 @@ const AppUX = (() => {
     try {
       const qrText = await scanExploreQr(file).catch(() => "");
       if (qrText) {
-        if (/^https?:\/\//i.test(qrText) || /^profile\.html/i.test(qrText)) {
-          showToast("QR profile found");
-          window.location.href = qrText;
-          return;
-        }
-        renderExploreDirectory(qrText.trim());
-        showToast("QR text added to search");
+        await openScannedProfile(qrText);
         return;
       }
       const text = await runExploreOCR(file);
@@ -871,7 +998,50 @@ const AppUX = (() => {
     }
   }
 
+  async function openScannedProfile(qrText) {
+    const value = String(qrText || "").trim();
+    const invalid = "Invalid QR code. Please scan a ConnectHub profile QR code.";
+    const localTarget = parseConnectHubProfileValue(value);
+    if (localTarget) {
+      showToast("Opening ConnectHub profile");
+      window.location.href = localTarget;
+      return;
+    }
+    try {
+      const result = await apiRequest(`/api/people/resolve?value=${encodeURIComponent(value)}`);
+      if (result.profile?.profileUrl) {
+        showToast("Opening ConnectHub profile");
+        window.location.href = result.profile.profileUrl;
+        return;
+      }
+    } catch {}
+    showToast(invalid, "error");
+  }
+
+  function parseConnectHubProfileValue(value) {
+    if (!value) return "";
+    const raw = String(value).trim();
+    if (/^@[a-z0-9_.-]+$/i.test(raw)) return `profile/${encodeURIComponent(raw.slice(1).toLowerCase())}`;
+    if (/^[a-z0-9_]{2,}$/i.test(raw)) return `profile/${encodeURIComponent(raw.toLowerCase())}`;
+    try {
+      const parsed = new URL(raw, location.origin);
+      const profilePath = parsed.pathname.match(/\/profile\/([^/]+)\/?$/);
+      const id = profilePath?.[1] || parsed.searchParams.get("id") || parsed.searchParams.get("name");
+      const sameHost = /connecthub-f2sp\.onrender\.com$/i.test(parsed.hostname) || parsed.hostname === location.hostname;
+      if (sameHost && id) return `${parsed.origin}/profile/${encodeURIComponent(id)}`;
+    } catch {}
+    return "";
+  }
+
   async function scanExploreQr(file) {
+    if ("BarcodeDetector" in window) {
+      try {
+        const detector = new BarcodeDetector({ formats: ["qr_code"] });
+        const bitmap = await createImageBitmap(file);
+        const codes = await detector.detect(bitmap);
+        if (codes?.[0]?.rawValue) return codes[0].rawValue;
+      } catch {}
+    }
     if (!window.jsQR) {
       await new Promise((resolve, reject) => {
         const script = document.createElement("script");
@@ -979,7 +1149,7 @@ const AppUX = (() => {
     const profile = item.avatarProfile || { name: item.personName || item.name, title: item.title, email: item.email };
     const id = userIdFor(profile);
     const label = profile.name || item.name || "Member";
-    return `<a class="explore-recent" href="profile.html?id=${id}" onclick="AppUX.saveExploreRecent('${id}')">
+    return `<a class="explore-recent" href="profile/${encodeURIComponent(id)}" onclick="AppUX.saveExploreRecent('${id}')">
       ${avatarMarkup(profile, "user-avatar")}
       <span>${label}</span>
     </a>`;
@@ -1052,7 +1222,7 @@ const AppUX = (() => {
       </div>
       <p class="explore-card-bio">${item.description || profile.bio || "Open to networking and collaboration."}</p>
       <div class="explore-card-actions">
-        <a class="btn btn-secondary" href="profile.html?id=${id}" onclick="AppUX.saveExploreRecent('${id}')">Profile</a>
+        <a class="btn btn-secondary" href="profile/${encodeURIComponent(id)}" onclick="AppUX.saveExploreRecent('${id}')">Profile</a>
         <button class="btn btn-secondary" onclick="connectUsers('${targetName}'); AppUX.showToast('Connection request sent')">Connect</button>
         <button class="btn btn-secondary" onclick="AppUX.reviewUser('${targetName}')">Review</button>
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${targetName}')">Message</button>
@@ -1135,58 +1305,15 @@ const AppUX = (() => {
   }
 
   function renderInbox(query = "") {
-    const user = getCurrentUser();
-    const db = getDB();
-    const q = String(query || "").trim().toLowerCase();
-    const profiles = getMessageContacts().filter(profile => {
-      if (!q) return true;
-      const id = userIdFor(profile);
-      const text = [
-        profile.name,
-        profile.title,
-        profile.role,
-        profile.email,
-        id,
-        profile.city,
-        profile.state,
-        profile.bio
-      ].join(" ").toLowerCase();
-      const last = [...(db.messages || [])].reverse().find(m =>
-        (m.from === user.name && m.to === profile.name) || (m.from === profile.name && m.to === user.name)
-      );
-      return text.includes(q) || String(last?.text || "").toLowerCase().includes(q);
-    });
-    const rows = profiles.map(profile => {
-      const last = [...(db.messages || [])].reverse().find(m =>
-        (m.from === user.name && m.to === profile.name) || (m.from === profile.name && m.to === user.name)
-      );
-      const unread = (db.messages || []).filter(m => m.from === profile.name && m.to === user.name && !m.read).length;
-      const online = (window.ConnectHubOnlineUsers || []).includes(profile.name);
-      const safeName = profile.name.replace(/'/g, "\\'");
-      const preview = messagePreview(last);
-      return `<button class="message-row" onclick="AppUX.openChat('${safeName}')">
-        <span class="message-avatar-wrap">${avatarMarkup(profile, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
-        <span class="message-row-main">
-          <strong>${profile.name}</strong>
-          <small>@${(profile.email || profile.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}</small>
-          <em>${preview}</em>
-        </span>
-        <span class="message-row-meta"><small>${last ? new Date(last.createdAt || Date.now()).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : ""}</small>${unread ? `<b>${unread}</b>` : ""}</span>
-      </button>`;
-    }).join("");
-
     document.getElementById("messageDockBody").innerHTML = `
       <div class="message-inbox-tools">
         <div class="message-search"><i data-lucide="search"></i><input id="messageSearch" placeholder="Search messages by name, @id or text" value="${escapeHTML(query)}" oninput="AppUX.filterMessages(this.value)" onkeydown="AppUX.handleMessageSearchKey(event)"></div>
         <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.focusMessageSearch()" title="New message"><i data-lucide="edit-3"></i></button>
       </div>
       <div class="message-filter-row">
-        <button class="active" type="button">Focused</button>
-        <button type="button">Jobs</button>
-        <button type="button">Unread</button>
-        <button type="button">Network</button>
+        ${["focused", "jobs", "unread", "network"].map(tab => `<button class="${currentMessageTab === tab ? "active" : ""}" type="button" onclick="AppUX.setMessageTab('${tab}')">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
       </div>
-      <div id="messageRows" class="message-list">${rows || '<div class="empty-message-state">No matching users found. Try full name, username, role, city, or startup name.</div>'}</div>
+      <div id="messageRows" class="message-list"><div class="empty-message-state">Loading ${currentMessageTab} messages...</div></div>
     `;
     if (window.lucide) window.lucide.createIcons();
     const search = document.getElementById("messageSearch");
@@ -1194,10 +1321,85 @@ const AppUX = (() => {
       search.focus();
       search.setSelectionRange(search.value.length, search.value.length);
     }
+    loadInboxRows(query, currentMessageTab);
   }
 
   function filterMessages(query) {
     renderInbox(query);
+  }
+
+  function setMessageTab(tab) {
+    currentMessageTab = tab || "focused";
+    renderInbox(document.getElementById("messageSearch")?.value || "");
+  }
+
+  async function loadInboxRows(query = "", tab = currentMessageTab) {
+    const user = getCurrentUser();
+    const holder = document.getElementById("messageRows");
+    if (!user || !holder) return;
+    try {
+      const params = new URLSearchParams({ tab, q: query || "", user: user.name || "" });
+      const data = await apiRequest(`/api/messages/inbox?${params.toString()}`);
+      holder.innerHTML = (data.conversations || []).map(renderMessageRow).join("") ||
+        `<div class="empty-message-state">No ${tab} messages yet.</div>`;
+    } catch {
+      holder.innerHTML = localInboxRows(query, tab).map(renderMessageRow).join("") ||
+        `<div class="empty-message-state">No ${tab} messages yet.</div>`;
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function localInboxRows(query = "", tab = "focused") {
+    const user = getCurrentUser();
+    const db = getDB();
+    const q = String(query || "").trim().toLowerCase();
+    const connected = new Set((db.connections || [])
+      .filter(item => item.from === user.name || item.to === user.name)
+      .map(item => item.from === user.name ? item.to : item.from));
+    const jobWords = /\b(hiring|role|opportunity|apply|job|gig)\b/i;
+    return getMessageContacts().map(profile => {
+      const last = [...(db.messages || [])].reverse().find(m =>
+        (m.from === user.name && m.to === profile.name) || (m.from === profile.name && m.to === user.name)
+      );
+      const unread = (db.messages || []).filter(m => m.from === profile.name && m.to === user.name && !m.read).length;
+      const handle = userIdFor(profile);
+      const roleType = profile.role === "startup_admin" ? "startup" : profile.role || "freelancer";
+      return {
+        name: profile.name,
+        handle,
+        role: profile.title || roleType,
+        roleType,
+        location: [profile.city, profile.state].filter(Boolean).join(", "),
+        avatarInitials: profile.avatarInitials,
+        avatarPhoto: profile.avatarPhoto,
+        lastMessage: last,
+        lastText: last?.text || "",
+        unread,
+        connected: connected.has(profile.name),
+        recentAt: last?.createdAt || ""
+      };
+    }).filter(row => {
+      const text = [row.name, row.handle, row.role, row.location, row.lastText].join(" ").toLowerCase();
+      if (q && !text.includes(q)) return false;
+      if (tab === "jobs") return row.roleType === "startup" || row.roleType === "recruiter" || jobWords.test(row.lastText);
+      if (tab === "unread") return row.unread > 0;
+      if (tab === "network") return row.connected && row.roleType !== "startup";
+      return true;
+    }).sort((a, b) => new Date(b.recentAt || 0) - new Date(a.recentAt || 0) || a.name.localeCompare(b.name));
+  }
+
+  function renderMessageRow(row) {
+    const online = (window.ConnectHubOnlineUsers || []).includes(row.name);
+    const safeName = String(row.name || "").replace(/'/g, "\\'");
+    return `<button class="message-row" onclick="AppUX.openChat('${safeName}')">
+      <span class="message-avatar-wrap">${avatarMarkup(row, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
+      <span class="message-row-main">
+        <strong>${escapeHTML(row.name)}</strong>
+        <small>@${escapeHTML(row.handle || userIdFor(row))} · ${escapeHTML(row.role || "Member")}</small>
+        <em>${escapeHTML(messagePreview(row.lastMessage || { text: row.lastText }))}</em>
+      </span>
+      <span class="message-row-meta"><small>${row.recentAt ? relativeTime(row.recentAt) : ""}</small>${row.unread ? `<b>${row.unread}</b>` : ""}</span>
+    </button>`;
   }
 
   function handleMessageSearchKey(event) {
@@ -1227,6 +1429,7 @@ const AppUX = (() => {
     const body = document.getElementById("messageDockBody");
     if (!body) return;
     body.innerHTML = renderMessageDockBody(selectedName);
+    markVisibleMessagesRead();
     subscribeFirebaseChat(selectedName);
     syncFromBackend?.().then(() => {
       const currentTarget = document.getElementById("msgTo")?.value;
@@ -1397,13 +1600,15 @@ const AppUX = (() => {
   function markVisibleMessagesRead() {
     const user = getCurrentUser?.();
     if (!user) return;
+    const activeTarget = document.getElementById("msgTo")?.value;
+    if (!activeTarget) return;
     const db = getDB();
     const names = [user.name, user.companyName].filter(Boolean);
     db.messages.forEach(message => {
-      if (names.includes(message.to)) message.read = true;
+      if (names.includes(message.to) && message.from === activeTarget) message.read = true;
     });
     db.notifications.forEach(note => {
-      if (names.includes(note.to)) note.read = true;
+      if (names.includes(note.to) && notificationActorName(note) === activeTarget && notificationTabMatch(note, "messages")) note.read = true;
     });
     saveDB(db);
     updateUnreadBadge();
@@ -1485,10 +1690,17 @@ const AppUX = (() => {
     const user = getCurrentUser?.();
     if (!user) return;
     const db = getDB();
+    const ids = new Set(visibleNotificationIds);
     db.notifications.forEach(note => {
-      if (note.to === user.name || note.to === user.companyName) note.read = true;
+      if ((ids.size ? ids.has(note.id) : (note.to === user.name || note.to === user.companyName)) && notificationTabMatch(note, currentNotificationTab)) note.read = true;
     });
     saveDB(db);
+    if (CONNECTHUB_BACKEND_URL && ids.size) {
+      apiRequest("/api/notifications/mark-read", {
+        method: "POST",
+        body: JSON.stringify({ ids: [...ids] })
+      }).catch(error => console.warn("ConnectHub notification mark-read failed:", error.message));
+    }
     updateUnreadBadge();
     renderNotificationPanel();
   }
@@ -1739,5 +1951,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode };
 })();

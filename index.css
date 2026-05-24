@@ -1577,7 +1577,8 @@ body.dark .explore-news button:hover {
 }
 
 .message-filter-row,
-.notification-filter-row {
+.notification-filter-row,
+.explore-filter-row {
   display: flex;
   gap: 0.45rem;
   overflow-x: auto;
@@ -1585,7 +1586,8 @@ body.dark .explore-news button:hover {
 }
 
 .message-filter-row button,
-.notification-filter-row button {
+.notification-filter-row button,
+.explore-filter-row button {
   border: 1px solid var(--border-color);
   border-radius: 999px;
   background: var(--bg-secondary);
@@ -1598,10 +1600,17 @@ body.dark .explore-news button:hover {
 }
 
 .message-filter-row button.active,
-.notification-filter-row button.active {
+.notification-filter-row button.active,
+.explore-filter-row button.active {
   border-color: var(--accent-blue);
   background: var(--accent-blue);
   color: #ffffff;
+}
+
+.explore-results-summary {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .message-list {
@@ -1871,6 +1880,16 @@ body.dark .explore-news button:hover {
 .explore-card-bio {
   min-height: 2.4rem;
   line-height: 1.45;
+}
+
+.explore-card-bio svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+}
+
+.people-search-card .profile-tag-row {
+  min-height: 30px;
 }
 
 .explore-card-actions {
@@ -4063,9 +4082,11 @@ body.dark [style*="color: #5e5e5e"] {
 
 :root[data-theme="dark"] .message-filter-row button,
 :root[data-theme="dark"] .notification-filter-row button,
+:root[data-theme="dark"] .explore-filter-row button,
 :root[data-theme="dark"] .chat-quick-actions button,
 body.dark .message-filter-row button,
 body.dark .notification-filter-row button,
+body.dark .explore-filter-row button,
 body.dark .chat-quick-actions button {
   background: #1e1e1e;
   border-color: #374151;
@@ -4074,8 +4095,10 @@ body.dark .chat-quick-actions button {
 
 :root[data-theme="dark"] .message-filter-row button.active,
 :root[data-theme="dark"] .notification-filter-row button.active,
+:root[data-theme="dark"] .explore-filter-row button.active,
 body.dark .message-filter-row button.active,
-body.dark .notification-filter-row button.active {
+body.dark .notification-filter-row button.active,
+body.dark .explore-filter-row button.active {
   background: #0f766e;
   border-color: #2dd4bf;
   color: #ffffff;

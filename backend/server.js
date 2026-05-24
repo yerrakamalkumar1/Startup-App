@@ -358,6 +358,126 @@ function profileByName(name) {
       .find(profile => String(profile.name || "").toLowerCase() === needle);
 }
 
+function profileHandle(profile) {
+  return String(profile.email || profile.name || "user")
+    .toLowerCase()
+    .replace(/@.*/, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
+function allPeople(db = publicDB()) {
+  const startups = db.startups || [];
+  const startupById = new Map(startups.map(startup => [startup.id, startup]));
+  const seen = new Set();
+  return [
+    ...Object.entries(DEMO_USERS).map(([email, profile]) => ({ ...profile, email })),
+    ...(db.registeredProfiles || [])
+  ]
+    .map(profile => {
+      const startup = profile.startupId ? startupById.get(profile.startupId) : null;
+      return {
+        ...profile,
+        handle: profileHandle(profile),
+        companyName: profile.companyName || startup?.name || "",
+        sector: startup?.sector || profile.sector || "",
+        city: profile.city || startup?.city || "",
+        state: profile.state || startup?.state || ""
+      };
+    })
+    .filter(profile => {
+      const key = profile.email || profile.handle || profile.name;
+      if (!key || seen.has(String(key).toLowerCase())) return false;
+      seen.add(String(key).toLowerCase());
+      return true;
+    });
+}
+
+function roleBucket(role = "") {
+  const value = String(role).toLowerCase();
+  if (value.includes("startup") || value.includes("recruiter")) return "startup";
+  if (value.includes("investor")) return "investor";
+  return "freelancer";
+}
+
+function profileUrlFor(profile, req) {
+  const host = req?.headers?.host || "connecthub-f2sp.onrender.com";
+  const protocol = host.includes("localhost") || host.startsWith("127.") ? "http" : "https";
+  return `${protocol}://${host}/profile/${profileHandle(profile)}`;
+}
+
+function connectionNamesFor(db, name) {
+  return new Set((db.connections || [])
+    .filter(item => (item.status || "Accepted") === "Accepted" || item.status === "Pending")
+    .filter(item => item.from === name || item.to === name)
+    .map(item => item.from === name ? item.to : item.from)
+    .filter(Boolean));
+}
+
+function mutualConnectionCount(db, currentName, otherName) {
+  if (!currentName || !otherName) return 0;
+  const mine = connectionNamesFor(db, currentName);
+  const theirs = connectionNamesFor(db, otherName);
+  return [...mine].filter(name => theirs.has(name)).length;
+}
+
+function searchPeople(db, { query = "", role = "", location = "", skills = "", company = "", currentName = "" } = {}, req) {
+  const q = String(query || "").trim().toLowerCase().replace(/^@/, "");
+  const filters = {
+    role: String(role || "").trim().toLowerCase(),
+    location: String(location || "").trim().toLowerCase(),
+    skills: String(skills || "").trim().toLowerCase(),
+    company: String(company || "").trim().toLowerCase()
+  };
+  const scoreFor = profile => {
+    const handle = profile.handle || profileHandle(profile);
+    const roleText = [profile.role, profile.title].filter(Boolean).join(" ").toLowerCase();
+    const locationText = [profile.city, profile.state].filter(Boolean).join(" ").toLowerCase();
+    const skillsText = [...(profile.skills || []), profile.sector].filter(Boolean).join(" ").toLowerCase();
+    const companyText = String(profile.companyName || "").toLowerCase();
+    const haystack = [profile.name, handle, roleText, locationText, skillsText, companyText, profile.bio].join(" ").toLowerCase();
+    if (filters.role && !roleBucket(profile.role).includes(filters.role) && !roleText.includes(filters.role)) return -1;
+    if (filters.location && !locationText.includes(filters.location)) return -1;
+    if (filters.skills && !skillsText.includes(filters.skills)) return -1;
+    if (filters.company && !companyText.includes(filters.company)) return -1;
+    if (!q) return 1;
+    if (String(profile.name || "").toLowerCase() === q) return 100;
+    if (handle === q) return 95;
+    if (String(profile.name || "").toLowerCase().startsWith(q)) return 90;
+    if (roleText.includes(q)) return 70;
+    if (locationText.includes(q)) return 55;
+    if (skillsText.includes(q)) return 45;
+    if (companyText.includes(q)) return 40;
+    return haystack.includes(q) ? 20 : -1;
+  };
+  return allPeople(db)
+    .map(profile => ({ profile, score: scoreFor(profile) }))
+    .filter(item => item.score >= 0)
+    .sort((a, b) => b.score - a.score || String(a.profile.name).localeCompare(String(b.profile.name)))
+    .map(({ profile }) => ({
+      id: profile.handle || profileHandle(profile),
+      name: profile.name,
+      handle: profile.handle || profileHandle(profile),
+      role: profile.title || roleBucket(profile.role),
+      roleType: roleBucket(profile.role),
+      location: [profile.city, profile.state].filter(Boolean).join(", "),
+      skills: profile.skills || [],
+      companyName: profile.companyName || "",
+      mutualConnections: mutualConnectionCount(db, currentName, profile.name),
+      avatarInitials: profile.avatarInitials || initialsFor(profile.name || "CH"),
+      avatarPhoto: profile.avatarPhoto || null,
+      bio: profile.bio || "",
+      profileUrl: profileUrlFor(profile, req)
+    }));
+}
+
+function notificationMatchesTab(note, tab) {
+  const type = String(note.type || "").toLowerCase();
+  if (tab === "messages") return ["message", "new_message", "direct_message"].includes(type);
+  if (tab === "network") return ["follow", "connection_request", "connection_accepted", "profile_view", "connection"].includes(type);
+  return true;
+}
+
 function createNotification(db, to, type, text, extra = {}) {
   const note = {
     id: extra.id || `not-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -503,7 +623,7 @@ function createUserProfile({ name, role, title, additionalInfo = {} }) {
 
 function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
-  const requestedPath = urlPath === "/" ? "/index.html" : urlPath;
+  const requestedPath = urlPath === "/" ? "/index.html" : /^\/profile\/[^/]+\/?$/.test(urlPath) ? "/profile.html" : urlPath;
   const filePath = path.normalize(path.join(ROOT_DIR, requestedPath));
 
   if (!filePath.startsWith(ROOT_DIR)) {
@@ -552,6 +672,38 @@ async function handleApi(req, res) {
 
   if (route === "/api/state" && req.method === "GET") {
     return sendJson(res, 200, { db: publicDB() });
+  }
+
+  if (route === "/api/people/search" && req.method === "GET") {
+    const db = publicDB();
+    const results = searchPeople(db, {
+      query: url.searchParams.get("q") || "",
+      role: url.searchParams.get("role") || "",
+      location: url.searchParams.get("location") || "",
+      skills: url.searchParams.get("skills") || "",
+      company: url.searchParams.get("company") || "",
+      currentName: auth?.name || url.searchParams.get("current") || ""
+    }, req);
+    return sendJson(res, 200, { success: true, results });
+  }
+
+  if (route === "/api/people/resolve" && req.method === "GET") {
+    const raw = String(url.searchParams.get("value") || "").trim();
+    const value = raw.replace(/^@/, "").toLowerCase();
+    const db = publicDB();
+    let extracted = value;
+    try {
+      const parsed = new URL(raw, `https://${req.headers.host}`);
+      const profilePath = parsed.pathname.match(/^\/profile\/([^/]+)\/?$/);
+      extracted = (profilePath?.[1] || parsed.searchParams.get("id") || parsed.searchParams.get("name") || value).toLowerCase();
+    } catch {}
+    const profile = allPeople(db).find(item =>
+      item.handle === extracted ||
+      String(item.email || "").toLowerCase() === extracted ||
+      String(item.name || "").toLowerCase() === extracted
+    );
+    if (!profile) return sendJson(res, 404, { success: false, message: "Invalid QR code. Please scan a ConnectHub profile QR code." });
+    return sendJson(res, 200, { success: true, profile: { id: profile.handle, name: profile.name, profileUrl: profileUrlFor(profile, req) } });
   }
 
   if (route === "/api/state" && req.method === "PUT") {
@@ -672,6 +824,84 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, message, db: publicDB() });
   }
 
+  if (route === "/api/messages/inbox" && req.method === "GET") {
+    const db = publicDB();
+    const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
+    const tab = String(url.searchParams.get("tab") || "focused").toLowerCase();
+    const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+    if (!userName) return sendJson(res, 400, { success: false, message: "User is required." });
+    const connected = connectionNamesFor(db, userName);
+    const jobWords = /\b(hiring|role|opportunity|apply|job|gig)\b/i;
+    const profiles = allPeople(db).filter(profile => profile.name && profile.name !== userName);
+    const rows = profiles.map(profile => {
+      const thread = (db.messages || [])
+        .filter(message => (message.from === userName && message.to === profile.name) || (message.from === profile.name && message.to === userName))
+        .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+      const last = thread[thread.length - 1] || null;
+      const unread = thread.filter(message => message.from === profile.name && message.to === userName && !message.read).length;
+      return {
+        id: profile.handle,
+        name: profile.name,
+        handle: profile.handle,
+        role: profile.title || roleBucket(profile.role),
+        roleType: roleBucket(profile.role),
+        location: [profile.city, profile.state].filter(Boolean).join(", "),
+        avatarInitials: profile.avatarInitials || initialsFor(profile.name || "CH"),
+        avatarPhoto: profile.avatarPhoto || null,
+        lastMessage: last,
+        lastText: last?.text || "",
+        unread,
+        connected: connected.has(profile.name),
+        recentAt: last?.createdAt || ""
+      };
+    }).filter(row => {
+      const searchText = [row.name, row.handle, row.role, row.location, row.lastText].join(" ").toLowerCase();
+      if (q && !searchText.includes(q)) return false;
+      if (tab === "jobs") return row.roleType === "startup" || row.roleType === "recruiter" || jobWords.test(row.lastText);
+      if (tab === "unread") return row.unread > 0;
+      if (tab === "network") return row.connected && row.roleType !== "startup";
+      return true;
+    }).sort((a, b) => new Date(b.recentAt || 0) - new Date(a.recentAt || 0) || a.name.localeCompare(b.name));
+    return sendJson(res, 200, { success: true, tab, conversations: rows });
+  }
+
+  if (route === "/api/notifications" && req.method === "GET") {
+    const db = publicDB();
+    const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
+    const companyName = String(url.searchParams.get("company") || "").trim();
+    const tab = String(url.searchParams.get("tab") || "all").toLowerCase();
+    const names = [userName, companyName].filter(Boolean);
+    if (!names.length) return sendJson(res, 400, { success: false, message: "User is required." });
+    const people = allPeople(db);
+    const notifications = (db.notifications || [])
+      .filter(note => names.includes(note.to) && notificationMatchesTab(note, tab))
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .map(note => {
+        const actor = String(note.from || String(note.text || "").split(" sent ")[0].split("New message from ")[1] || String(note.text || "").split(" ")[0] || "").trim();
+        const profile = people.find(item => item.name === actor) || null;
+        return {
+          ...note,
+          actor,
+          actorProfileUrl: profile ? profileUrlFor(profile, req) : note.targetUrl || "",
+          avatarInitials: profile?.avatarInitials || initialsFor(actor || "CH"),
+          avatarPhoto: profile?.avatarPhoto || null
+        };
+      });
+    return sendJson(res, 200, { success: true, tab, notifications });
+  }
+
+  if (route === "/api/notifications/mark-read" && req.method === "POST") {
+    const body = await readBody(req);
+    const ids = new Set((body.ids || []).map(String));
+    const db = readJson(DB_FILE, INITIAL_DB);
+    db.notifications = db.notifications || [];
+    db.notifications.forEach(note => {
+      if (ids.has(String(note.id))) note.read = true;
+    });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, db: publicDB() });
+  }
+
   if (route === "/api/connections" && req.method === "POST") {
     const body = await readBody(req);
     const from = String(auth?.name || body.from || "").slice(0, 80);
@@ -683,7 +913,7 @@ async function handleApi(req, res) {
     if (existing) return sendJson(res, 200, { success: true, connection: existing, db: publicDB() });
     const connection = { id: `conn-${Date.now()}`, from, to, status: "Pending", createdAt: new Date().toISOString() };
     db.connections.push(connection);
-    createNotification(db, to, "connection", `${from} sent you a connection request.`, { connectionId: connection.id });
+    createNotification(db, to, "connection_request", `${from} sent you a connection request.`, { connectionId: connection.id });
     writeJson(DB_FILE, db);
     const recipient = profileByName(to);
     sendEmailNotification(recipient?.email, "New Connect Hub connection request", `${from} sent you a connection request.`).catch(() => {});
