@@ -9,6 +9,8 @@ const AppUX = (() => {
   let currentView = "";
   let exploreImagePreview = "";
   let exploreVoiceRecognition = null;
+  let avatarLongPressTimer = null;
+  let avatarLongPressOpened = false;
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -359,6 +361,139 @@ const AppUX = (() => {
     return `profile.html?id=${encodeURIComponent(id)}`;
   }
 
+  function currentPublicProfileUrl() {
+    const user = getCurrentUser?.() || {};
+    const path = location.pathname.endsWith("profile.html")
+      ? `${location.pathname}${location.search || ""}`
+      : `/${profileUrl(user)}`;
+    return new URL(path, location.origin || location.href).href;
+  }
+
+  function startAvatarLongPress(event) {
+    avatarLongPressOpened = false;
+    clearTimeout(avatarLongPressTimer);
+    avatarLongPressTimer = setTimeout(() => {
+      avatarLongPressOpened = true;
+      event.preventDefault();
+      openProfileShareSheet();
+    }, 600);
+  }
+
+  function cancelAvatarLongPress() {
+    clearTimeout(avatarLongPressTimer);
+  }
+
+  function avatarClickGuard(event) {
+    if (!avatarLongPressOpened) return true;
+    event.preventDefault();
+    event.stopPropagation();
+    avatarLongPressOpened = false;
+    return false;
+  }
+
+  function openProfileShareSheet() {
+    const user = getCurrentUser?.() || {};
+    let sheet = document.getElementById("profileShareSheet");
+    if (!sheet) {
+      sheet = document.createElement("div");
+      sheet.id = "profileShareSheet";
+      sheet.className = "profile-share-sheet";
+      document.body.appendChild(sheet);
+    }
+    const avatar = user.avatarPhoto?.dataUrl
+      ? `<img src="${user.avatarPhoto.dataUrl}" alt="${escapeHTML(user.name || "Profile")}">`
+      : `<span>${escapeHTML(user.avatarInitials || initialsForName(user.name || "CH"))}</span>`;
+    sheet.innerHTML = `
+      <button class="profile-share-scrim" type="button" onclick="AppUX.closeProfileShareSheet()" aria-label="Close profile actions"></button>
+      <div class="profile-share-panel">
+        <div class="profile-share-avatar">${avatar}</div>
+        <div class="profile-share-actions">
+          <button type="button" onclick="AppUX.sharePublicProfile()"><i data-lucide="send"></i><span>Share</span></button>
+          <button type="button" onclick="AppUX.copyPublicProfileLink()"><i data-lucide="link"></i><span>Copy link</span></button>
+          <button type="button" onclick="AppUX.openProfileQrCode()"><i data-lucide="qr-code"></i><span>QR code</span></button>
+        </div>
+      </div>
+    `;
+    sheet.classList.add("active");
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeProfileShareSheet() {
+    document.getElementById("profileShareSheet")?.classList.remove("active");
+  }
+
+  async function copyPublicProfileLink() {
+    const url = currentPublicProfileUrl();
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const input = document.createElement("input");
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
+    showToast("Link copied!");
+  }
+
+  async function sharePublicProfile() {
+    const user = getCurrentUser?.() || {};
+    const url = currentPublicProfileUrl();
+    if (navigator.share) {
+      await navigator.share({ title: `${user.name || "ConnectHub"} profile`, text: "Connect with me on ConnectHub", url }).catch(() => {});
+    } else {
+      await copyPublicProfileLink();
+    }
+  }
+
+  function loadQRCodeLibrary() {
+    return new Promise((resolve, reject) => {
+      if (window.QRCode?.toCanvas) return resolve();
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("QR code library could not load."));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function openProfileQrCode() {
+    closeProfileShareSheet();
+    let modal = document.getElementById("profileQrModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "profileQrModal";
+      modal.className = "profile-qr-modal";
+      document.body.appendChild(modal);
+    }
+    const url = currentPublicProfileUrl();
+    modal.innerHTML = `
+      <button class="profile-qr-scrim" type="button" onclick="AppUX.closeProfileQrCode()" aria-label="Close QR code"></button>
+      <div class="profile-qr-card">
+        <button class="profile-qr-close" type="button" onclick="AppUX.closeProfileQrCode()"><i data-lucide="x"></i></button>
+        <h3>Profile QR code</h3>
+        <p>Scan this code to open the public ConnectHub profile.</p>
+        <div id="profileQrCanvasWrap" class="profile-qr-canvas"></div>
+        <small>${escapeHTML(url)}</small>
+      </div>
+    `;
+    modal.classList.add("active");
+    try {
+      await loadQRCodeLibrary();
+      const canvas = document.createElement("canvas");
+      document.getElementById("profileQrCanvasWrap").appendChild(canvas);
+      await window.QRCode.toCanvas(canvas, url, { width: 220, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } });
+    } catch (error) {
+      document.getElementById("profileQrCanvasWrap").innerHTML = `<p>${escapeHTML(error.message || "Could not generate QR code.")}</p>`;
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeProfileQrCode() {
+    document.getElementById("profileQrModal")?.classList.remove("active");
+  }
+
   function renderNotificationItem(note) {
     const actorName = notificationActorName(note);
     const profile = getAllProfiles().find(item => item.name === actorName) || { name: actorName || "Connect Hub", avatarInitials: initialsForName(actorName || "CH") };
@@ -590,6 +725,17 @@ const AppUX = (() => {
     renderExploreDirectory(currentQuery);
     showToast("Reading image text...");
     try {
+      const qrText = await scanExploreQr(file).catch(() => "");
+      if (qrText) {
+        if (/^https?:\/\//i.test(qrText) || /^profile\.html/i.test(qrText)) {
+          showToast("QR profile found");
+          window.location.href = qrText;
+          return;
+        }
+        renderExploreDirectory(qrText.trim());
+        showToast("QR text added to search");
+        return;
+      }
       const text = await runExploreOCR(file);
       if (text) {
         renderExploreDirectory(text.trim());
@@ -602,6 +748,38 @@ const AppUX = (() => {
     } finally {
       input.value = "";
     }
+  }
+
+  async function scanExploreQr(file) {
+    if (!window.jsQR) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("QR scanner could not load."));
+        document.head.appendChild(script);
+      });
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = window.jsQR(imageData.data, canvas.width, canvas.height);
+    return code?.data || "";
   }
 
   async function runExploreOCR(file) {
@@ -660,6 +838,7 @@ const AppUX = (() => {
   }
 
   function recentExploreProfiles(items) {
+    if (localStorage.getItem("connecthub_explore_recents_cleared") === "true") return [];
     let recentIds = [];
     try {
       recentIds = JSON.parse(localStorage.getItem("connecthub_explore_recents") || "[]");
@@ -717,7 +896,9 @@ const AppUX = (() => {
   }
 
   function clearExploreRecents() {
+    localStorage.setItem("connecthub_explore_recents_cleared", "true");
     localStorage.removeItem("connecthub_explore_recents");
+    showToast("Recent profiles cleared");
     renderExploreDirectory("");
   }
 
@@ -767,6 +948,7 @@ const AppUX = (() => {
   }
 
   function saveExploreRecent(id) {
+    localStorage.removeItem("connecthub_explore_recents_cleared");
     let recents = [];
     try {
       recents = JSON.parse(localStorage.getItem("connecthub_explore_recents") || "[]");
@@ -1294,7 +1476,7 @@ const AppUX = (() => {
       <form onsubmit="AppUX.saveEditProfile(event)" style="margin-top:1rem;">
         <div class="profile-editor">
           <div>
-            <label class="avatar-upload-preview" for="editPhoto">${user.avatarPhoto?.dataUrl ? `<img src="${user.avatarPhoto.dataUrl}" alt="Profile photo">` : `<span>${user.avatarInitials || "CH"}</span>`}</label>
+            <label class="avatar-upload-preview" for="editPhoto" onpointerdown="AppUX.startAvatarLongPress(event)" onpointerup="AppUX.cancelAvatarLongPress()" onpointerleave="AppUX.cancelAvatarLongPress()" onpointercancel="AppUX.cancelAvatarLongPress()" onclick="return AppUX.avatarClickGuard(event)">${user.avatarPhoto?.dataUrl ? `<img src="${user.avatarPhoto.dataUrl}" alt="Profile photo">` : `<span>${user.avatarInitials || "CH"}</span>`}</label>
             <input id="editPhoto" type="file" accept="image/png,image/jpeg,image/webp" hidden>
           </div>
           <div>
@@ -1436,5 +1618,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode };
 })();

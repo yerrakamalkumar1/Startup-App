@@ -446,7 +446,7 @@
     b.innerHTML = `
       <div class="glass-panel freelancer-profile-view">
         <div class="profile-public-head">
-          ${avatarMarkup(user, 'profile-hero-avatar')}
+          <button class="profile-avatar-menu-trigger" type="button" onpointerdown="AppUX.startAvatarLongPress(event)" onpointerup="AppUX.cancelAvatarLongPress()" onpointerleave="AppUX.cancelAvatarLongPress()" onpointercancel="AppUX.cancelAvatarLongPress()" onclick="return AppUX.avatarClickGuard(event)">${avatarMarkup(user, 'profile-hero-avatar')}</button>
           <div>
             <h2>${user.name}</h2>
             <p>${user.title || 'Freelancer on ConnectHub'}</p>
