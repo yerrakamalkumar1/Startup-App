@@ -5,7 +5,7 @@ Reusable React Native / Expo component for a Google-style Explore search bar wit
 - Voice search using `@react-native-voice/voice`
 - Camera and gallery image selection using `expo-image-picker`
 - OCR using free on-device Google ML Kit via `@react-native-ml-kit/text-recognition`
-- Multilingual text detection helper for English, Spanish, French, Hindi, Arabic, Chinese, and Portuguese
+- Multilingual text detection helper for English, Spanish, French, Hindi, Arabic, Chinese, and Telugu
 - RTL input support for Arabic/Hebrew text
 - Animated listening transcription and sound-wave UI
 

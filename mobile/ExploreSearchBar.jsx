@@ -26,7 +26,7 @@ const SUPPORTED_LOCALES = [
   "hi-IN",
   "ar-SA",
   "zh-CN",
-  "pt-BR"
+  "te-IN"
 ];
 
 const LANGUAGE_LABELS = {
@@ -36,7 +36,7 @@ const LANGUAGE_LABELS = {
   hi: "Hindi",
   ar: "Arabic",
   zh: "Chinese",
-  pt: "Portuguese",
+  te: "Telugu",
   unknown: "Auto"
 };
 
@@ -53,9 +53,9 @@ function detectLanguage(text) {
   if (/[\u0600-\u06ff]/.test(value)) return "ar";
   if (/[\u4e00-\u9fff]/.test(value)) return "zh";
   if (/[\u0900-\u097f]/.test(value)) return "hi";
+  if (/[\u0c00-\u0c7f]/.test(value)) return "te";
   if (/[\u00f1\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00bf\u00a1]/.test(value) || /\b(hola|trabajo|buscar|empresa|freelancer)\b/.test(value)) return "es";
   if (/[\u00e0\u00e2\u00e7\u00e8\u00e9\u00ea\u00eb\u00ee\u00ef\u00f4\u00fb\u00f9\u00fc\u00ff\u0153]/.test(value) || /\b(bonjour|travail|recherche|entreprise)\b/.test(value)) return "fr";
-  if (/[\u00e3\u00f5\u00e1\u00e2\u00ea\u00ed\u00f3\u00f4\u00fa\u00e7]/.test(value) || /\b(ola|trabalho|procurar|empresa)\b/.test(value)) return "pt";
   return "en";
 }
 
