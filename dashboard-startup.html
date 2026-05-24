@@ -120,6 +120,8 @@
 
 <script src="config.js"></script>
 <script src="db.js"></script>
+<script src="firebase-chat.js"></script>
+<script src="supabase-sync.js"></script>
 <script src="ai-bot.js"></script>
 <script src="app-ui.js"></script>
 <script>
@@ -420,7 +422,8 @@
     const myJobs = db.jobs.filter(j => j.startupId === myStartup.id);
     const myApps = db.applications.filter(a => myJobs.map(j => j.id).includes(a.jobId));
     const rows = myApps.map(a => {
-      const actions = a.status === 'Accepted' ? `<span class="badge badge-green">Hired</span>` :
+      const safeCandidate = (a.candidateName || 'Freelancer').replace(/'/g, "\\'");
+      const actions = a.status === 'Accepted' ? `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;"><span class="badge badge-green">Hired</span><button class="btn btn-secondary btn-icon" onclick="AppUX.reviewUser('${safeCandidate}')" title="Rate"><i data-lucide="star"></i></button></div>` :
         a.status === 'Declined' ? `<span class="badge badge-amber">Declined</span>` :
         `<div style="display:flex;gap:0.35rem;">
           <button class="btn btn-emerald btn-icon" onclick="decide('${a.id}','Accepted')" title="Hire"><i data-lucide="check"></i></button>
@@ -442,7 +445,18 @@
     const app = db.applications.find(a => a.id === appId);
     if (app) {
       app.status = decision;
+      db.notifications.push({
+        id: 'not-' + Date.now(),
+        to: app.candidateName,
+        type: decision === 'Accepted' ? 'application_accepted' : 'application_declined',
+        from: myStartup.name,
+        text: `${myStartup.name} ${decision === 'Accepted' ? 'accepted' : 'declined'} your application for ${app.jobTitle}.`,
+        targetUrl: 'dashboard-freelancer.html',
+        read: false,
+        createdAt: new Date().toISOString()
+      });
       saveDB(db);
+      if (decision === 'Accepted') setTimeout(() => AppUX.reviewUser(app.candidateName), 250);
       renderCandidates(document.getElementById('body'));
     }
   }
@@ -466,7 +480,7 @@
       alert(error.message);
       return;
     }
-    db.jobs.push({
+    const job = {
       id: 'job-' + Date.now(),
       startupId: myStartup.id,
       title: document.getElementById('gTitle').value,
@@ -478,8 +492,10 @@
       applicants: 0,
       media,
       mediaType: media?.type || ""
-    });
+    };
+    db.jobs.push(job);
     saveDB(db);
+    notifyMatchingFreelancersForGig(job, myStartup.name);
     e.target.reset();
     closeModal('gigModal');
     go('analytics');

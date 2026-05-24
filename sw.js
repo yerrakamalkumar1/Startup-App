@@ -1,10 +1,12 @@
-const CACHE_NAME = "connecthub-v24";
+const CACHE_NAME = "connecthub-v25";
 const APP_SHELL = [
   "index.html",
   "index.css",
   "config.js",
   "app-ui.js",
   "db.js",
+  "firebase-chat.js",
+  "supabase-sync.js",
   "ai-bot.js",
   "push-sw.js",
   "dashboard-startup.html",

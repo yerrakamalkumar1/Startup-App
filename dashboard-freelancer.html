@@ -103,6 +103,8 @@
 
 <script src="config.js"></script>
 <script src="db.js"></script>
+<script src="firebase-chat.js"></script>
+<script src="supabase-sync.js"></script>
 <script src="ai-bot.js"></script>
 <script src="app-ui.js"></script>
 <script>
@@ -138,8 +140,10 @@
   function renderGigs(b) {
     const db = getDB();
     const activeJobs = db.jobs.filter(j => j.status === 'Active');
+    const suggested = getSuggestedGigs(user, 4);
     const cards = activeJobs.map(job => {
       const st = db.startups.find(s => s.id === job.startupId) || {};
+      const match = scoreGigForFreelancer(job, user);
       return `
         <div class="glass-card ad-card">
           ${renderMedia(job.media, job.mediaType)}
@@ -155,6 +159,7 @@
           </div>
           <p class="ad-body">${job.description}</p>
           <div class="ad-meta">${job.tags.map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
+          ${match.score ? `<div class="match-meter"><span style="width:${Math.min(100, match.score)}%"></span></div><small class="match-copy">AI match ${match.score}%${match.matches.length ? ` - ${match.matches.join(', ')}` : ''}</small>` : ''}
           <div class="ad-footer">
             <div class="ad-price"><span class="price-label">STARTING RATE</span><span class="price-amount">Rs ${job.hourlyRate}/hr</span></div>
             <button class="btn btn-primary" onclick="openApply('${job.id}','${job.title.replace(/'/g, "\\'")}',${job.hourlyRate})">Apply</button>
@@ -170,9 +175,31 @@
         </div>
         <button class="btn btn-primary" onclick="go('mads')"><i data-lucide="megaphone"></i>Post Service Ad</button>
       </div>
+      ${renderAnalyticsCards()}
       ${renderCompleteness(user)}
+      ${renderMatchedGigs(suggested, db)}
       <div class="dashboard-grid-3">${cards || emptyState('No gigs posted yet. Publish a service ad so startups can find you directly.')}</div>
       ${renderStartupMediaFeed(db)}`;
+  }
+
+  function renderMatchedGigs(jobs, db) {
+    if (!jobs.length) return `<div class="glass-panel smart-panel"><h3><i data-lucide="sparkles"></i> AI gig matches</h3><p>Add more skills in your profile to unlock personalized matches.</p></div>`;
+    return `<div class="glass-panel smart-panel">
+      <div class="smart-panel-head">
+        <div><h3><i data-lucide="sparkles"></i> AI gig matches</h3><p>Suggested using your skills, title, and gig tags.</p></div>
+        <span class="badge badge-green">${jobs.length} matched</span>
+      </div>
+      <div class="smart-match-row">
+        ${jobs.map(job => {
+          const st = db.startups.find(s => s.id === job.startupId) || {};
+          return `<button type="button" class="smart-match-card" onclick="openApply('${job.id}','${job.title.replace(/'/g, "\\'")}',${job.hourlyRate})">
+            <strong>${job.title}</strong>
+            <small>${st.name || 'Startup'} - Rs ${job.hourlyRate}/hr</small>
+            <span>${job.match.score}% match</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`;
   }
 
   function renderMyAds(b) {
@@ -241,11 +268,19 @@
 
   function renderCalc(b) {
     b.innerHTML = `
-      <div class="glass-panel" style="padding:1.25rem;max-width:760px;">
-        <h3 style="margin-bottom:1rem;font-size:1rem;">Simple Rate Estimator</h3>
+      <div class="glass-panel" style="padding:1.25rem;max-width:860px;">
+        <h3 style="margin-bottom:1rem;font-size:1rem;">Smart Rate Estimator</h3>
         <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:1rem;">
           <div>
-            <div class="form-group"><label>Hourly Rate (Rs/hr)</label><input type="number" id="cRate" class="form-control" value="500" oninput="recalc()"></div>
+            <div class="form-group"><label>Skill Category</label><select id="cCategory" class="form-control" onchange="applySmartRate()">
+              ${SERVICE_CATEGORIES.map(cat => `<option>${cat}</option>`).join('')}
+            </select></div>
+            <div class="form-group"><label>Experience Level</label><select id="cExp" class="form-control" onchange="applySmartRate()">
+              <option value="beginner">Beginner</option>
+              <option value="mid" selected>Intermediate</option>
+              <option value="expert">Expert</option>
+            </select></div>
+            <div class="form-group"><label>Suggested Hourly Rate (Rs/hr)</label><input type="number" id="cRate" class="form-control" value="650" oninput="recalc()"></div>
             <div class="form-group"><label>Estimated Hours</label><input type="number" id="cHrs" class="form-control" value="20" oninput="recalc()"></div>
             <div class="form-group"><label>Complexity</label>
               <select id="cMult" class="form-control" onchange="recalc()">
@@ -258,15 +293,25 @@
           </div>
           <div class="calculator-results" style="text-align:center;display:flex;flex-direction:column;justify-content:center;">
             <p style="font-size:0.72rem;color:#7b8794;font-weight:800;">ESTIMATED BID</p>
-            <h2 id="cTotal" style="font-size:2rem;color:#0f766e;margin:0.3rem 0;">Rs 10,000</h2>
-            <p id="cBreak" style="font-size:0.78rem;color:#526071;">Rs 500 x 20hrs x 1x</p>
+            <h2 id="cTotal" style="font-size:2rem;color:#0f766e;margin:0.3rem 0;">Rs 13,000</h2>
+            <p id="cBreak" style="font-size:0.78rem;color:#526071;">Rs 650 x 20hrs x 1x</p>
+            <p id="cGuide" style="font-size:0.78rem;color:#526071;margin-top:0.5rem;">Based on category + experience logic table.</p>
             <div style="border-top:1px solid #e5eaf1;margin-top:1rem;padding-top:1rem;">
               <div style="display:flex;justify-content:space-between;font-size:0.8rem;"><span>Platform Fee (2.5%)</span><strong id="cFee" style="color:#c24141;">-Rs 250</strong></div>
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-top:0.3rem;"><strong>Net Earnings</strong><strong id="cNet" style="color:#087f5b;">Rs 9,750</strong></div>
+              <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-top:0.3rem;"><strong>Net Earnings</strong><strong id="cNet" style="color:#087f5b;">Rs 12,675</strong></div>
             </div>
           </div>
         </div>
       </div>`;
+    applySmartRate();
+  }
+
+  function applySmartRate() {
+    const category = document.getElementById('cCategory')?.value || 'Other';
+    const exp = document.getElementById('cExp')?.value || 'mid';
+    const suggested = getSmartRateSuggestion(category, exp);
+    document.getElementById('cRate').value = suggested;
+    document.getElementById('cGuide').textContent = `${category}: Rs ${suggested}/hr suggested for ${exp === 'mid' ? 'intermediate' : exp} freelancers.`;
     recalc();
   }
 
@@ -294,13 +339,23 @@
         <td><span class="badge ${color}">${a.status}</span></td>
       </tr>`;
     }).join('');
-    b.innerHTML = `<div class="glass-panel" style="padding:1rem;">
+    b.innerHTML = `${renderAnalyticsCards()}<div class="glass-panel" style="padding:1rem;">
       <div class="table-container">
         <table class="custom-table">
           <thead><tr><th>Gig</th><th>Bid Rate</th><th>Date</th><th>Status</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#7b8794;padding:2rem;">No applications yet. Apply to a gig to start the chain.</td></tr>'}</tbody>
         </table>
       </div>
+    </div>`;
+  }
+
+  function renderAnalyticsCards() {
+    const stats = getFreelancerAnalytics(user.name);
+    return `<div class="dashboard-grid-3 analytics-strip">
+      <div class="glass-card stat-card"><div><span class="stat-label">Applications</span><span class="stat-value">${stats.applications}</span><span class="stat-change">Total sent</span></div><div class="stat-icon-wrapper"><i data-lucide="send"></i></div></div>
+      <div class="glass-card stat-card"><div><span class="stat-label">Gigs Won</span><span class="stat-value">${stats.gigsWon}</span><span class="stat-change">Accepted by startups</span></div><div class="stat-icon-wrapper"><i data-lucide="trophy"></i></div></div>
+      <div class="glass-card stat-card"><div><span class="stat-label">Avg Bid</span><span class="stat-value">Rs ${stats.averageBid || 0}</span><span class="stat-change">Per hour</span></div><div class="stat-icon-wrapper"><i data-lucide="indian-rupee"></i></div></div>
+      <div class="glass-card stat-card"><div><span class="stat-label">Earnings</span><span class="stat-value" style="font-size:1.15rem;">Rs ${stats.earnings.toLocaleString('en-IN')}</span><span class="stat-change">Estimated won work</span></div><div class="stat-icon-wrapper"><i data-lucide="wallet"></i></div></div>
     </div>`;
   }
 
@@ -383,7 +438,32 @@
   }
 
   function renderProfile(b) {
-    AppUX.renderEditProfilePage(b);
+    const db = getDB();
+    const reviews = (db.reviews || []).filter(r => r.to === user.name);
+    const completed = (db.applications || []).filter(a => a.candidateName === user.name && a.status === 'Accepted');
+    const ads = (db.freelancerAds || []).filter(a => a.freelancerName === user.name);
+    const avg = reviews.length ? (reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length).toFixed(1) : 'New';
+    b.innerHTML = `
+      <div class="glass-panel freelancer-profile-view">
+        <div class="profile-public-head">
+          ${avatarMarkup(user, 'profile-hero-avatar')}
+          <div>
+            <h2>${user.name}</h2>
+            <p>${user.title || 'Freelancer on ConnectHub'}</p>
+            <div class="ad-meta">${(user.skills || []).map(skill => `<span class="badge badge-green">${skill}</span>`).join('') || '<span class="badge badge-green">Add skills</span>'}</div>
+          </div>
+          <a class="btn btn-primary" href="profile.html?id=${encodeURIComponent(user.email || user.name)}"><i data-lucide="external-link"></i>Public Profile</a>
+        </div>
+        <div class="dashboard-grid-3">
+          <div class="glass-card"><span class="stat-label">Rating</span><strong class="stat-value">${avg}</strong><p>${reviews.length} reviews</p></div>
+          <div class="glass-card"><span class="stat-label">Past Gigs</span><strong class="stat-value">${completed.length}</strong><p>Accepted/completed work</p></div>
+          <div class="glass-card"><span class="stat-label">Portfolio Ads</span><strong class="stat-value">${ads.length}</strong><p>Visible to startups</p></div>
+        </div>
+        <h3 style="margin-top:1rem;">Reviews</h3>
+        <div class="profile-review-list">${reviews.map(r => `<article><strong>${r.rating}/5 rating</strong><p>${r.text || 'Recommended freelancer.'}</p><small>By ${r.from}</small></article>`).join('') || '<p>No reviews yet. Startups can rate you after accepting a gig.</p>'}</div>
+      </div>
+      <div id="editProfileMount"></div>`;
+    AppUX.renderEditProfilePage(document.getElementById('editProfileMount'));
   }
 
   async function saveMyProfile(e) {

@@ -740,6 +740,7 @@ const AppUX = (() => {
     const body = document.getElementById("messageDockBody");
     if (!body) return;
     body.innerHTML = renderMessageDockBody(selectedName);
+    subscribeFirebaseChat(selectedName);
     syncFromBackend?.().then(() => {
       const currentTarget = document.getElementById("msgTo")?.value;
       if (currentTarget === selectedName) body.innerHTML = renderMessageDockBody(selectedName);
@@ -747,6 +748,24 @@ const AppUX = (() => {
       if (window.lucide) window.lucide.createIcons();
     }).catch(() => {});
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function subscribeFirebaseChat(selectedName) {
+    if (!window.ConnectHubFirebaseChat?.enabled?.()) return;
+    window.ConnectHubFirebaseChat.subscribeToThread(selectedName, message => {
+      const db = getDB();
+      db.messages = db.messages || [];
+      if (!db.messages.some(item => item.id === message.id)) {
+        db.messages.push(message);
+        saveDB(db, { localOnly: true });
+        const currentTarget = document.getElementById("msgTo")?.value;
+        if (currentTarget === selectedName) {
+          document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(selectedName);
+          if (window.lucide) window.lucide.createIcons();
+        }
+        updateUnreadBadge();
+      }
+    }).catch(error => console.warn("ConnectHub Firebase chat subscribe failed:", error.message));
   }
 
   function escapeHTML(value) {

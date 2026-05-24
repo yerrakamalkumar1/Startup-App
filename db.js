@@ -711,6 +711,102 @@ function searchItems(items, query, keys) {
     .map(result => result.item);
 }
 
+function normalizeKeywords(values) {
+  return [...new Set((Array.isArray(values) ? values : String(values || "").split(/[,/|]/))
+    .flatMap(value => String(value || "").toLowerCase().split(/[^a-z0-9]+/))
+    .map(value => value.trim())
+    .filter(value => value.length > 2))];
+}
+
+function getFreelancerKeywords(profile = getCurrentUser()) {
+  const skills = Array.isArray(profile?.skills)
+    ? profile.skills
+    : String(profile?.skills || "").split(",");
+  return normalizeKeywords([
+    ...skills,
+    profile?.title,
+    profile?.bio
+  ]);
+}
+
+function scoreGigForFreelancer(job, profile = getCurrentUser()) {
+  const skills = getFreelancerKeywords(profile);
+  const jobWords = normalizeKeywords([
+    job?.title,
+    job?.description,
+    ...(job?.tags || [])
+  ]);
+  const matches = jobWords.filter(word => skills.some(skill => skill === word || skill.includes(word) || word.includes(skill)));
+  const score = matches.length * 18 + Math.min(25, Number(job?.hourlyRate || 0) / 80);
+  return {
+    score: Math.round(score),
+    matches: [...new Set(matches)].slice(0, 5)
+  };
+}
+
+function getSuggestedGigs(profile = getCurrentUser(), limit = 6) {
+  const db = getDB();
+  return (db.jobs || [])
+    .filter(job => job.status === "Active")
+    .map(job => ({ ...job, match: scoreGigForFreelancer(job, profile) }))
+    .filter(job => job.match.score > 0)
+    .sort((a, b) => b.match.score - a.match.score)
+    .slice(0, limit);
+}
+
+function getSmartRateSuggestion(category = "", experience = "mid") {
+  const table = {
+    "Branding & Creative": { beginner: 350, mid: 650, expert: 1200 },
+    "Video & Reels": { beginner: 500, mid: 1000, expert: 1800 },
+    "Website & App Development": { beginner: 700, mid: 1400, expert: 2500 },
+    "Marketing & Growth": { beginner: 450, mid: 900, expert: 1600 },
+    "Sales & Lead Generation": { beginner: 350, mid: 800, expert: 1500 },
+    "Operations & Automation": { beginner: 600, mid: 1300, expert: 2400 },
+    "Finance & Compliance": { beginner: 700, mid: 1500, expert: 2800 },
+    Other: { beginner: 400, mid: 800, expert: 1400 }
+  };
+  const rates = table[category] || table.Other;
+  return rates[experience] || rates.mid;
+}
+
+function getFreelancerAnalytics(name = getCurrentUser()?.name) {
+  const db = getDB();
+  const apps = (db.applications || []).filter(app => app.candidateName === name);
+  const accepted = apps.filter(app => app.status === "Accepted");
+  const totalBid = apps.reduce((sum, app) => sum + Number(app.proposedRate || 0), 0);
+  const earnings = accepted.reduce((sum, app) => {
+    const job = (db.jobs || []).find(item => item.id === app.jobId);
+    return sum + Number(app.proposedRate || 0) * Number(job?.estimatedHours || 20);
+  }, 0);
+  return {
+    applications: apps.length,
+    gigsWon: accepted.length,
+    averageBid: apps.length ? Math.round(totalBid / apps.length) : 0,
+    earnings
+  };
+}
+
+function notifyMatchingFreelancersForGig(job, startupName = "A startup") {
+  const db = getDB();
+  getAllProfiles()
+    .filter(profile => profile.role === "freelancer")
+    .forEach(profile => {
+      const match = scoreGigForFreelancer(job, profile);
+      if (match.score < 18) return;
+      db.notifications.push({
+        id: "not-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+        to: profile.name,
+        type: "gig_match",
+        from: startupName,
+        text: `${startupName} posted a gig matching your skills: ${job.title}.`,
+        targetUrl: "dashboard-freelancer.html",
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+    });
+  saveDB(db);
+}
+
 function requestBrowserLocation() {
   if (!("geolocation" in navigator)) return Promise.reject(new Error("Location is not supported on this device."));
   return new Promise((resolve, reject) => {
@@ -808,6 +904,11 @@ function sendLocalMessage(to, text, extra = {}) {
     createdAt: message.createdAt
   });
   saveDB(db);
+  if (window.ConnectHubFirebaseChat?.enabled?.()) {
+    window.ConnectHubFirebaseChat.sendMessage(message).catch(error =>
+      console.warn("ConnectHub Firebase chat sync failed:", error.message)
+    );
+  }
   if (CONNECTHUB_BACKEND_URL) {
     apiRequest("/api/messages/send", {
       method: "POST",
@@ -893,6 +994,16 @@ function submitReview(to, rating, text = "") {
     createdAt: new Date().toISOString()
   };
   db.reviews.push(review);
+  db.notifications.push({
+    id: "not-" + Date.now(),
+    to,
+    type: "review",
+    from: user.name,
+    text: `${user.name} rated you ${review.rating}/5.`,
+    targetUrl: `profile.html?id=${encodeURIComponent(to)}`,
+    read: false,
+    createdAt: review.createdAt
+  });
   saveDB(db);
   if (CONNECTHUB_BACKEND_URL) {
     apiRequest("/api/reviews", {
