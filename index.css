@@ -2117,36 +2117,201 @@ body.dark .ai-bot-input-area input::placeholder {
   animation: menuPop 0.2s ease both;
 }
 
-.notification-panel > strong {
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  padding: 0.2rem 0.25rem 0.35rem;
+.notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.25rem 0.25rem 0.45rem;
 }
 
-.notification-panel button,
-.notification-panel p {
+.notification-panel-head button {
   border: 0;
-  border-radius: 0.6rem;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--accent-blue);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.notification-panel-head > strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.notification-empty {
+  padding: 0.8rem;
+  color: var(--text-muted);
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.notification-item.unread {
+  border-color: rgba(15, 118, 110, 0.18);
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.notification-avatar-link {
+  text-decoration: none;
+}
+
+.notification-copy {
+  min-width: 0;
   display: grid;
   gap: 0.2rem;
-  padding: 0.7rem;
-  text-align: left;
-  width: 100%;
+}
+
+.notification-copy p {
+  color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.35;
 }
 
-.notification-panel button.unread {
-  background: rgba(15, 118, 110, 0.1);
+.notification-copy a {
   color: var(--text-primary);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.notification-copy a:hover {
+  color: var(--accent-blue);
+}
+
+.notification-copy small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
   font-weight: 700;
 }
 
-.notification-panel small {
+.notification-item > button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
   color: var(--text-muted);
-  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.notification-item > button:hover {
+  background: var(--accent-blue-soft);
+  color: var(--accent-blue);
+}
+
+:root[data-theme="dark"] .badge,
+body.dark .badge {
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  background: rgba(15, 118, 110, 0.22);
+  color: #d9fff8;
+}
+
+:root[data-theme="dark"] .badge-green,
+body.dark .badge-green {
+  border-color: rgba(94, 234, 212, 0.48);
+  background: rgba(20, 184, 166, 0.18);
+  color: #ccfbf1;
+}
+
+:root[data-theme="dark"] .badge-indigo,
+:root[data-theme="dark"] .badge-purple,
+body.dark .badge-indigo,
+body.dark .badge-purple {
+  border-color: rgba(125, 211, 252, 0.4);
+  background: rgba(14, 116, 144, 0.25);
+  color: #e0f2fe;
+}
+
+:root[data-theme="dark"] .badge-amber,
+body.dark .badge-amber {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(146, 64, 14, 0.28);
+  color: #fef3c7;
+}
+
+:root[data-theme="dark"] .ad-company-name,
+:root[data-theme="dark"] .ad-description,
+:root[data-theme="dark"] .stat-label,
+:root[data-theme="dark"] .stat-change,
+:root[data-theme="dark"] .price-label,
+:root[data-theme="dark"] .event-meta,
+:root[data-theme="dark"] .explore-card-main small,
+:root[data-theme="dark"] .explore-card-main p,
+:root[data-theme="dark"] .explore-card-bio,
+:root[data-theme="dark"] .message-row-main small,
+:root[data-theme="dark"] .message-row-main em,
+:root[data-theme="dark"] .message-row-meta small,
+body.dark .ad-company-name,
+body.dark .ad-description,
+body.dark .stat-label,
+body.dark .stat-change,
+body.dark .price-label,
+body.dark .event-meta,
+body.dark .explore-card-main small,
+body.dark .explore-card-main p,
+body.dark .explore-card-bio,
+body.dark .message-row-main small,
+body.dark .message-row-main em,
+body.dark .message-row-meta small {
+  color: #d1d5db;
+}
+
+:root[data-theme="dark"] .price-amount,
+:root[data-theme="dark"] .stat-value,
+:root[data-theme="dark"] .ad-title,
+:root[data-theme="dark"] .event-title,
+body.dark .price-amount,
+body.dark .stat-value,
+body.dark .ad-title,
+body.dark .event-title {
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .profile-complete-track,
+:root[data-theme="dark"] .mini-progress,
+body.dark .profile-complete-track,
+body.dark .mini-progress {
+  background: #334155;
+}
+
+:root[data-theme="dark"] .custom-table td,
+body.dark .custom-table td {
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+:root[data-theme="dark"] .notification-panel,
+body.dark .notification-panel {
+  background: rgba(26, 26, 26, 0.98);
+  border-color: #374151;
+}
+
+:root[data-theme="dark"] .notification-item.unread,
+body.dark .notification-item.unread {
+  border-color: rgba(45, 212, 191, 0.32);
+  background: rgba(20, 184, 166, 0.13);
+}
+
+:root[data-theme="dark"] .notification-copy p,
+body.dark .notification-copy p {
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .notification-copy a,
+body.dark .notification-copy a {
+  color: #ffffff;
 }
 
 @keyframes viewEnter {

@@ -319,11 +319,43 @@ const AppUX = (() => {
       .reverse()
       .slice(0, 12);
     panel.innerHTML = `
-      <strong>Notifications</strong>
-      ${items.map(note => `<button type="button" class="${note.read ? "" : "unread"}" onclick="AppUX.markNotificationsRead()">
-        <span>${note.text}</span><small>${new Date(note.createdAt || Date.now()).toLocaleDateString("en-IN")}</small>
-      </button>`).join("") || '<p>No notifications yet.</p>'}
+      <div class="notification-panel-head">
+        <strong>Notifications</strong>
+        <button type="button" onclick="AppUX.markNotificationsRead()">Mark read</button>
+      </div>
+      ${items.map(note => renderNotificationItem(note)).join("") || '<p class="notification-empty">No notifications yet.</p>'}
     `;
+  }
+
+  function notificationActorName(note) {
+    const text = String(note.text || "");
+    if (note.from) return note.from;
+    if (text.startsWith("New message from ")) return text.replace("New message from ", "").trim();
+    if (text.includes(" sent you ")) return text.split(" sent you ")[0].trim();
+    if (text.includes(" expressed interest")) return text.split(" expressed interest")[0].trim();
+    if (text.includes(" rated you ")) return text.split(" rated you ")[0].trim();
+    return "";
+  }
+
+  function profileUrl(profile) {
+    const id = userIdFor(profile || {});
+    return `profile.html?id=${encodeURIComponent(id)}`;
+  }
+
+  function renderNotificationItem(note) {
+    const actorName = notificationActorName(note);
+    const profile = getAllProfiles().find(item => item.name === actorName) || { name: actorName || "Connect Hub", avatarInitials: initialsForName(actorName || "CH") };
+    const text = escapeHTML(note.text || "New notification");
+    const actor = escapeHTML(actorName || profile.name || "Connect Hub");
+    const message = actorName ? text.replace(actor, "").trim() : text;
+    return `<article class="notification-item ${note.read ? "" : "unread"}">
+      <a class="notification-avatar-link" href="${profileUrl(profile)}" onclick="AppUX.markNotificationsRead()">${avatarMarkup(profile, "user-avatar")}</a>
+      <div class="notification-copy">
+        <p><a href="${profileUrl(profile)}" onclick="AppUX.markNotificationsRead()">${actor}</a> ${message}</p>
+        <small>${new Date(note.createdAt || Date.now()).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
+      </div>
+      <button type="button" title="Mark read" onclick="AppUX.markNotificationsRead()"><i data-lucide="check"></i></button>
+    </article>`;
   }
 
   function installRealtime() {
@@ -527,14 +559,15 @@ const AppUX = (() => {
       const unread = (db.messages || []).filter(m => m.from === profile.name && m.to === user.name && !m.read).length;
       const online = (window.ConnectHubOnlineUsers || []).includes(profile.name);
       const safeName = profile.name.replace(/'/g, "\\'");
+      const preview = messagePreview(last);
       return `<button class="message-row" onclick="AppUX.openChat('${safeName}')">
         <span class="message-avatar-wrap">${avatarMarkup(profile, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
         <span class="message-row-main">
           <strong>${profile.name}</strong>
           <small>@${(profile.email || profile.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}</small>
-          <em>${last?.text || "Start a conversation"}</em>
+          <em>${preview}</em>
         </span>
-        <span class="message-row-meta"><small>${last ? "now" : ""}</small>${unread ? `<b>${unread}</b>` : ""}</span>
+        <span class="message-row-meta"><small>${last ? new Date(last.createdAt || Date.now()).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : ""}</small>${unread ? `<b>${unread}</b>` : ""}</span>
       </button>`;
     }).join("");
 
@@ -555,6 +588,14 @@ const AppUX = (() => {
 
   function focusMessageSearch() {
     document.getElementById("messageSearch")?.focus();
+  }
+
+  function messagePreview(message) {
+    if (!message) return "Start a conversation";
+    if (message.kind === "image") return "Photo";
+    if (message.kind === "voice") return "Voice message";
+    if (message.kind === "location") return "Location shared";
+    return message.text || "Message";
   }
 
   function openChat(selectedName) {
