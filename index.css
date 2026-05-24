@@ -1912,6 +1912,83 @@ body.dark .ai-bot-input-area input::placeholder {
   }
 }
 
+.notification-bell-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+#notificationBell {
+  position: relative;
+}
+
+#notificationBellCount {
+  position: absolute;
+  right: -0.2rem;
+  top: -0.25rem;
+  min-width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  display: none;
+}
+
+.notification-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.55rem);
+  width: min(320px, calc(100vw - 1.5rem));
+  max-height: 360px;
+  overflow-y: auto;
+  z-index: 1600;
+  display: none;
+  padding: 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: var(--bg-secondary);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+}
+
+.notification-panel.active {
+  display: grid;
+  gap: 0.45rem;
+  animation: menuPop 0.2s ease both;
+}
+
+.notification-panel > strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  padding: 0.2rem 0.25rem 0.35rem;
+}
+
+.notification-panel button,
+.notification-panel p {
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text-secondary);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  text-align: left;
+  width: 100%;
+}
+
+.notification-panel button.unread {
+  background: rgba(15, 118, 110, 0.1);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.notification-panel small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
 @keyframes viewEnter {
   from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect Hub Profile</title>
+  <meta name="description" content="Public Connect Hub profile for Indian startups, freelancers, and investors.">
+  <meta property="og:title" content="Connect Hub Profile">
+  <meta property="og:description" content="View skills, sector, portfolio, reviews, and connect on Connect Hub India.">
+  <meta property="og:type" content="profile">
+  <meta property="og:image" content="assets/logo.png">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <main class="min-h-screen bg-slate-50 p-4">
+    <section id="profileCard" class="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">Loading profile...</section>
+  </main>
+  <script src="config.js"></script>
+  <script src="db.js"></script>
+  <script>
+    function roleLabel(role) {
+      return role === "startup_admin" ? "Startup Owner" : role === "investor" ? "Investor" : "Freelancer";
+    }
+
+    function render(profile) {
+      const db = getDB();
+      const reviews = (db.reviews || []).filter(review => review.to === profile.name);
+      const avg = reviews.length ? (reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / reviews.length).toFixed(1) : "New";
+      document.title = `${profile.name} - Connect Hub`;
+      document.getElementById("profileCard").innerHTML = `
+        <div class="flex flex-wrap items-center gap-4">
+          ${avatarMarkup(profile, "user-avatar")}
+          <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-extrabold text-slate-950">${profile.name}</h1>
+            <p class="text-sm font-semibold text-teal-700">${roleLabel(profile.role)} · ${profile.title || profile.companyName || "Connect Hub member"}</p>
+            <p class="text-sm text-slate-500">${[profile.city, profile.state].filter(Boolean).join(", ") || "India"}</p>
+          </div>
+          <a class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white" href="index.html">Open app</a>
+        </div>
+        <p class="mt-5 text-slate-700">${profile.bio || "Open to networking, partnerships, and opportunities."}</p>
+        <div class="mt-5 grid gap-3 sm:grid-cols-3">
+          <div class="rounded-xl bg-slate-50 p-3"><span class="text-xs uppercase text-slate-500">Skills / Sector</span><strong class="block text-slate-900">${(profile.skills || []).join(", ") || profile.companyName || profile.title || "Networking"}</strong></div>
+          <div class="rounded-xl bg-slate-50 p-3"><span class="text-xs uppercase text-slate-500">Rating</span><strong class="block text-slate-900">${avg}</strong></div>
+          <div class="rounded-xl bg-slate-50 p-3"><span class="text-xs uppercase text-slate-500">Portfolio</span><strong class="block text-slate-900">${profile.portfolio || "Available on request"}</strong></div>
+        </div>
+        <h2 class="mt-6 font-extrabold text-slate-900">Reviews</h2>
+        <div class="mt-2 grid gap-2">${reviews.map(review => `<div class="rounded-xl border border-slate-100 p-3"><strong>${review.rating}/5</strong><p class="text-sm text-slate-600">${review.text || "Recommended on Connect Hub."}</p><small class="text-slate-500">By ${review.from}</small></div>`).join("") || '<p class="text-sm text-slate-500">No reviews yet.</p>'}</div>
+      `;
+    }
+
+    syncFromBackend().finally(() => {
+      const params = new URLSearchParams(location.search);
+      const id = (params.get("id") || params.get("name") || "").toLowerCase();
+      const profile = getAllProfiles().find(item =>
+        String(item.email || "").toLowerCase() === id ||
+        String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") === id ||
+        String(item.name || "").toLowerCase() === id
+      );
+      if (profile) render(profile);
+      else document.getElementById("profileCard").innerHTML = '<h1 class="text-xl font-extrabold">Profile not found</h1><p class="mt-2 text-slate-600">Open Connect Hub and search from Explore.</p>';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect Hub Admin</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <main class="min-h-screen bg-slate-50 p-4 text-slate-900">
+    <section class="mx-auto max-w-6xl">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-extrabold text-teal-800">Connect Hub Admin</h1>
+          <p class="text-sm text-slate-600">Manage users, posts, messages, connections, interests, and reviews.</p>
+        </div>
+        <a class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white" href="index.html">Back to app</a>
+      </div>
+      <div id="adminStatus" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">Loading admin data...</div>
+      <div id="adminCounts" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
+      <div id="adminTables" class="mt-4 grid gap-4 lg:grid-cols-2"></div>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="db.js"></script>
+  <script>
+    function table(title, rows, columns) {
+      return `<section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <h2 class="border-b border-slate-100 px-4 py-3 font-extrabold text-slate-800">${title}</h2>
+        <div class="overflow-x-auto"><table class="min-w-full text-left text-sm">
+          <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr>${columns.map(col => `<th class="px-4 py-2">${col.label}</th>`).join("")}</tr></thead>
+          <tbody>${rows.slice(-20).reverse().map(row => `<tr class="border-t border-slate-100">${columns.map(col => `<td class="px-4 py-2">${row[col.key] || ""}</td>`).join("")}</tr>`).join("") || `<tr><td class="px-4 py-6 text-center text-slate-500" colspan="${columns.length}">No records</td></tr>`}</tbody>
+        </table></div>
+      </section>`;
+    }
+
+    async function loadAdmin() {
+      const status = document.getElementById("adminStatus");
+      try {
+        const data = await apiRequest("/api/admin/summary");
+        status.textContent = "Admin data loaded.";
+        document.getElementById("adminCounts").innerHTML = Object.entries(data.counts).map(([key, value]) =>
+          `<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><span class="text-xs uppercase text-slate-500">${key}</span><strong class="mt-1 block text-2xl text-teal-800">${value}</strong></div>`
+        ).join("");
+        const db = data.db;
+        document.getElementById("adminTables").innerHTML = [
+          table("Users", db.registeredProfiles || [], [{key:"name",label:"Name"},{key:"role",label:"Role"},{key:"email",label:"Email"}]),
+          table("Jobs", db.jobs || [], [{key:"title",label:"Title"},{key:"status",label:"Status"},{key:"hourlyRate",label:"Rate"}]),
+          table("Messages", db.messages || [], [{key:"from",label:"From"},{key:"to",label:"To"},{key:"text",label:"Message"}]),
+          table("Investor Interest", db.investorInterests || [], [{key:"investorName",label:"Investor"},{key:"startupName",label:"Startup"},{key:"amount",label:"Amount"}]),
+          table("Connections", db.connections || [], [{key:"from",label:"From"},{key:"to",label:"To"},{key:"status",label:"Status"}]),
+          table("Reviews", db.reviews || [], [{key:"from",label:"From"},{key:"to",label:"To"},{key:"rating",label:"Rating"}])
+        ].join("");
+      } catch (error) {
+        status.innerHTML = `<strong>Admin locked.</strong> Login with the Render ADMIN_EMAIL account first. ${error.message}`;
+      }
+    }
+    loadAdmin();
+  </script>
+</body>
+</html>

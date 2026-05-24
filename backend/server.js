@@ -22,6 +22,8 @@ const DATA_DIR = process.env.CONNECTHUB_DATA_DIR || path.join(__dirname, "data")
 const DB_FILE = path.join(DATA_DIR, "connecthub-db.json");
 const USERS_FILE = path.join(DATA_DIR, "connecthub-users.json");
 const OTP_FILE = path.join(DATA_DIR, "connecthub-otps.json");
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "connecthub-free-tier-dev-secret-change-in-render";
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const DEMO_USERS = {
   "sarah@connecthub.in": {
@@ -142,7 +144,9 @@ const INITIAL_DB = {
   investments: [],
   connections: [],
   messages: [],
-  notifications: []
+  notifications: [],
+  investorInterests: [],
+  reviews: []
 };
 
 function ensureDataFiles() {
@@ -164,6 +168,46 @@ function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+function base64url(input) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function signToken(payload) {
+  const body = {
+    ...payload,
+    iat: Date.now(),
+    exp: Date.now() + TOKEN_TTL_MS
+  };
+  const encoded = base64url(JSON.stringify(body));
+  const signature = crypto.createHmac("sha256", JWT_SECRET).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifyToken(token) {
+  try {
+    if (!token || !token.includes(".")) return null;
+    const [encoded, signature] = token.split(".");
+    const expected = crypto.createHmac("sha256", JWT_SECRET).update(encoded).digest("base64url");
+    if (Buffer.byteLength(signature) !== Buffer.byteLength(expected)) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    const payload = JSON.parse(Buffer.from(encoded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+    if (payload.exp && Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function authFromRequest(req) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  return verifyToken(token);
+}
+
 function registeredProfilesFromUsers() {
   const users = readJson(USERS_FILE, {});
   return Object.values(users)
@@ -174,6 +218,8 @@ function registeredProfilesFromUsers() {
 function publicDB() {
   const db = readJson(DB_FILE, INITIAL_DB);
   db.registeredProfiles = registeredProfilesFromUsers();
+  if (!Array.isArray(db.investorInterests)) db.investorInterests = [];
+  if (!Array.isArray(db.reviews)) db.reviews = [];
   return db;
 }
 
@@ -202,7 +248,9 @@ function mergeDBState(existingDB, incomingDB) {
     investments: mergeById(existing.investments, incoming.investments),
     connections: mergeById(existing.connections, incoming.connections),
     messages: mergeById(existing.messages, incoming.messages),
-    notifications: mergeById(existing.notifications, incoming.notifications)
+    notifications: mergeById(existing.notifications, incoming.notifications),
+    investorInterests: mergeById(existing.investorInterests, incoming.investorInterests),
+    reviews: mergeById(existing.reviews, incoming.reviews)
   };
   delete merged.registeredProfiles;
   return merged;
@@ -213,7 +261,7 @@ function sendJson(res, status, data) {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
   });
   res.end(JSON.stringify(data));
 }
@@ -259,15 +307,15 @@ function normalizeEmail(email) {
 }
 
 function isSmtpConfigured() {
-  return Boolean(nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  return Boolean(nodemailer && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 async function sendOtpEmail(email, otp) {
   if (!isSmtpConfigured()) {
-    throw new Error("Email OTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM in Render.");
+    throw new Error("Email OTP is not configured. Add SMTP_USER and SMTP_PASS in Render. Use a Gmail app password.");
   }
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
     port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === "true",
     auth: {
@@ -282,6 +330,47 @@ async function sendOtpEmail(email, otp) {
     text: `Your Connect Hub password reset OTP is ${otp}. It expires in 10 minutes.`,
     html: `<p>Your Connect Hub password reset OTP is <strong>${otp}</strong>.</p><p>It expires in 10 minutes.</p>`
   });
+}
+
+async function sendEmailNotification(toEmail, subject, text) {
+  if (!toEmail || !isSmtpConfigured()) return;
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: toEmail,
+    subject,
+    text
+  });
+}
+
+function profileByName(name) {
+  const needle = String(name || "").trim().toLowerCase();
+  return registeredProfilesFromUsers().find(profile => String(profile.name || "").toLowerCase() === needle) ||
+    Object.entries(DEMO_USERS).map(([email, profile]) => ({ ...profile, email }))
+      .find(profile => String(profile.name || "").toLowerCase() === needle);
+}
+
+function createNotification(db, to, type, text, extra = {}) {
+  const note = {
+    id: extra.id || `not-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    to,
+    type,
+    text,
+    read: false,
+    createdAt: new Date().toISOString(),
+    ...extra
+  };
+  db.notifications = db.notifications || [];
+  if (!db.notifications.some(item => item.id === note.id)) db.notifications.push(note);
+  return note;
 }
 
 function createOtp(email) {
@@ -455,14 +544,17 @@ function serveStatic(req, res) {
 
 async function handleApi(req, res) {
   if (req.method === "OPTIONS") return sendJson(res, 204, {});
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const route = url.pathname;
+  const auth = authFromRequest(req);
 
-  if (req.url === "/api/health") return sendJson(res, 200, { ok: true });
+  if (route === "/api/health") return sendJson(res, 200, { ok: true });
 
-  if (req.url === "/api/state" && req.method === "GET") {
+  if (route === "/api/state" && req.method === "GET") {
     return sendJson(res, 200, { db: publicDB() });
   }
 
-  if (req.url === "/api/state" && req.method === "PUT") {
+  if (route === "/api/state" && req.method === "PUT") {
     const body = await readBody(req);
     if (!body.db) return sendJson(res, 400, { success: false, message: "Missing db payload." });
     const merged = mergeDBState(readJson(DB_FILE, INITIAL_DB), body.db);
@@ -470,18 +562,22 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, db: publicDB() });
   }
 
-  if (req.url === "/api/login" && req.method === "POST") {
+  if (route === "/api/login" && req.method === "POST") {
     const { email: rawEmail, password } = await readBody(req);
     const email = normalizeEmail(rawEmail);
-    if (DEMO_USERS[email]) return sendJson(res, 200, { success: true, user: DEMO_USERS[email] });
+    if (DEMO_USERS[email]) {
+      const user = { ...DEMO_USERS[email], email };
+      return sendJson(res, 200, { success: true, user, token: signToken({ email, name: user.name, role: user.role }) });
+    }
     const users = readJson(USERS_FILE, {});
     if (users[email] && verifyPassword(password, users[email])) {
-      return sendJson(res, 200, { success: true, user: users[email].profile });
+      const user = users[email].profile;
+      return sendJson(res, 200, { success: true, user, token: signToken({ email, name: user.name, role: user.role }) });
     }
     return sendJson(res, 401, { success: false, message: "Invalid email or passcode." });
   }
 
-  if (req.url === "/api/register" && req.method === "POST") {
+  if (route === "/api/register" && req.method === "POST") {
     const body = await readBody(req);
     const email = normalizeEmail(body.email);
     const users = readJson(USERS_FILE, {});
@@ -496,10 +592,10 @@ async function handleApi(req, res) {
     const passwordData = hashPassword(body.password);
     users[email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
     writeJson(USERS_FILE, users);
-    return sendJson(res, 200, { success: true, user: profile, db: publicDB() });
+    return sendJson(res, 200, { success: true, user: profile, token: signToken({ email, name: profile.name, role: profile.role }), db: publicDB() });
   }
 
-  if (req.url === "/api/profile/update" && req.method === "POST") {
+  if (route === "/api/profile/update" && req.method === "POST") {
     const { email: rawEmail, profile } = await readBody(req);
     const email = normalizeEmail(rawEmail || profile?.email);
     const users = readJson(USERS_FILE, {});
@@ -517,7 +613,7 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, user: safeProfile });
   }
 
-  if (req.url === "/api/password/request" && req.method === "POST") {
+  if (route === "/api/password/request" && req.method === "POST") {
     const { email: rawEmail } = await readBody(req);
     const email = normalizeEmail(rawEmail);
     const users = readJson(USERS_FILE, {});
@@ -529,7 +625,7 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, message: "OTP sent to your email." });
   }
 
-  if (req.url === "/api/password/reset" && req.method === "POST") {
+  if (route === "/api/password/reset" && req.method === "POST") {
     const { email: rawEmail, otp, password } = await readBody(req);
     const email = normalizeEmail(rawEmail);
     if (!password || String(password).length < 4) {
@@ -550,14 +646,125 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, message: "Password reset successful." });
   }
 
-  if (req.url === "/api/payments/razorpay-key" && req.method === "GET") {
+  if (route === "/api/messages/send" && req.method === "POST") {
+    const body = await readBody(req);
+    const from = String(auth?.name || body.from || "").slice(0, 80);
+    const to = String(body.to || "").slice(0, 80);
+    const text = String(body.text || "").slice(0, 600);
+    if (!from || !to || !text) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and text are required." });
+    const message = {
+      id: String(body.id || `msg-${Date.now()}`).slice(0, 80),
+      from,
+      to,
+      text,
+      read: false,
+      createdAt: body.createdAt || new Date().toISOString()
+    };
+    const db = readJson(DB_FILE, INITIAL_DB);
+    db.messages = db.messages || [];
+    if (!db.messages.some(item => item.id === message.id)) db.messages.push(message);
+    createNotification(db, to, "message", `New message from ${from}`, { id: `not-${message.id}`, messageId: message.id });
+    writeJson(DB_FILE, db);
+    const recipient = profileByName(to);
+    sendEmailNotification(recipient?.email, "New Connect Hub message", `${from}: ${text}`).catch(() => {});
+    return sendJson(res, 200, { success: true, message, db: publicDB() });
+  }
+
+  if (route === "/api/connections" && req.method === "POST") {
+    const body = await readBody(req);
+    const from = String(auth?.name || body.from || "").slice(0, 80);
+    const to = String(body.to || "").slice(0, 80);
+    if (!from || !to || from === to) return sendJson(res, 400, { success: false, message: "Valid connection users are required." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    db.connections = db.connections || [];
+    const existing = db.connections.find(c => [c.from, c.to].includes(from) && [c.from, c.to].includes(to));
+    if (existing) return sendJson(res, 200, { success: true, connection: existing, db: publicDB() });
+    const connection = { id: `conn-${Date.now()}`, from, to, status: "Pending", createdAt: new Date().toISOString() };
+    db.connections.push(connection);
+    createNotification(db, to, "connection", `${from} sent you a connection request.`, { connectionId: connection.id });
+    writeJson(DB_FILE, db);
+    const recipient = profileByName(to);
+    sendEmailNotification(recipient?.email, "New Connect Hub connection request", `${from} sent you a connection request.`).catch(() => {});
+    return sendJson(res, 200, { success: true, connection, db: publicDB() });
+  }
+
+  if (route === "/api/connections/respond" && req.method === "POST") {
+    const { id, status } = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const connection = (db.connections || []).find(item => item.id === id);
+    if (!connection) return sendJson(res, 404, { success: false, message: "Connection request not found." });
+    connection.status = status === "Accepted" ? "Accepted" : "Declined";
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, connection, db: publicDB() });
+  }
+
+  if (route === "/api/investor-interest" && req.method === "POST") {
+    const body = await readBody(req);
+    const investorName = String(auth?.name || body.investorName || "").slice(0, 80);
+    const startupId = String(body.startupId || "").slice(0, 80);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const startup = (db.startups || []).find(item => item.id === startupId || item.name === body.startupName);
+    if (!investorName || !startup) return sendJson(res, 400, { success: false, message: "Investor and startup are required." });
+    db.investorInterests = db.investorInterests || [];
+    const interest = {
+      id: `interest-${Date.now()}`,
+      investorName,
+      startupId: startup.id,
+      startupName: startup.name,
+      amount: body.amount || "",
+      note: String(body.note || "Interested in discussing investment.").slice(0, 300),
+      status: "Interested",
+      createdAt: new Date().toISOString()
+    };
+    db.investorInterests.push(interest);
+    createNotification(db, startup.name, "investor_interest", `${investorName} expressed interest in ${startup.name}.`, { interestId: interest.id });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, interest, db: publicDB() });
+  }
+
+  if (route === "/api/reviews" && req.method === "POST") {
+    const body = await readBody(req);
+    const from = String(auth?.name || body.from || "").slice(0, 80);
+    const to = String(body.to || "").slice(0, 80);
+    const rating = Math.max(1, Math.min(5, Number(body.rating || 5)));
+    const text = String(body.text || "").slice(0, 300);
+    if (!from || !to) return sendJson(res, 400, { success: false, message: "Reviewer and review target are required." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    db.reviews = db.reviews || [];
+    const review = { id: `review-${Date.now()}`, from, to, rating, text, createdAt: new Date().toISOString() };
+    db.reviews.push(review);
+    createNotification(db, to, "review", `${from} rated you ${rating}/5.`, { reviewId: review.id });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, review, db: publicDB() });
+  }
+
+  if (route === "/api/admin/summary" && req.method === "GET") {
+    const isAdmin = auth?.role === "admin" || normalizeEmail(auth?.email) === normalizeEmail(process.env.ADMIN_EMAIL);
+    if (!isAdmin) return sendJson(res, 403, { success: false, message: "Admin access required." });
+    const db = publicDB();
+    return sendJson(res, 200, {
+      success: true,
+      counts: {
+        users: db.registeredProfiles.length + Object.keys(DEMO_USERS).length,
+        jobs: (db.jobs || []).length,
+        posts: (db.freelancerAds || []).length + (db.startupPromotions || []).length,
+        messages: (db.messages || []).length,
+        connections: (db.connections || []).length,
+        interests: (db.investorInterests || []).length,
+        reviews: (db.reviews || []).length
+      },
+      db
+    });
+  }
+
+  if (route === "/api/payments/razorpay-key" && req.method === "GET") {
     if (!razorpayConfigured()) {
       return sendJson(res, 503, { success: false, message: "Razorpay is not configured yet." });
     }
     return sendJson(res, 200, { success: true, keyId: process.env.RAZORPAY_KEY_ID });
   }
 
-  if (req.url === "/api/payments/create-order" && req.method === "POST") {
+  if (route === "/api/payments/create-order" && req.method === "POST") {
     if (!razorpayConfigured()) {
       return sendJson(res, 503, { success: false, message: "Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render to enable payments." });
     }
@@ -575,7 +782,7 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, order, keyId: process.env.RAZORPAY_KEY_ID });
   }
 
-  if (req.url === "/api/payments/verify" && req.method === "POST") {
+  if (route === "/api/payments/verify" && req.method === "POST") {
     if (!razorpayConfigured()) {
       return sendJson(res, 503, { success: false, message: "Razorpay is not configured yet." });
     }

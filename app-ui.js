@@ -51,11 +51,30 @@ const AppUX = (() => {
     installButtonSounds();
     installRefreshBar();
     installDarkMode();
+    installNotificationBell();
     installRealtime();
     installMessageDock();
     installExplorePage();
     installBottomNav();
+    installMediaOptimizer();
     applyUserChrome();
+  }
+
+  function installMediaOptimizer() {
+    const apply = () => {
+      document.querySelectorAll("img:not([loading])").forEach(img => {
+        img.loading = "lazy";
+        img.decoding = "async";
+      });
+      document.querySelectorAll("video").forEach(video => {
+        video.preload = "metadata";
+      });
+    };
+    apply();
+    if (!window.__connectHubMediaObserver) {
+      window.__connectHubMediaObserver = new MutationObserver(apply);
+      window.__connectHubMediaObserver.observe(document.body, { childList: true, subtree: true });
+    }
   }
 
   function installShellControls() {
@@ -252,6 +271,48 @@ const AppUX = (() => {
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function installNotificationBell() {
+    const user = getCurrentUser?.();
+    const nav = document.querySelector(".top-navbar > div:last-child") || document.querySelector(".top-navbar");
+    if (!user || !nav || document.getElementById("notificationBell")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "notification-bell-wrap";
+    wrap.innerHTML = `
+      <button id="notificationBell" class="btn btn-secondary btn-icon" type="button" title="Notifications">
+        <i data-lucide="bell"></i><span id="notificationBellCount"></span>
+      </button>
+      <div id="notificationPanel" class="notification-panel"></div>
+    `;
+    nav.prepend(wrap);
+    document.getElementById("notificationBell").addEventListener("click", event => {
+      event.stopPropagation();
+      playSound("tap");
+      renderNotificationPanel();
+      document.getElementById("notificationPanel").classList.toggle("active");
+    });
+    document.addEventListener("click", () => document.getElementById("notificationPanel")?.classList.remove("active"));
+    updateUnreadBadge();
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderNotificationPanel() {
+    const user = getCurrentUser?.();
+    const panel = document.getElementById("notificationPanel");
+    if (!user || !panel) return;
+    const db = getDB();
+    const items = (db.notifications || [])
+      .filter(note => note.to === user.name || note.to === user.companyName)
+      .slice()
+      .reverse()
+      .slice(0, 12);
+    panel.innerHTML = `
+      <strong>Notifications</strong>
+      ${items.map(note => `<button type="button" class="${note.read ? "" : "unread"}" onclick="AppUX.markNotificationsRead()">
+        <span>${note.text}</span><small>${new Date(note.createdAt || Date.now()).toLocaleDateString("en-IN")}</small>
+      </button>`).join("") || '<p>No notifications yet.</p>'}
+    `;
+  }
+
   function installRealtime() {
     const user = getCurrentUser?.();
     if (!user || window.__connectHubSocketStarted) return;
@@ -399,10 +460,20 @@ const AppUX = (() => {
       </div>
       <p class="explore-card-bio">${item.description || profile.bio || "Open to networking and collaboration."}</p>
       <div class="explore-card-actions">
+        <a class="btn btn-secondary" href="profile.html?id=${id}">Profile</a>
         <button class="btn btn-secondary" onclick="connectUsers('${targetName}'); AppUX.showToast('Connection request sent')">Connect</button>
+        <button class="btn btn-secondary" onclick="AppUX.reviewUser('${targetName}')">Review</button>
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${targetName}')">Message</button>
       </div>
     </article>`;
+  }
+
+  function reviewUser(name) {
+    const rating = prompt(`Rate ${name} from 1 to 5`, "5");
+    if (!rating) return;
+    const text = prompt("Short review note", "") || "";
+    submitReview?.(name, rating, text);
+    showToast("Review submitted");
   }
 
   function openMessageTo(name) {
@@ -524,11 +595,12 @@ const AppUX = (() => {
     const user = getCurrentUser?.();
     if (!user) return;
     const db = getDB();
+    const names = [user.name, user.companyName].filter(Boolean);
     db.messages.forEach(message => {
-      if (message.to === user.name) message.read = true;
+      if (names.includes(message.to)) message.read = true;
     });
     db.notifications.forEach(note => {
-      if (note.to === user.name) note.read = true;
+      if (names.includes(note.to)) note.read = true;
     });
     saveDB(db);
     updateUnreadBadge();
@@ -546,6 +618,23 @@ const AppUX = (() => {
       bottomBadge.textContent = unread;
       bottomBadge.style.display = unread ? "inline-flex" : "none";
     }
+    const bellCount = document.getElementById("notificationBellCount");
+    if (bellCount) {
+      bellCount.textContent = unread;
+      bellCount.style.display = unread ? "inline-flex" : "none";
+    }
+  }
+
+  function markNotificationsRead() {
+    const user = getCurrentUser?.();
+    if (!user) return;
+    const db = getDB();
+    db.notifications.forEach(note => {
+      if (note.to === user.name || note.to === user.companyName) note.read = true;
+    });
+    saveDB(db);
+    updateUnreadBadge();
+    renderNotificationPanel();
   }
 
   function installButtonSounds() {
@@ -793,5 +882,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, reviewUser, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openMessageTo };
 })();

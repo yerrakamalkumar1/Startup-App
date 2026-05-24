@@ -323,6 +323,7 @@
       equity: `${eq}%`,
       date: new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
     });
+    expressInvestorInterest(st.id, st.name, `Rs ${amt.toLocaleString('en-IN')}`, `Interested at ${eq}% equity discussion.`);
     saveDB(db);
     closeModal('investModal');
     go('portfolio');

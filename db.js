@@ -242,6 +242,7 @@ async function apiRequest(path, options = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(localStorage.getItem("connecthub_token") ? { Authorization: `Bearer ${localStorage.getItem("connecthub_token")}` } : {}),
       ...(options.headers || {})
     }
   });
@@ -342,6 +343,8 @@ function mergeDBState(localDB, remoteDB) {
     connections: mergeById(local.connections, remote.connections),
     messages: mergeById(local.messages, remote.messages),
     notifications: mergeById(local.notifications, remote.notifications),
+    investorInterests: mergeById(local.investorInterests, remote.investorInterests),
+    reviews: mergeById(local.reviews, remote.reviews),
     registeredProfiles: mergeById(local.registeredProfiles, remote.registeredProfiles)
   });
 }
@@ -379,6 +382,8 @@ function ensureDBShape(db) {
   if (!Array.isArray(db.messages)) db.messages = [];
   if (!Array.isArray(db.notifications)) db.notifications = [];
   if (!Array.isArray(db.registeredProfiles)) db.registeredProfiles = [];
+  if (!Array.isArray(db.investorInterests)) db.investorInterests = [];
+  if (!Array.isArray(db.reviews)) db.reviews = [];
   db.freelancerAds = (db.freelancerAds || []).map(ad => ({ media: null, mediaType: "", ...ad }));
   db.jobs = (db.jobs || []).map(job => ({ media: null, mediaType: "", ...job }));
   db.startups = (db.startups || []).map(startup => ({ city: "", state: "", ...startup }));
@@ -445,6 +450,11 @@ function setCurrentUser(user) {
   localStorage.setItem("connecthub_user", JSON.stringify(user));
 }
 
+function setSession(user, token) {
+  setCurrentUser(user);
+  if (token) localStorage.setItem("connecthub_token", token);
+}
+
 function saveCurrentUser(user) {
   setCurrentUser(user);
   const email = normalizeEmail(user.email);
@@ -464,6 +474,7 @@ function saveCurrentUser(user) {
 
 function clearSession() {
   localStorage.removeItem("connecthub_user");
+  localStorage.removeItem("connecthub_token");
 }
 
 async function authenticateUser(email, password) {
@@ -473,7 +484,7 @@ async function authenticateUser(email, password) {
       method: "POST",
       body: JSON.stringify({ email, password })
     });
-    if (result.success) setCurrentUser(result.user);
+    if (result.success) setSession(result.user, result.token);
     return result;
   }
 
@@ -500,7 +511,7 @@ async function registerUser(name, email, password, role, title, additionalInfo) 
       body: JSON.stringify({ name, email, password, role, title, additionalInfo })
     });
     if (result.db) saveDB(result.db, { localOnly: true });
-    if (result.success) setCurrentUser(result.user);
+    if (result.success) setSession(result.user, result.token);
     return result;
   }
 
@@ -746,6 +757,17 @@ function connectUsers(targetName) {
     createdAt: new Date().toISOString()
   });
   saveDB(db);
+  if (CONNECTHUB_BACKEND_URL) {
+    apiRequest("/api/connections", {
+      method: "POST",
+      body: JSON.stringify({ from: user.name, to: targetName })
+    }).then(result => {
+      if (result.db) {
+        const merged = mergeDBState(getDB(), result.db);
+        localStorage.setItem("connecthub_db", JSON.stringify(merged));
+      }
+    }).catch(error => console.warn("ConnectHub connection sync failed:", error.message));
+  }
   return request;
 }
 
@@ -753,8 +775,9 @@ function getUnreadCount() {
   const user = getCurrentUser();
   if (!user) return 0;
   const db = getDB();
-  return db.messages.filter(m => m.to === user.name && !m.read).length +
-    db.notifications.filter(n => n.to === user.name && !n.read).length;
+  const names = [user.name, user.companyName].filter(Boolean);
+  return db.messages.filter(m => names.includes(m.to) && !m.read).length +
+    db.notifications.filter(n => names.includes(n.to) && !n.read).length;
 }
 
 function sendLocalMessage(to, text) {
@@ -779,6 +802,82 @@ function sendLocalMessage(to, text) {
     createdAt: message.createdAt
   });
   saveDB(db);
-  if (window.ConnectHubSocket) window.ConnectHubSocket.emit("message:send", message);
+  if (CONNECTHUB_BACKEND_URL) {
+    apiRequest("/api/messages/send", {
+      method: "POST",
+      body: JSON.stringify(message)
+    }).then(result => {
+      if (result.db) {
+        const merged = mergeDBState(getDB(), result.db);
+        localStorage.setItem("connecthub_db", JSON.stringify(merged));
+      }
+    }).catch(error => {
+      console.warn("ConnectHub message API failed:", error.message);
+      if (window.ConnectHubSocket) window.ConnectHubSocket.emit("message:send", message);
+    });
+  } else if (window.ConnectHubSocket) {
+    window.ConnectHubSocket.emit("message:send", message);
+  }
   return message;
+}
+
+function expressInvestorInterest(startupId, startupName, amount = "", note = "") {
+  const user = getCurrentUser();
+  if (!user) return null;
+  const db = getDB();
+  const startup = db.startups.find(item => item.id === startupId || item.name === startupName);
+  const interest = {
+    id: "interest-" + Date.now(),
+    investorName: user.name,
+    startupId: startup?.id || startupId,
+    startupName: startup?.name || startupName,
+    amount,
+    note: note || "Interested in discussing investment.",
+    status: "Interested",
+    createdAt: new Date().toISOString()
+  };
+  db.investorInterests.push(interest);
+  db.notifications.push({
+    id: "not-" + Date.now(),
+    to: interest.startupName,
+    type: "investor_interest",
+    text: `${user.name} expressed interest in ${interest.startupName}.`,
+    read: false,
+    createdAt: interest.createdAt
+  });
+  saveDB(db);
+  if (CONNECTHUB_BACKEND_URL) {
+    apiRequest("/api/investor-interest", {
+      method: "POST",
+      body: JSON.stringify(interest)
+    }).then(result => {
+      if (result.db) localStorage.setItem("connecthub_db", JSON.stringify(mergeDBState(getDB(), result.db)));
+    }).catch(error => console.warn("ConnectHub investor interest sync failed:", error.message));
+  }
+  return interest;
+}
+
+function submitReview(to, rating, text = "") {
+  const user = getCurrentUser();
+  if (!user || !to) return null;
+  const db = getDB();
+  const review = {
+    id: "review-" + Date.now(),
+    from: user.name,
+    to,
+    rating: Math.max(1, Math.min(5, Number(rating || 5))),
+    text: String(text || "").slice(0, 300),
+    createdAt: new Date().toISOString()
+  };
+  db.reviews.push(review);
+  saveDB(db);
+  if (CONNECTHUB_BACKEND_URL) {
+    apiRequest("/api/reviews", {
+      method: "POST",
+      body: JSON.stringify(review)
+    }).then(result => {
+      if (result.db) localStorage.setItem("connecthub_db", JSON.stringify(mergeDBState(getDB(), result.db)));
+    }).catch(error => console.warn("ConnectHub review sync failed:", error.message));
+  }
+  return review;
 }
