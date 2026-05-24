@@ -1064,6 +1064,41 @@ body.dark button {
   font: inherit;
 }
 
+.message-inbox-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.message-filter-row,
+.notification-filter-row {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
+.message-filter-row button,
+.notification-filter-row button {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.42rem 0.85rem;
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.message-filter-row button.active,
+.notification-filter-row button.active {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue);
+  color: #ffffff;
+}
+
 .message-list {
   flex: 1;
   overflow-y: auto;
@@ -1085,6 +1120,11 @@ body.dark button {
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
+}
+
+.message-row:hover {
+  border-color: rgba(15, 118, 110, 0.45);
+  transform: translateY(-1px);
 }
 
 .message-avatar-wrap {
@@ -1190,29 +1230,49 @@ body.dark button {
   bottom: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.55rem;
   padding-top: 0.75rem;
   background: var(--bg-primary);
 }
 
+.chat-attach-label {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
 .chat-quick-actions {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
 }
 
 .chat-quick-actions button {
-  width: 38px;
-  height: 38px;
+  min-width: 86px;
+  height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   border: 1px solid var(--border-color);
   border-radius: 999px;
   background: var(--bg-secondary);
   color: var(--accent-blue);
   cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.chat-quick-actions button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .chat-quick-actions button.recording {
@@ -2059,7 +2119,7 @@ body.dark .ai-bot-input-area input::placeholder {
   }
 
   .chat-quick-actions button {
-    width: 42px;
+    min-width: 92px;
     height: 42px;
   }
 
@@ -2311,6 +2371,32 @@ body.dark .notification-copy p {
 
 :root[data-theme="dark"] .notification-copy a,
 body.dark .notification-copy a {
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .message-filter-row button,
+:root[data-theme="dark"] .notification-filter-row button,
+:root[data-theme="dark"] .chat-quick-actions button,
+body.dark .message-filter-row button,
+body.dark .notification-filter-row button,
+body.dark .chat-quick-actions button {
+  background: #1e1e1e;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .message-filter-row button.active,
+:root[data-theme="dark"] .notification-filter-row button.active,
+body.dark .message-filter-row button.active,
+body.dark .notification-filter-row button.active {
+  background: #0f766e;
+  border-color: #2dd4bf;
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .chat-quick-actions button:hover,
+body.dark .chat-quick-actions button:hover {
+  border-color: #2dd4bf;
   color: #ffffff;
 }
 

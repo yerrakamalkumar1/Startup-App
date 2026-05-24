@@ -323,8 +323,14 @@ const AppUX = (() => {
         <strong>Notifications</strong>
         <button type="button" onclick="AppUX.markNotificationsRead()">Mark read</button>
       </div>
+      <div class="notification-filter-row">
+        <button type="button" class="active">All</button>
+        <button type="button">Messages</button>
+        <button type="button">Network</button>
+      </div>
       ${items.map(note => renderNotificationItem(note)).join("") || '<p class="notification-empty">No notifications yet.</p>'}
     `;
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function notificationActorName(note) {
@@ -572,9 +578,17 @@ const AppUX = (() => {
     }).join("");
 
     document.getElementById("messageDockBody").innerHTML = `
-      <div class="message-search"><i data-lucide="search"></i><input id="messageSearch" placeholder="Search messages" oninput="AppUX.filterMessages(this.value)"></div>
+      <div class="message-inbox-tools">
+        <div class="message-search"><i data-lucide="search"></i><input id="messageSearch" placeholder="Search messages by name, @id or text" oninput="AppUX.filterMessages(this.value)"></div>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.focusMessageSearch()" title="New message"><i data-lucide="edit-3"></i></button>
+      </div>
+      <div class="message-filter-row">
+        <button class="active" type="button">Focused</button>
+        <button type="button">Jobs</button>
+        <button type="button">Unread</button>
+        <button type="button">Network</button>
+      </div>
       <div id="messageRows" class="message-list">${rows || '<div class="empty-message-state">No profiles available.</div>'}</div>
-      <button class="new-message-inline" onclick="AppUX.focusMessageSearch()">New Message</button>
     `;
     if (window.lucide) window.lucide.createIcons();
   }
@@ -665,10 +679,11 @@ const AppUX = (() => {
     <div class="chat-compose">
       <input id="msgTo" type="hidden" value="${selectedName}">
       <input id="chatImageInput" type="file" accept="image/*" hidden onchange="AppUX.sendImageMessage(this)">
+      <div class="chat-attach-label">Send media and updates</div>
       <div class="chat-quick-actions">
-        <button type="button" title="Send photo" onclick="document.getElementById('chatImageInput').click()"><i data-lucide="image"></i></button>
-        <button type="button" title="Send location" onclick="AppUX.sendLocationMessage()"><i data-lucide="map-pin"></i></button>
-        <button type="button" id="voiceNoteBtn" title="Voice note" onclick="AppUX.toggleVoiceRecording()"><i data-lucide="mic"></i></button>
+        <button type="button" title="Send photo" onclick="document.getElementById('chatImageInput').click()"><i data-lucide="image"></i><span>Photo</span></button>
+        <button type="button" title="Send location" onclick="AppUX.sendLocationMessage()"><i data-lucide="map-pin"></i><span>Location</span></button>
+        <button type="button" id="voiceNoteBtn" title="Voice note" onclick="AppUX.toggleVoiceRecording()"><i data-lucide="mic"></i><span>Voice</span></button>
       </div>
       <input id="msgText" class="form-control" placeholder="Message ${profile.name.split(" ")[0]}...">
       <button class="btn btn-primary" onclick="AppUX.sendDockMessage()"><i data-lucide="send"></i></button>
