@@ -126,6 +126,19 @@ const AppUX = (() => {
       });
     }
 
+    const sidebarMenu = document.querySelector(".sidebar-menu");
+    if (sidebarMenu && !document.getElementById("mobileLogoutItem")) {
+      const item = document.createElement("li");
+      item.id = "mobileLogoutItem";
+      item.className = "sidebar-item mobile-logout-item";
+      item.innerHTML = '<a><i data-lucide="log-out"></i>Logout</a>';
+      item.addEventListener("click", () => {
+        playSound("back");
+        handleLogout();
+      });
+      sidebarMenu.appendChild(item);
+    }
+
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -557,6 +570,35 @@ const AppUX = (() => {
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function escapeHTML(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function renderMessageContent(message) {
+    const text = escapeHTML(message.text || "");
+    if (message.kind === "image" && message.attachment?.dataUrl) {
+      return `<img class="chat-attachment-image" src="${message.attachment.dataUrl}" alt="Shared image"><span>${text || "Photo"}</span>`;
+    }
+    if (message.kind === "voice" && message.attachment?.dataUrl) {
+      return `<audio class="chat-attachment-audio" controls src="${message.attachment.dataUrl}"></audio><span>${text || "Voice message"}</span>`;
+    }
+    if (message.kind === "location" && message.attachment?.latitude) {
+      const lat = Number(message.attachment.latitude).toFixed(5);
+      const lon = Number(message.attachment.longitude).toFixed(5);
+      const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+      return `<a class="chat-location-card" href="${mapUrl}" target="_blank" rel="noopener">
+        <i data-lucide="map-pin"></i>
+        <span><strong>Shared location</strong><small>${escapeHTML(message.attachment.city || "")} ${escapeHTML(message.attachment.state || "")}</small></span>
+      </a>`;
+    }
+    return text.replace(/\n/g, "<br>");
+  }
+
   function renderMessageDockBody(selectedName) {
     const user = getCurrentUser();
     const db = getDB();
@@ -571,24 +613,99 @@ const AppUX = (() => {
       <div><strong>${profile.name}</strong><small>${online ? "Online" : "Offline"} · ${profile.title || profile.role || "Member"}</small></div>
     </div>
     <div class="message-panel full-chat-panel">
-      ${messages.map(message => `<div class="message-bubble ${message.from === user.name ? "mine" : ""}">${message.text}</div>`).join("") || '<p style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
+      ${messages.map(message => {
+        const mine = message.from === user.name;
+        return `<div class="message-bubble ${mine ? "mine" : "theirs"}">
+          ${renderMessageContent(message)}
+          <small>${new Date(message.createdAt || Date.now()).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</small>
+        </div>`;
+      }).join("") || '<p style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
     </div>
     <div class="chat-compose">
       <input id="msgTo" type="hidden" value="${selectedName}">
+      <input id="chatImageInput" type="file" accept="image/*" hidden onchange="AppUX.sendImageMessage(this)">
+      <div class="chat-quick-actions">
+        <button type="button" title="Send photo" onclick="document.getElementById('chatImageInput').click()"><i data-lucide="image"></i></button>
+        <button type="button" title="Send location" onclick="AppUX.sendLocationMessage()"><i data-lucide="map-pin"></i></button>
+        <button type="button" id="voiceNoteBtn" title="Voice note" onclick="AppUX.toggleVoiceRecording()"><i data-lucide="mic"></i></button>
+      </div>
       <input id="msgText" class="form-control" placeholder="Message ${profile.name.split(" ")[0]}...">
       <button class="btn btn-primary" onclick="AppUX.sendDockMessage()"><i data-lucide="send"></i></button>
     </div>`;
   }
 
-  function sendDockMessage() {
+  function sendDockMessage(extra = {}) {
     const to = document.getElementById("msgTo")?.value;
-    const text = document.getElementById("msgText")?.value;
-    if (!to || !text) return;
-    sendLocalMessage(to, text);
+    const text = document.getElementById("msgText")?.value || extra.text || "";
+    if (!to || (!text && !extra.attachment)) return;
+    sendLocalMessage(to, text, extra);
     document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(to);
     updateUnreadBadge();
     playSound("done");
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function sendImageMessage(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return showToast("Choose an image file", "error");
+    if (file.size > 900 * 1024) return showToast("Keep images under 900 KB for free storage", "error");
+    const reader = new FileReader();
+    reader.onload = () => sendDockMessage({
+      kind: "image",
+      text: document.getElementById("msgText")?.value || "Photo",
+      attachment: { dataUrl: reader.result, type: file.type, name: file.name }
+    });
+    reader.readAsDataURL(file);
+  }
+
+  async function sendLocationMessage() {
+    try {
+      const location = await requestBrowserLocation();
+      sendDockMessage({ kind: "location", text: "Shared location", attachment: location });
+    } catch (error) {
+      showToast(error.message || "Location permission needed", "error");
+    }
+  }
+
+  let voiceRecorder = null;
+  let voiceChunks = [];
+
+  async function toggleVoiceRecording() {
+    const button = document.getElementById("voiceNoteBtn");
+    if (voiceRecorder && voiceRecorder.state === "recording") {
+      voiceRecorder.stop();
+      button?.classList.remove("recording");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      showToast("Voice recording is not supported on this browser", "error");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceChunks = [];
+      voiceRecorder = new MediaRecorder(stream);
+      voiceRecorder.ondataavailable = event => {
+        if (event.data.size) voiceChunks.push(event.data);
+      };
+      voiceRecorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(voiceChunks, { type: voiceRecorder.mimeType || "audio/webm" });
+        const reader = new FileReader();
+        reader.onload = () => sendDockMessage({
+          kind: "voice",
+          text: "Voice message",
+          attachment: { dataUrl: reader.result, type: blob.type, name: "voice-note.webm" }
+        });
+        reader.readAsDataURL(blob);
+      };
+      voiceRecorder.start();
+      button?.classList.add("recording");
+      showToast("Recording voice note...");
+    } catch {
+      showToast("Microphone permission needed", "error");
+    }
   }
 
   function markVisibleMessagesRead() {
@@ -882,5 +999,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, reviewUser, renderMessageDockBody, sendDockMessage, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openMessageTo };
 })();

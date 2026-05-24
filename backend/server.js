@@ -651,12 +651,14 @@ async function handleApi(req, res) {
     const from = String(auth?.name || body.from || "").slice(0, 80);
     const to = String(body.to || "").slice(0, 80);
     const text = String(body.text || "").slice(0, 600);
-    if (!from || !to || !text) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and text are required." });
+    if (!from || !to || (!text && !body.attachment)) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
     const message = {
       id: String(body.id || `msg-${Date.now()}`).slice(0, 80),
       from,
       to,
       text,
+      kind: String(body.kind || "text").slice(0, 30),
+      attachment: body.attachment || null,
       read: false,
       createdAt: body.createdAt || new Date().toISOString()
     };
@@ -824,10 +826,12 @@ if (Server) {
         from: String(message?.from || socket.data.name || "").slice(0, 80),
         to: String(message?.to || "").slice(0, 80),
         text: String(message?.text || "").slice(0, 600),
+        kind: String(message?.kind || "text").slice(0, 30),
+        attachment: message?.attachment || null,
         read: false,
         createdAt: message?.createdAt || new Date().toISOString()
       };
-      if (!safeMessage.from || !safeMessage.to || !safeMessage.text) return;
+      if (!safeMessage.from || !safeMessage.to || (!safeMessage.text && !safeMessage.attachment)) return;
 
       const db = readJson(DB_FILE, INITIAL_DB);
       db.messages = db.messages || [];

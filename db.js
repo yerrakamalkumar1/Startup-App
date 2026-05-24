@@ -780,15 +780,17 @@ function getUnreadCount() {
     db.notifications.filter(n => names.includes(n.to) && !n.read).length;
 }
 
-function sendLocalMessage(to, text) {
+function sendLocalMessage(to, text, extra = {}) {
   const user = getCurrentUser();
-  if (!user || !to || !text) return null;
+  if (!user || !to || (!text && !extra.attachment)) return null;
   const db = getDB();
   const message = {
     id: "msg-" + Date.now(),
     from: user.name,
     to,
     text: String(text).slice(0, 600),
+    kind: extra.kind || "text",
+    attachment: extra.attachment || null,
     read: false,
     createdAt: new Date().toISOString()
   };
