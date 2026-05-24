@@ -115,7 +115,7 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'gigs', exploreView: 'mads', adsView: 'mads', profileView: 'profile' });
+  AppUX.init({ homeView: 'gigs', exploreView: 'explore', adsView: 'mads', profileView: 'profile' });
 
   let currentJobId = '';
   syncFromBackend().then(() => go('gigs'));

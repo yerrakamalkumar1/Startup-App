@@ -266,6 +266,7 @@ const AppUX = (() => {
   function updateBottomNav() {
     let tab = "";
     if (currentView === profileView) tab = "profile";
+    else if (currentView === adsView && adsView !== exploreView) tab = "ads";
     else if (currentView === exploreView) tab = "explore";
     else if (currentView === homeView) tab = "home";
     setBottomActive(tab);
@@ -992,6 +993,7 @@ const AppUX = (() => {
   function onView(view) {
     if (currentView && currentView !== view) historyStack.push(currentView);
     currentView = view;
+    document.body.dataset.currentView = view || "";
     closeMenu();
     animateContent();
     refreshPulse();

@@ -1054,7 +1054,7 @@ body.dark button {
   gap: 1rem;
   width: min(100%, 980px);
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1rem 1rem calc(7.5rem + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 
@@ -1190,7 +1190,7 @@ body.dark button {
   display: grid;
   gap: 0.6rem;
   margin: 0 -1rem;
-  padding: 1rem;
+  padding: 1rem 1rem 1.3rem;
   border-top: 8px solid #eef2f7;
 }
 
@@ -1877,12 +1877,16 @@ body.dark .explore-news button:hover {
   justify-content: space-between;
   gap: 0.8rem;
   flex-wrap: wrap;
-  margin-top: auto;
+  margin-top: 1rem;
   padding: 1rem 1.4rem 5.8rem;
   background: white;
   border-top: 1px solid var(--border-color);
   color: var(--text-muted);
   font-size: 0.76rem;
+}
+
+body[data-current-view="mads"] .content-body {
+  min-height: calc(100dvh - 108px);
 }
 
 .footer-links {
@@ -2243,9 +2247,13 @@ body.dark .ai-bot-input-area input::placeholder {
 
   .app-footer {
     padding: 1rem 1.15rem 6.8rem;
-    margin-top: 0.5rem;
+    margin-top: 1rem;
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  body[data-current-view="mads"] .content-body {
+    min-height: calc(100dvh - 96px);
   }
 
   .dashboard-grid-2,
