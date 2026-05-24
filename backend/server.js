@@ -164,6 +164,50 @@ function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+function registeredProfilesFromUsers() {
+  const users = readJson(USERS_FILE, {});
+  return Object.values(users)
+    .map(entry => entry.profile)
+    .filter(Boolean);
+}
+
+function publicDB() {
+  const db = readJson(DB_FILE, INITIAL_DB);
+  db.registeredProfiles = registeredProfilesFromUsers();
+  return db;
+}
+
+function mergeById(existingItems = [], incomingItems = []) {
+  const map = new Map();
+  [...existingItems, ...incomingItems].forEach(item => {
+    if (!item) return;
+    const key = item.id || item.email || `${item.from || ""}-${item.to || ""}-${item.createdAt || ""}-${item.text || item.name || ""}`;
+    map.set(key, { ...(map.get(key) || {}), ...item });
+  });
+  return Array.from(map.values());
+}
+
+function mergeDBState(existingDB, incomingDB) {
+  const existing = existingDB || INITIAL_DB;
+  const incoming = incomingDB || {};
+  const merged = {
+    ...existing,
+    ...incoming,
+    startups: mergeById(existing.startups, incoming.startups),
+    jobs: mergeById(existing.jobs, incoming.jobs),
+    freelancerAds: mergeById(existing.freelancerAds, incoming.freelancerAds),
+    startupPromotions: mergeById(existing.startupPromotions, incoming.startupPromotions),
+    applications: mergeById(existing.applications, incoming.applications),
+    events: mergeById(existing.events, incoming.events),
+    investments: mergeById(existing.investments, incoming.investments),
+    connections: mergeById(existing.connections, incoming.connections),
+    messages: mergeById(existing.messages, incoming.messages),
+    notifications: mergeById(existing.notifications, incoming.notifications)
+  };
+  delete merged.registeredProfiles;
+  return merged;
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json",
@@ -415,14 +459,15 @@ async function handleApi(req, res) {
   if (req.url === "/api/health") return sendJson(res, 200, { ok: true });
 
   if (req.url === "/api/state" && req.method === "GET") {
-    return sendJson(res, 200, { db: readJson(DB_FILE, INITIAL_DB) });
+    return sendJson(res, 200, { db: publicDB() });
   }
 
   if (req.url === "/api/state" && req.method === "PUT") {
     const body = await readBody(req);
     if (!body.db) return sendJson(res, 400, { success: false, message: "Missing db payload." });
-    writeJson(DB_FILE, body.db);
-    return sendJson(res, 200, { success: true, db: body.db });
+    const merged = mergeDBState(readJson(DB_FILE, INITIAL_DB), body.db);
+    writeJson(DB_FILE, merged);
+    return sendJson(res, 200, { success: true, db: publicDB() });
   }
 
   if (req.url === "/api/login" && req.method === "POST") {
@@ -451,7 +496,7 @@ async function handleApi(req, res) {
     const passwordData = hashPassword(body.password);
     users[email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
     writeJson(USERS_FILE, users);
-    return sendJson(res, 200, { success: true, user: profile, db: readJson(DB_FILE, INITIAL_DB) });
+    return sendJson(res, 200, { success: true, user: profile, db: publicDB() });
   }
 
   if (req.url === "/api/profile/update" && req.method === "POST") {
@@ -566,28 +611,34 @@ if (Server) {
     });
 
     socket.on("message:send", message => {
+      const incomingId = String(message?.id || "").slice(0, 80);
       const safeMessage = {
-        id: `msg-${Date.now()}`,
+        id: incomingId || `msg-${Date.now()}`,
         from: String(message?.from || socket.data.name || "").slice(0, 80),
         to: String(message?.to || "").slice(0, 80),
         text: String(message?.text || "").slice(0, 600),
         read: false,
-        createdAt: new Date().toISOString()
+        createdAt: message?.createdAt || new Date().toISOString()
       };
       if (!safeMessage.from || !safeMessage.to || !safeMessage.text) return;
 
       const db = readJson(DB_FILE, INITIAL_DB);
       db.messages = db.messages || [];
       db.notifications = db.notifications || [];
-      db.messages.push(safeMessage);
-      db.notifications.push({
-        id: `not-${Date.now()}`,
-        to: safeMessage.to,
-        type: "message",
-        text: `New message from ${safeMessage.from}`,
-        read: false,
-        createdAt: safeMessage.createdAt
-      });
+      if (!db.messages.some(item => item.id === safeMessage.id)) {
+        db.messages.push(safeMessage);
+      }
+      const notificationId = `not-${safeMessage.id}`;
+      if (!db.notifications.some(item => item.id === notificationId)) {
+        db.notifications.push({
+          id: notificationId,
+          to: safeMessage.to,
+          type: "message",
+          text: `New message from ${safeMessage.from}`,
+          read: false,
+          createdAt: safeMessage.createdAt
+        });
+      }
       writeJson(DB_FILE, db);
 
       socket.emit("message:new", safeMessage);

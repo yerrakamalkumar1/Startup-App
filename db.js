@@ -255,7 +255,7 @@ async function syncFromBackend() {
   try {
     const data = await apiRequest("/api/state");
     if (data.db) {
-      const db = ensureDBShape(data.db);
+      const db = mergeDBState(getDB(), data.db);
       localStorage.setItem("connecthub_db", JSON.stringify(db));
       return db;
     }
@@ -316,6 +316,36 @@ function saveDB(db, options = {}) {
   }
 }
 
+function mergeById(localItems = [], remoteItems = []) {
+  const map = new Map();
+  [...localItems, ...remoteItems].forEach(item => {
+    if (!item) return;
+    const key = item.id || item.email || `${item.from || ""}-${item.to || ""}-${item.createdAt || ""}-${item.text || item.name || ""}`;
+    map.set(key, { ...(map.get(key) || {}), ...item });
+  });
+  return Array.from(map.values());
+}
+
+function mergeDBState(localDB, remoteDB) {
+  const local = ensureDBShape(localDB || {});
+  const remote = ensureDBShape(remoteDB || {});
+  return ensureDBShape({
+    ...local,
+    ...remote,
+    startups: mergeById(local.startups, remote.startups),
+    jobs: mergeById(local.jobs, remote.jobs),
+    freelancerAds: mergeById(local.freelancerAds, remote.freelancerAds),
+    startupPromotions: mergeById(local.startupPromotions, remote.startupPromotions),
+    applications: mergeById(local.applications, remote.applications),
+    events: mergeById(local.events, remote.events),
+    investments: mergeById(local.investments, remote.investments),
+    connections: mergeById(local.connections, remote.connections),
+    messages: mergeById(local.messages, remote.messages),
+    notifications: mergeById(local.notifications, remote.notifications),
+    registeredProfiles: mergeById(local.registeredProfiles, remote.registeredProfiles)
+  });
+}
+
 function getRegisteredUsers() {
   return JSON.parse(localStorage.getItem("connecthub_registered_users") || "{}");
 }
@@ -348,6 +378,7 @@ function ensureDBShape(db) {
   if (!Array.isArray(db.connections)) db.connections = [];
   if (!Array.isArray(db.messages)) db.messages = [];
   if (!Array.isArray(db.notifications)) db.notifications = [];
+  if (!Array.isArray(db.registeredProfiles)) db.registeredProfiles = [];
   db.freelancerAds = (db.freelancerAds || []).map(ad => ({ media: null, mediaType: "", ...ad }));
   db.jobs = (db.jobs || []).map(job => ({ media: null, mediaType: "", ...job }));
   db.startups = (db.startups || []).map(startup => ({ city: "", state: "", ...startup }));
@@ -561,14 +592,25 @@ function calculateProfileCompleteness(profile) {
 }
 
 function getAllProfiles() {
+  const db = getDB();
+  const seen = new Set();
   const users = [
     ...Object.entries(DEMO_USERS).map(([email, profile]) => ({ ...profile, email })),
-    ...Object.values(getRegisteredUsers()).map(entry => entry.profile)
+    ...Object.values(getRegisteredUsers()).map(entry => entry.profile),
+    ...(db.registeredProfiles || [])
   ];
-  return users.map(profile => ({
-    ...profile,
-    completeness: calculateProfileCompleteness(profile)
-  })).sort((a, b) => b.completeness - a.completeness);
+  return users
+    .filter(profile => {
+      const key = normalizeEmail(profile.email) || String(profile.name || "").toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map(profile => ({
+      ...profile,
+      completeness: calculateProfileCompleteness(profile)
+    }))
+    .sort((a, b) => b.completeness - a.completeness);
 }
 
 function getMarketplaceProfiles(role = "") {

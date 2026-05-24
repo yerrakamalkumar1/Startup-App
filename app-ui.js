@@ -321,6 +321,9 @@ const AppUX = (() => {
     document.body.classList.add("explore-open");
     setBottomActive("explore");
     renderExploreDirectory();
+    syncFromBackend?.().then(() => {
+      if (page.classList.contains("active")) renderExploreDirectory(document.getElementById("exploreSearch")?.value || "");
+    }).catch(() => {});
   }
 
   function closeExplore() {
@@ -416,6 +419,10 @@ const AppUX = (() => {
     setBottomActive("messages");
     renderInbox();
     markVisibleMessagesRead();
+    syncFromBackend?.().then(() => {
+      if (page.classList.contains("active")) renderInbox();
+      updateUnreadBadge();
+    }).catch(() => {});
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -470,6 +477,12 @@ const AppUX = (() => {
     const body = document.getElementById("messageDockBody");
     if (!body) return;
     body.innerHTML = renderMessageDockBody(selectedName);
+    syncFromBackend?.().then(() => {
+      const currentTarget = document.getElementById("msgTo")?.value;
+      if (currentTarget === selectedName) body.innerHTML = renderMessageDockBody(selectedName);
+      updateUnreadBadge();
+      if (window.lucide) window.lucide.createIcons();
+    }).catch(() => {});
     if (window.lucide) window.lucide.createIcons();
   }
 
