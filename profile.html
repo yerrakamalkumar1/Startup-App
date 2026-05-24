@@ -6,16 +6,15 @@
   <title>Connect Hub Profile</title>
   <meta name="description" content="Public Connect Hub profile for Indian startups, freelancers, and investors.">
   <meta property="og:title" content="Connect Hub Profile">
-  <meta property="og:description" content="View skills, sector, portfolio, reviews, and connect on Connect Hub India.">
+  <meta property="og:description" content="View skills, sector, portfolio, media posts, reviews, and connect on Connect Hub India.">
   <meta property="og:type" content="profile">
   <meta property="og:image" content="assets/logo.png">
   <link rel="stylesheet" href="index.css">
-  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <main class="min-h-screen bg-slate-50 p-4">
-    <section id="profileCard" class="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">Loading profile...</section>
-  </main>
+<body class="public-profile-body">
+  <main id="profileCard" class="public-profile-shell">Loading profile...</main>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="config.js"></script>
   <script src="db.js"></script>
   <script>
@@ -23,30 +22,201 @@
       return role === "startup_admin" ? "Startup Owner" : role === "investor" ? "Investor" : "Freelancer";
     }
 
+    function profileId(profile) {
+      return String(profile.email || profile.name || "")
+        .toLowerCase()
+        .replace(/@.*/, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "");
+    }
+
+    function escapeHTML(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function detailLine(profile, startup) {
+      const parts = [];
+      if (profile.role === "freelancer") parts.push(profile.title || "Freelancer");
+      if (profile.role === "startup_admin") parts.push(startup?.sector || profile.companyName || "Startup");
+      if (profile.role === "investor") parts.push(profile.title || "Investor / Sponsor");
+      const city = [profile.city || startup?.city, profile.state || startup?.state].filter(Boolean).join(", ");
+      if (city) parts.push(city);
+      return parts.join(" · ") || "ConnectHub India";
+    }
+
+    function mediaType(post) {
+      const type = post.mediaType || post.media?.type || "";
+      return type.startsWith("video/") ? "Reel" : post.media ? "Photo" : "Post";
+    }
+
+    function collectProfilePosts(profile, startup) {
+      const db = getDB();
+      const posts = [];
+      (db.freelancerAds || [])
+        .filter(ad => ad.freelancerName === profile.name)
+        .forEach(ad => posts.push({
+          author: profile.name,
+          title: ad.title,
+          text: ad.description,
+          meta: `${ad.category || "Service"} · ${ad.price || "Custom quote"}`,
+          tags: ad.tags || [],
+          media: ad.media,
+          mediaType: ad.mediaType,
+          date: ad.appliedDate || "Recently"
+        }));
+      (db.startupPromotions || [])
+        .filter(post => post.startupName === (profile.companyName || startup?.name || profile.name))
+        .forEach(post => posts.push({
+          author: post.startupName,
+          title: post.title,
+          text: post.description,
+          meta: "Startup media update",
+          tags: post.tags || [],
+          media: post.media,
+          mediaType: post.mediaType,
+          date: "Recently"
+        }));
+      if (startup) {
+        (db.jobs || [])
+          .filter(job => job.startupId === startup.id)
+          .forEach(job => posts.push({
+            author: startup.name,
+            title: job.title,
+            text: job.description,
+            meta: `Opportunity · Rs ${job.hourlyRate}/hr`,
+            tags: job.tags || [],
+            date: job.status || "Active"
+          }));
+      }
+      if (!posts.length) {
+        posts.push({
+          author: profile.name,
+          title: `${roleLabel(profile.role)} profile`,
+          text: profile.bio || "Open to meaningful business conversations, collaborations, deals, and partnerships on ConnectHub.",
+          meta: detailLine(profile, startup),
+          tags: profile.skills || [startup?.sector, profile.title].filter(Boolean),
+          date: "Profile"
+        });
+      }
+      return posts;
+    }
+
+    function renderMediaBlock(post) {
+      if (post.media) return renderMedia(post.media, post.mediaType);
+      const label = mediaType(post);
+      return `<div class="profile-post-placeholder"><i data-lucide="${label === "Reel" ? "clapperboard" : "image"}"></i><span>${label}</span></div>`;
+    }
+
+    function renderPostCard(profile, post) {
+      return `<article class="profile-feed-card">
+        <div class="profile-feed-head">
+          ${avatarMarkup(profile, "user-avatar")}
+          <div>
+            <strong>${escapeHTML(post.author)}</strong>
+            <small>${escapeHTML(post.date)} · ${escapeHTML(post.meta)}</small>
+          </div>
+          <button type="button" aria-label="More"><i data-lucide="more-horizontal"></i></button>
+        </div>
+        <h3>${escapeHTML(post.title)}</h3>
+        <p>${escapeHTML(post.text)}</p>
+        ${renderMediaBlock(post)}
+        <div class="profile-tag-row">${(post.tags || []).filter(Boolean).slice(0, 5).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
+        <div class="profile-social-actions">
+          <button type="button"><i data-lucide="thumbs-up"></i>Like</button>
+          <button type="button"><i data-lucide="message-circle"></i>Comment</button>
+          <button type="button"><i data-lucide="send"></i>Share</button>
+        </div>
+      </article>`;
+    }
+
+    function renderGrid(posts) {
+      return posts.map(post => `<article class="profile-media-tile">${renderMediaBlock(post)}<strong>${escapeHTML(post.title)}</strong><small>${escapeHTML(mediaType(post))}</small></article>`).join("");
+    }
+
     function render(profile) {
       const db = getDB();
+      const startup = profile.startupId ? (db.startups || []).find(item => item.id === profile.startupId) : null;
       const reviews = (db.reviews || []).filter(review => review.to === profile.name);
+      const posts = collectProfilePosts(profile, startup);
       const avg = reviews.length ? (reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / reviews.length).toFixed(1) : "New";
+      const connections = (db.connections || []).filter(item => item.from === profile.name || item.to === profile.name).length;
+      const location = [profile.city || startup?.city, profile.state || startup?.state].filter(Boolean).join(", ") || "India";
+      const isOwnProfile = getCurrentUser()?.email && getCurrentUser().email === profile.email;
       document.title = `${profile.name} - Connect Hub`;
       document.getElementById("profileCard").innerHTML = `
-        <div class="flex flex-wrap items-center gap-4">
-          ${avatarMarkup(profile, "user-avatar")}
-          <div class="min-w-0 flex-1">
-            <h1 class="text-2xl font-extrabold text-slate-950">${profile.name}</h1>
-            <p class="text-sm font-semibold text-teal-700">${roleLabel(profile.role)} · ${profile.title || profile.companyName || "Connect Hub member"}</p>
-            <p class="text-sm text-slate-500">${[profile.city, profile.state].filter(Boolean).join(", ") || "India"}</p>
+        <header class="public-profile-topbar">
+          <button type="button" onclick="history.length > 1 ? history.back() : location.href='index.html'" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+          <strong>${escapeHTML(profile.name)}</strong>
+          <div>
+            <button type="button" aria-label="Search"><i data-lucide="search"></i></button>
+            ${isOwnProfile ? `<a href="${getDashboardUrl(profile.role)}" aria-label="Edit profile"><i data-lucide="pencil"></i></a>` : ""}
           </div>
-          <a class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white" href="index.html">Open app</a>
-        </div>
-        <p class="mt-5 text-slate-700">${profile.bio || "Open to networking, partnerships, and opportunities."}</p>
-        <div class="mt-5 grid gap-3 sm:grid-cols-3">
-          <div class="rounded-xl bg-slate-50 p-3"><span class="text-xs uppercase text-slate-500">Skills / Sector</span><strong class="block text-slate-900">${(profile.skills || []).join(", ") || profile.companyName || profile.title || "Networking"}</strong></div>
-          <div class="rounded-xl bg-slate-50 p-3"><span class="text-xs uppercase text-slate-500">Rating</span><strong class="block text-slate-900">${avg}</strong></div>
-          <div class="rounded-xl bg-slate-50 p-3"><span class="text-xs uppercase text-slate-500">Portfolio</span><strong class="block text-slate-900">${profile.portfolio || "Available on request"}</strong></div>
-        </div>
-        <h2 class="mt-6 font-extrabold text-slate-900">Reviews</h2>
-        <div class="mt-2 grid gap-2">${reviews.map(review => `<div class="rounded-xl border border-slate-100 p-3"><strong>${review.rating}/5</strong><p class="text-sm text-slate-600">${review.text || "Recommended on Connect Hub."}</p><small class="text-slate-500">By ${review.from}</small></div>`).join("") || '<p class="text-sm text-slate-500">No reviews yet.</p>'}</div>
+        </header>
+
+        <section class="public-profile-hero">
+          <div class="profile-cover"></div>
+          <div class="profile-main-card">
+            <div class="profile-avatar-ring">${avatarMarkup(profile, "profile-hero-avatar")}</div>
+            <div class="profile-name-row">
+              <h1>${escapeHTML(profile.name)}</h1>
+              <span>${escapeHTML(roleLabel(profile.role))}</span>
+            </div>
+            <p class="profile-title-line">${escapeHTML(detailLine(profile, startup))}</p>
+            <p class="profile-bio">${escapeHTML(profile.bio || startup?.description || "Open to networking, partnerships, hiring, investment conversations, and growth opportunities.")}</p>
+            <div class="profile-meta-line">
+              <span><i data-lucide="map-pin"></i>${escapeHTML(location)}</span>
+              <span><i data-lucide="briefcase-business"></i>${escapeHTML(startup?.sector || (profile.skills || []).slice(0, 2).join(", ") || profile.title || "Networking")}</span>
+            </div>
+            <div class="profile-stats-row">
+              <div><strong>${posts.length}</strong><span>posts</span></div>
+              <div><strong>${connections || Math.max(12, profile.completeness || 0)}</strong><span>network</span></div>
+              <div><strong>${avg}</strong><span>rating</span></div>
+            </div>
+            <div class="profile-action-row">
+              <a class="btn btn-primary" href="${getDashboardUrl(profile.role)}"><i data-lucide="${isOwnProfile ? "layout-dashboard" : "message-circle"}"></i>${isOwnProfile ? "Dashboard" : "Open App"}</a>
+              <button class="btn btn-secondary" type="button" onclick="navigator.share ? navigator.share({ title: document.title, url: location.href }) : navigator.clipboard?.writeText(location.href)"><i data-lucide="share-2"></i>Share</button>
+            </div>
+          </div>
+        </section>
+
+        <nav class="profile-tabs">
+          <a href="#feed">All</a>
+          <a href="#media">Reels</a>
+          <a href="#media">Photos</a>
+          <a href="#reviews">Reviews</a>
+        </nav>
+
+        <section class="profile-info-card">
+          <div>
+            <h2>Professional details</h2>
+            <p>${escapeHTML(profile.role === "startup_admin" ? (startup?.description || profile.bio) : profile.bio || "Profile details are being updated.")}</p>
+          </div>
+          <div class="profile-detail-list">
+            <span><i data-lucide="user-check"></i>${escapeHTML(roleLabel(profile.role))}</span>
+            <span><i data-lucide="map-pin"></i>${escapeHTML(location)}</span>
+            <span><i data-lucide="sparkles"></i>${escapeHTML((profile.skills || []).join(", ") || startup?.stage || profile.title || "Open to collaboration")}</span>
+          </div>
+        </section>
+
+        <section id="media" class="profile-media-grid">${renderGrid(posts)}</section>
+
+        <section id="feed" class="profile-feed-list">
+          ${posts.map(post => renderPostCard(profile, post)).join("")}
+        </section>
+
+        <section id="reviews" class="profile-info-card">
+          <h2>Reviews</h2>
+          <div class="profile-review-list">
+            ${reviews.map(review => `<article><strong>${escapeHTML(review.rating)}/5</strong><p>${escapeHTML(review.text || "Recommended on ConnectHub.")}</p><small>By ${escapeHTML(review.from)}</small></article>`).join("") || "<p>No reviews yet. Completed deals and collaborations will appear here.</p>"}
+          </div>
+        </section>
       `;
+      if (window.lucide) window.lucide.createIcons();
     }
 
     syncFromBackend().finally(() => {
@@ -54,11 +224,11 @@
       const id = (params.get("id") || params.get("name") || "").toLowerCase();
       const profile = getAllProfiles().find(item =>
         String(item.email || "").toLowerCase() === id ||
-        String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") === id ||
+        profileId(item) === id ||
         String(item.name || "").toLowerCase() === id
       );
       if (profile) render(profile);
-      else document.getElementById("profileCard").innerHTML = '<h1 class="text-xl font-extrabold">Profile not found</h1><p class="mt-2 text-slate-600">Open Connect Hub and search from Explore.</p>';
+      else document.getElementById("profileCard").innerHTML = '<section class="profile-info-card"><h1>Profile not found</h1><p>Open ConnectHub and search from Explore.</p><a class="btn btn-primary" href="index.html">Open app</a></section>';
     });
   </script>
 </body>
