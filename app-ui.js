@@ -7,6 +7,8 @@ const AppUX = (() => {
   let onProfileSaved = null;
   let historyStack = [];
   let currentView = "";
+  let exploreImagePreview = "";
+  let exploreVoiceRecognition = null;
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -499,12 +501,36 @@ const AppUX = (() => {
     });
     body.innerHTML = `
       <div class="explore-search-shell">
-        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
-        <div class="explore-search-input">
-          <i data-lucide="search"></i>
-          <input id="exploreSearch" value="${escapeHTML(query)}" placeholder="Search" oninput="AppUX.filterExplore(this.value)">
+        <button class="explore-round-action" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+        <div class="explore-search-input google-style ${q ? "has-value" : ""}">
+          <div class="explore-search-main">
+            <i data-lucide="search"></i>
+            <input id="exploreSearch" value="${escapeHTML(query)}" placeholder="Ask ConnectHub" oninput="AppUX.filterExplore(this.value)" dir="auto">
+          </div>
+          <div class="explore-search-actions">
+            <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Add image or attachment"><i data-lucide="plus"></i></button>
+            <button type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
+            <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Camera search"><i data-lucide="scan-line"></i></button>
+          </div>
         </div>
-        <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.useLocationForExplore()" title="Use current location"><i data-lucide="scan-line"></i></button>
+        <button class="explore-round-action" type="button" onclick="AppUX.useLocationForExplore()" title="Use current location"><i data-lucide="map-pin"></i></button>
+      </div>
+      <input id="exploreGalleryInput" type="file" accept="image/*" hidden onchange="AppUX.handleExploreImageSearch(this)">
+      <input id="exploreCameraInput" type="file" accept="image/*" capture="environment" hidden onchange="AppUX.handleExploreImageSearch(this)">
+      <div id="exploreVoicePanel" class="explore-voice-panel" hidden>
+        <div class="voice-wave"><span></span><span></span><span></span><span></span></div>
+        <div><strong>Listening...</strong><p id="exploreVoiceText">Speak in English, Hindi, Telugu, Arabic, Spanish, French, or Chinese</p></div>
+      </div>
+      ${exploreImagePreview ? `<div class="explore-image-preview"><img src="${exploreImagePreview}" alt="Search image preview"><span>Image search preview</span><button type="button" onclick="AppUX.clearExploreImagePreview()">Remove</button></div>` : ""}
+      <div id="exploreMediaSheet" class="explore-media-sheet" hidden>
+        <button class="sheet-scrim" type="button" onclick="AppUX.closeExploreMediaSheet()" aria-label="Close"></button>
+        <div class="sheet-panel">
+          <span class="sheet-handle"></span>
+          <h3>Search with image</h3>
+          <p>Take a photo or upload from gallery. ConnectHub will read visible text and place it in search.</p>
+          <button type="button" onclick="AppUX.pickExploreImage('camera')"><i data-lucide="camera"></i><span><strong>Take Photo</strong><small>Open device camera</small></span></button>
+          <button type="button" onclick="AppUX.pickExploreImage('gallery')"><i data-lucide="images"></i><span><strong>Upload from Gallery/Media</strong><small>Choose an image from your phone</small></span></button>
+        </div>
       </div>
       ${!q ? `<section class="explore-recents">
         <div class="explore-section-title"><strong>Recent</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
@@ -532,6 +558,105 @@ const AppUX = (() => {
 
   function filterExplore(query) {
     renderExploreDirectory(query);
+  }
+
+  function openExploreMediaSheet() {
+    const sheet = document.getElementById("exploreMediaSheet");
+    if (sheet) sheet.hidden = false;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeExploreMediaSheet() {
+    const sheet = document.getElementById("exploreMediaSheet");
+    if (sheet) sheet.hidden = true;
+  }
+
+  function pickExploreImage(source) {
+    closeExploreMediaSheet();
+    const input = document.getElementById(source === "camera" ? "exploreCameraInput" : "exploreGalleryInput");
+    input?.click();
+  }
+
+  function clearExploreImagePreview() {
+    exploreImagePreview = "";
+    renderExploreDirectory(document.getElementById("exploreSearch")?.value || "");
+  }
+
+  async function handleExploreImageSearch(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    exploreImagePreview = URL.createObjectURL(file);
+    const currentQuery = document.getElementById("exploreSearch")?.value || "";
+    renderExploreDirectory(currentQuery);
+    showToast("Reading image text...");
+    try {
+      const text = await runExploreOCR(file);
+      if (text) {
+        renderExploreDirectory(text.trim());
+        showToast("Image text added to search");
+      } else {
+        showToast("No readable text found in that image", "error");
+      }
+    } catch (error) {
+      showToast(error.message || "Image search could not read text", "error");
+    } finally {
+      input.value = "";
+    }
+  }
+
+  async function runExploreOCR(file) {
+    if (!window.Tesseract) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("OCR library could not load."));
+        document.head.appendChild(script);
+      });
+    }
+    const result = await window.Tesseract.recognize(file, "eng+hin+tel+ara+spa+fra+chi_sim");
+    return result?.data?.text || "";
+  }
+
+  function startExploreVoice() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast("Voice search is not supported in this browser", "error");
+      return;
+    }
+    if (exploreVoiceRecognition) {
+      exploreVoiceRecognition.stop();
+      exploreVoiceRecognition = null;
+      return;
+    }
+    const panel = document.getElementById("exploreVoicePanel");
+    const textNode = document.getElementById("exploreVoiceText");
+    exploreVoiceRecognition = new SpeechRecognition();
+    exploreVoiceRecognition.lang = navigator.language || "en-IN";
+    exploreVoiceRecognition.continuous = false;
+    exploreVoiceRecognition.interimResults = true;
+    if (panel) panel.hidden = false;
+    exploreVoiceRecognition.onresult = event => {
+      const transcript = Array.from(event.results).map(result => result[0]?.transcript || "").join(" ").trim();
+      if (textNode) textNode.textContent = transcript || "Listening...";
+      if (transcript) {
+        const input = document.getElementById("exploreSearch");
+        if (input) input.value = transcript;
+      }
+    };
+    exploreVoiceRecognition.onend = () => {
+      const transcript = document.getElementById("exploreSearch")?.value || "";
+      if (panel) panel.hidden = true;
+      exploreVoiceRecognition = null;
+      if (transcript) renderExploreDirectory(transcript);
+    };
+    exploreVoiceRecognition.onerror = () => {
+      if (panel) panel.hidden = true;
+      exploreVoiceRecognition = null;
+      showToast("Voice search stopped. Try again.", "error");
+    };
+    exploreVoiceRecognition.start();
+    playSound("nav");
   }
 
   function recentExploreProfiles(items) {
@@ -1311,5 +1436,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
 })();
