@@ -84,6 +84,14 @@ const AppUX = (() => {
     const logo = document.querySelector(".sidebar-logo");
     if (!app || !nav || !pageTitle) return;
 
+    let navControls = document.getElementById("navLeftControls");
+    if (!navControls) {
+      navControls = document.createElement("div");
+      navControls.id = "navLeftControls";
+      navControls.className = "nav-left-controls";
+      nav.insertBefore(navControls, nav.firstChild);
+    }
+
     if (!document.querySelector(".mobile-nav-backdrop")) {
       const backdrop = document.createElement("button");
       backdrop.className = "mobile-nav-backdrop";
@@ -102,7 +110,7 @@ const AppUX = (() => {
         playSound("nav");
         app.classList.add("nav-open");
       });
-      nav.insertBefore(menuBtn, nav.firstChild);
+      navControls.appendChild(menuBtn);
     }
 
     if (!document.getElementById("viewBackBtn")) {
@@ -112,7 +120,7 @@ const AppUX = (() => {
       backBtn.title = "Back";
       backBtn.innerHTML = '<i data-lucide="arrow-left"></i>';
       backBtn.addEventListener("click", back);
-      pageTitle.prepend(backBtn);
+      navControls.appendChild(backBtn);
     }
 
     if (logo) {
