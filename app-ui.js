@@ -653,20 +653,23 @@ const AppUX = (() => {
 
   function openMessageTo(name) {
     closeExplore();
-    openMessageDock();
+    openMessageDock({ skipInbox: true });
     openChat(name);
   }
 
-  function openMessageDock() {
+  function openMessageDock(options = {}) {
     const page = document.getElementById("messageDock");
     if (!page) return;
     page.classList.add("active");
     document.body.classList.add("messages-open");
     setBottomActive("messages");
-    renderInbox();
+    if (!options.skipInbox) renderInbox();
     markVisibleMessagesRead();
     syncFromBackend?.().then(() => {
-      if (page.classList.contains("active")) renderInbox();
+      const activeChatTo = document.getElementById("msgTo")?.value;
+      if (page.classList.contains("active") && !activeChatTo && !options.skipInbox) {
+        renderInbox(document.getElementById("messageSearch")?.value || "");
+      }
       updateUnreadBadge();
     }).catch(() => {});
     if (window.lucide) window.lucide.createIcons();
@@ -678,10 +681,53 @@ const AppUX = (() => {
     updateBottomNav();
   }
 
-  function renderInbox() {
+  function getMessageContacts() {
     const user = getCurrentUser();
     const db = getDB();
-    const profiles = getAllProfiles().filter(profile => profile.name !== user.name);
+    const seen = new Set();
+    const baseProfiles = getAllProfiles();
+    const startupContacts = (db.startups || []).map(startup => ({
+      name: startup.name,
+      title: `${startup.stage || "Startup"} - ${startup.sector || "Business"}`,
+      role: "startup_admin",
+      email: startup.id,
+      avatarInitials: startup.logoInitials,
+      city: startup.city,
+      state: startup.state,
+      bio: startup.description
+    }));
+    return [...baseProfiles, ...startupContacts]
+      .filter(profile => profile?.name && profile.name !== user?.name)
+      .filter(profile => {
+        const key = String(profile.email || profile.name).toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
+  function renderInbox(query = "") {
+    const user = getCurrentUser();
+    const db = getDB();
+    const q = String(query || "").trim().toLowerCase();
+    const profiles = getMessageContacts().filter(profile => {
+      if (!q) return true;
+      const id = userIdFor(profile);
+      const text = [
+        profile.name,
+        profile.title,
+        profile.role,
+        profile.email,
+        id,
+        profile.city,
+        profile.state,
+        profile.bio
+      ].join(" ").toLowerCase();
+      const last = [...(db.messages || [])].reverse().find(m =>
+        (m.from === user.name && m.to === profile.name) || (m.from === profile.name && m.to === user.name)
+      );
+      return text.includes(q) || String(last?.text || "").toLowerCase().includes(q);
+    });
     const rows = profiles.map(profile => {
       const last = [...(db.messages || [])].reverse().find(m =>
         (m.from === user.name && m.to === profile.name) || (m.from === profile.name && m.to === user.name)
@@ -703,7 +749,7 @@ const AppUX = (() => {
 
     document.getElementById("messageDockBody").innerHTML = `
       <div class="message-inbox-tools">
-        <div class="message-search"><i data-lucide="search"></i><input id="messageSearch" placeholder="Search messages by name, @id or text" oninput="AppUX.filterMessages(this.value)"></div>
+        <div class="message-search"><i data-lucide="search"></i><input id="messageSearch" placeholder="Search messages by name, @id or text" value="${escapeHTML(query)}" oninput="AppUX.filterMessages(this.value)" onkeydown="AppUX.handleMessageSearchKey(event)"></div>
         <button class="btn btn-secondary btn-icon" type="button" onclick="AppUX.focusMessageSearch()" title="New message"><i data-lucide="edit-3"></i></button>
       </div>
       <div class="message-filter-row">
@@ -712,16 +758,29 @@ const AppUX = (() => {
         <button type="button">Unread</button>
         <button type="button">Network</button>
       </div>
-      <div id="messageRows" class="message-list">${rows || '<div class="empty-message-state">No profiles available.</div>'}</div>
+      <div id="messageRows" class="message-list">${rows || '<div class="empty-message-state">No matching users found. Try full name, username, role, city, or startup name.</div>'}</div>
     `;
     if (window.lucide) window.lucide.createIcons();
+    const search = document.getElementById("messageSearch");
+    if (search && query) {
+      search.focus();
+      search.setSelectionRange(search.value.length, search.value.length);
+    }
   }
 
   function filterMessages(query) {
-    const q = String(query || "").toLowerCase();
-    document.querySelectorAll(".message-row").forEach(row => {
-      row.style.display = row.textContent.toLowerCase().includes(q) ? "grid" : "none";
+    renderInbox(query);
+  }
+
+  function handleMessageSearchKey(event) {
+    if (event.key !== "Enter") return;
+    const q = String(event.target.value || "").trim().toLowerCase();
+    if (!q) return;
+    const match = getMessageContacts().find(profile => {
+      const id = userIdFor(profile);
+      return profile.name.toLowerCase().includes(q) || id.includes(q);
     });
+    if (match) openChat(match.name);
   }
 
   function focusMessageSearch() {
@@ -1252,5 +1311,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo };
 })();
