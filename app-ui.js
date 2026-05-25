@@ -969,11 +969,12 @@ const AppUX = (() => {
   function renderPeopleSearchCard(person) {
     const safeName = String(person.name || "").replace(/'/g, "\\'");
     const profile = { ...person, email: person.email || person.handle, title: person.role };
+    const href = person.profileUrl || profileUrl(profile);
     return `<article class="explore-card people-search-card">
       <div class="explore-card-main">
-        <a href="${person.profileUrl || profileUrl(profile)}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">${avatarMarkup(profile, "user-avatar")}</a>
+        <a href="${href}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">${avatarMarkup(profile, "user-avatar")}</a>
         <div>
-          <strong>${escapeHTML(person.name || "ConnectHub member")}</strong>
+          <a class="profile-name-link" href="${href}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')"><strong>${escapeHTML(person.name || "ConnectHub member")}</strong></a>
           <small>@${escapeHTML(person.handle || person.id || userIdFor(profile))}</small>
           <p>${escapeHTML(person.role || "Member")}</p>
         </div>
@@ -981,7 +982,7 @@ const AppUX = (() => {
       <p class="explore-card-bio"><i data-lucide="map-pin"></i> ${escapeHTML(person.location || "India")} · ${Number(person.mutualConnections || 0)} mutual connections</p>
       <div class="profile-tag-row">${[...(person.skills || []), person.companyName].filter(Boolean).slice(0, 4).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
       <div class="explore-card-actions">
-        <a class="btn btn-secondary" href="${person.profileUrl || profileUrl(profile)}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">Profile</a>
+        <a class="btn btn-secondary" href="${href}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">Profile</a>
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${safeName}')">Message</button>
       </div>
     </article>`;
@@ -1319,20 +1320,21 @@ const AppUX = (() => {
     const profile = item.avatarProfile || { name: item.personName || item.name, title: item.title, email: item.email };
     const targetName = (item.personName || profile.name || item.name).replace(/'/g, "\\'");
     const id = userIdFor(profile);
+    const href = profileUrl(profile);
     const online = (window.ConnectHubOnlineUsers || []).includes(profile.name);
     const meta = [item.type, item.sector, item.city].filter(Boolean).join(" • ");
     return `<article class="explore-card">
       <div class="explore-card-main">
-        <span class="message-avatar-wrap">${avatarMarkup(profile, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
+        <a class="message-avatar-wrap" href="${href}" onclick="AppUX.saveExploreRecent('${id}')">${avatarMarkup(profile, "user-avatar")}<i class="${online ? "online" : ""}"></i></a>
         <div>
-          <strong>${item.name || profile.name}</strong>
+          <a class="profile-name-link" href="${href}" onclick="AppUX.saveExploreRecent('${id}')"><strong>${escapeHTML(item.name || profile.name)}</strong></a>
           <small>@${id}</small>
           <p>${meta || profile.title || "Connect Hub member"}</p>
         </div>
       </div>
       <p class="explore-card-bio">${item.description || profile.bio || "Open to networking and collaboration."}</p>
       <div class="explore-card-actions">
-        <a class="btn btn-secondary" href="profile/${encodeURIComponent(id)}" onclick="AppUX.saveExploreRecent('${id}')">Profile</a>
+        <a class="btn btn-secondary" href="${href}" onclick="AppUX.saveExploreRecent('${id}')">Profile</a>
         <button class="btn btn-secondary" onclick="connectUsers('${targetName}'); AppUX.showToast('Connection request sent')">Connect</button>
         <button class="btn btn-secondary" onclick="AppUX.reviewUser('${targetName}')">Review</button>
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${targetName}')">Message</button>
@@ -1523,15 +1525,16 @@ const AppUX = (() => {
   function renderMessageRow(row) {
     const online = (window.ConnectHubOnlineUsers || []).includes(row.name);
     const safeName = String(row.name || "").replace(/'/g, "\\'");
-    return `<button class="message-row" onclick="AppUX.openChat('${safeName}')">
-      <span class="message-avatar-wrap">${avatarMarkup(row, "user-avatar")}<i class="${online ? "online" : ""}"></i></span>
+    const href = profileUrl({ ...row, email: row.email || row.handle });
+    return `<div class="message-row" role="button" tabindex="0" onclick="AppUX.openChat('${safeName}')" onkeydown="if(event.key==='Enter') AppUX.openChat('${safeName}')">
+      <a class="message-avatar-wrap" href="${href}" onclick="event.stopPropagation()">${avatarMarkup(row, "user-avatar")}<i class="${online ? "online" : ""}"></i></a>
       <span class="message-row-main">
-        <strong>${escapeHTML(row.name)}</strong>
+        <a class="profile-name-link" href="${href}" onclick="event.stopPropagation()"><strong>${escapeHTML(row.name)}</strong></a>
         <small>@${escapeHTML(row.handle || userIdFor(row))} · ${escapeHTML(row.role || "Member")}</small>
         <em>${escapeHTML(messagePreview(row.lastMessage || { text: row.lastText }))}</em>
       </span>
       <span class="message-row-meta"><small>${row.recentAt ? relativeTime(row.recentAt) : ""}</small>${row.unread ? `<b>${row.unread}</b>` : ""}</span>
-    </button>`;
+    </div>`;
   }
 
   function skeletonLoader(count = 3) {

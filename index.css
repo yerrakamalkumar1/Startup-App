@@ -76,6 +76,22 @@ a {
   color: var(--accent-blue);
 }
 
+.profile-name-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.profile-name-link:hover {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}
+
+body.dark .profile-name-link,
+:root[data-theme="dark"] .profile-name-link {
+  color: #ffffff;
+}
+
 h1, h2, h3, h4 {
   color: var(--text-primary);
   font-weight: 800;

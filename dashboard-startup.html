@@ -306,7 +306,7 @@
             ${avatarMarkup(getMarketplaceProfiles('freelancer').find(p => p.name === ad.freelancerName) || { name: ad.freelancerName }, 'user-avatar')}
             <div class="ad-titles">
               <span class="ad-title">${ad.title}</span>
-              <span class="ad-company-name">${ad.freelancerName} - ${ad.city || 'India'} - ${ad.category || 'Service'}</span>
+              <span class="ad-company-name"><a class="profile-name-link" href="profile/${encodeURIComponent((getMarketplaceProfiles('freelancer').find(p => p.name === ad.freelancerName)?.email || ad.freelancerName).toLowerCase().replace(/@.*/, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))}">${ad.freelancerName}</a> - ${ad.city || 'India'} - ${ad.category || 'Service'}</span>
             </div>
           </div>
           <span class="badge badge-indigo">Freelancer Ad</span>
@@ -431,7 +431,9 @@
           <button class="btn btn-emerald btn-icon" onclick="decide('${a.id}','Accepted')" title="Hire"><i data-lucide="check"></i></button>
           <button class="btn btn-rose btn-icon" onclick="decide('${a.id}','Declined')" title="Decline"><i data-lucide="x"></i></button>
         </div>`;
-      return `<tr><td><strong>${a.candidateName || 'Freelancer'}</strong><div style="font-size:0.72rem;color:#7b8794;">${a.jobTitle}</div></td><td>Rs ${a.proposedRate}/hr</td><td>${a.appliedDate}</td><td>${actions}</td></tr>`;
+      const candidateProfile = getMarketplaceProfiles('freelancer').find(p => p.name === a.candidateName) || { name: a.candidateName };
+      const candidateId = String(candidateProfile.email || candidateProfile.name || 'freelancer').toLowerCase().replace(/@.*/, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      return `<tr><td><a class="profile-name-link" href="profile/${encodeURIComponent(candidateId)}"><strong>${a.candidateName || 'Freelancer'}</strong></a><div style="font-size:0.72rem;color:#7b8794;">${a.jobTitle}</div></td><td>Rs ${a.proposedRate}/hr</td><td>${a.appliedDate}</td><td>${actions}</td></tr>`;
     }).join('');
     b.innerHTML = `<div class="glass-panel" style="padding:1rem;">
       <div class="table-container"><table class="custom-table">

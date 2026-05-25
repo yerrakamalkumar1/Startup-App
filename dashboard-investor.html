@@ -191,7 +191,7 @@
             <div style="display:flex;gap:0.5rem;align-items:center;">
               <div style="width:36px;height:36px;border-radius:6px;background:${st.logoColor}20;color:${st.logoColor};border:1px solid ${st.logoColor}40;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">${st.logoInitials}</div>
               <div>
-                <div style="font-weight:700;font-size:0.9rem;color:#191919;">${st.name}</div>
+              <a class="profile-name-link" href="profile/${encodeURIComponent(String(st.id || st.name).toLowerCase().replace(/@.*/, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))}" style="font-weight:700;font-size:0.9rem;">${st.name}</a>
                 <div style="font-size:0.7rem;color:#5e5e5e;">${st.sector} ${st.city ? '- ' + st.city : ''}</div>
               </div>
             </div>

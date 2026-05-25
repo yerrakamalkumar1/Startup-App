@@ -156,7 +156,7 @@
               <div class="ad-logo" style="background:${st.logoColor || '#0f766e'}20;color:${st.logoColor || '#0f766e'};">${st.logoInitials || 'ST'}</div>
               <div class="ad-titles">
                 <span class="ad-title">${job.title}</span>
-                <span class="ad-company-name">${st.name || 'Startup'} - ${st.sector || 'Business'}</span>
+                <span class="ad-company-name"><a class="profile-name-link" href="profile/${encodeURIComponent(String(st.id || st.name || 'startup').toLowerCase().replace(/@.*/, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))}">${st.name || 'Startup'}</a> - ${st.sector || 'Business'}</span>
               </div>
             </div>
             <span class="badge badge-indigo">${st.stage || 'Open'}</span>

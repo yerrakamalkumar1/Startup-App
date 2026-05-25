@@ -8,15 +8,15 @@
   <meta property="og:title" content="Connect Hub Profile">
   <meta property="og:description" content="View skills, sector, portfolio, media posts, reviews, and connect on Connect Hub India.">
   <meta property="og:type" content="profile">
-  <meta property="og:image" content="assets/logo.png">
-  <link rel="stylesheet" href="index.css">
+  <meta property="og:image" content="/assets/logo.png">
+  <link rel="stylesheet" href="/index.css">
 </head>
 <body class="public-profile-body">
   <main id="profileCard" class="public-profile-shell">Loading profile...</main>
 
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="config.js"></script>
-  <script src="db.js"></script>
+  <script src="/config.js"></script>
+  <script src="/db.js"></script>
   <script>
     const savedTheme = localStorage.getItem("connecthub_theme") || "light";
     document.documentElement.dataset.theme = savedTheme;
@@ -48,6 +48,37 @@
         .replace(/@.*/, "")
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_|_$/g, "");
+    }
+
+    function normalizeProfileLookupId(value) {
+      return String(value || "")
+        .toLowerCase()
+        .replace(/@.*/, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "");
+    }
+
+    function getPublicProfiles() {
+      const db = getDB();
+      const users = getAllProfiles();
+      const existing = new Set(users.map(profile => normalizeProfileLookupId(profile.email || profile.name)));
+      const startupProfiles = (db.startups || [])
+        .filter(startup => startup?.name)
+        .map(startup => ({
+          name: startup.name,
+          email: startup.id,
+          role: "startup_admin",
+          title: startup.stage || "Startup Owner",
+          companyName: startup.name,
+          startupId: startup.id,
+          city: startup.city || "",
+          state: startup.state || "",
+          bio: startup.description || "",
+          sector: startup.sector || "",
+          avatarInitials: startup.logoInitials || startup.name.split(" ").map(word => word[0]).join("").slice(0, 2).toUpperCase()
+        }))
+        .filter(profile => !existing.has(normalizeProfileLookupId(profile.email || profile.name)));
+      return [...users, ...startupProfiles];
     }
 
     function escapeHTML(value) {
@@ -354,7 +385,7 @@
       event.target.reset();
       resetProfilePostMedia();
       playProfileBell();
-      const profile = getAllProfiles().find(item => profileId(item) === profileKey) || user;
+      const profile = getPublicProfiles().find(item => profileId(item) === profileKey) || user;
       render(profile);
     }
 
@@ -411,7 +442,7 @@
       saveDB(db);
       playProfileBell();
       const id = new URLSearchParams(location.search).get("id") || "";
-      const profile = getAllProfiles().find(item => profileId(item) === id || item.name === ownerName);
+      const profile = getPublicProfiles().find(item => profileId(item) === normalizeProfileLookupId(id) || item.name === ownerName);
       if (profile) render(profile);
     }
 
@@ -434,11 +465,13 @@
     function findRequestedProfile() {
       const params = new URLSearchParams(location.search);
       const pathId = location.pathname.match(/\/profile\/([^/]+)\/?$/)?.[1] || "";
-      const id = decodeURIComponent(pathId || params.get("id") || params.get("name") || "").toLowerCase();
-      return getAllProfiles().find(item =>
-        String(item.email || "").toLowerCase() === id ||
-        profileId(item) === id ||
-        String(item.name || "").toLowerCase() === id
+      const rawId = decodeURIComponent(pathId || params.get("id") || params.get("name") || "").toLowerCase();
+      const normalizedId = normalizeProfileLookupId(rawId);
+      return getPublicProfiles().find(item =>
+        String(item.email || "").toLowerCase() === rawId ||
+        profileId(item) === normalizedId ||
+        normalizeProfileLookupId(item.email || item.name) === normalizedId ||
+        String(item.name || "").toLowerCase() === rawId
       );
     }
 

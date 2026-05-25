@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v35-aihub";
+const CACHE_NAME = "connecthub-v36-profile-links";
 const APP_SHELL = [
   "index.html",
   "index.css",
