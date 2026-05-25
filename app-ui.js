@@ -989,9 +989,146 @@ const AppUX = (() => {
       <div class="profile-tag-row">${[...(person.skills || []), person.companyName].filter(Boolean).slice(0, 4).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
       <div class="explore-card-actions">
         <a class="btn btn-secondary" href="${href}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">Profile</a>
+        <button class="btn btn-secondary" onclick="AppUX.toggleSavedProfile('${safeName}')"><i data-lucide="bookmark"></i>Save</button>
+        <button class="btn btn-secondary" onclick="connectUsers('${safeName}'); AppUX.showToast('Connection request sent')">Connect</button>
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${safeName}')">Message</button>
       </div>
     </article>`;
+  }
+
+  function renderNetworkPage(container) {
+    const user = getCurrentUser?.();
+    const db = getDB();
+    if (!user) return;
+    const people = getAllProfiles().filter(profile => profile.name && profile.name !== user.name);
+    const connections = db.connections || [];
+    const pendingIn = connections.filter(item => item.to === user.name && item.status === "Pending");
+    const pendingOut = connections.filter(item => item.from === user.name && item.status === "Pending");
+    const accepted = connections.filter(item => [item.from, item.to].includes(user.name) && item.status === "Accepted");
+    const saved = (db.savedProfiles || []).filter(item => item.owner === user.name);
+    const connectedNames = new Set(accepted.map(item => item.from === user.name ? item.to : item.from));
+    const pendingNames = new Set([...pendingIn, ...pendingOut].map(item => item.from === user.name ? item.to : item.from));
+    const suggestions = people
+      .filter(profile => !connectedNames.has(profile.name) && !pendingNames.has(profile.name))
+      .map(profile => ({ profile, score: networkSuggestionScore(profile, user) }))
+      .sort((a, b) => b.score - a.score || a.profile.name.localeCompare(b.profile.name))
+      .slice(0, 8)
+      .map(item => item.profile);
+
+    container.innerHTML = `
+      <section class="network-shell">
+        <div class="network-hero glass-panel">
+          <div>
+            <span class="section-eyebrow">Professional network</span>
+            <h2>Build useful startup connections</h2>
+            <p>Track requests, message people, save profiles, and discover relevant freelancers, startups, and investors.</p>
+          </div>
+          <div class="network-stats">
+            <span><strong>${accepted.length}</strong> Connections</span>
+            <span><strong>${pendingIn.length}</strong> Requests</span>
+            <span><strong>${saved.length}</strong> Saved</span>
+          </div>
+        </div>
+        ${renderNetworkSection("Connection requests", pendingIn, "request")}
+        ${renderNetworkSection("Suggested for you", suggestions, "suggestion")}
+        ${renderNetworkSection("My connections", accepted.map(item => people.find(profile => profile.name === (item.from === user.name ? item.to : item.from))).filter(Boolean), "connected")}
+        ${renderNetworkSection("Saved profiles", saved.map(item => people.find(profile => profile.name === item.name)).filter(Boolean), "saved")}
+      </section>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function networkSuggestionScore(profile, user) {
+    const cityMatch = profile.city && user.city && String(profile.city).toLowerCase() === String(user.city).toLowerCase() ? 35 : 0;
+    const role = String(profile.role || "").toLowerCase();
+    const mine = String(user.role || "").toLowerCase();
+    const roleFit = mine.includes("freelancer") && role.includes("startup") ? 30 :
+      mine.includes("startup") && role.includes("freelancer") ? 30 :
+      mine.includes("investor") && role.includes("startup") ? 30 : 15;
+    const filled = [profile.bio, profile.title, profile.city, profile.avatarPhoto, profile.skills?.length].filter(Boolean).length * 5;
+    return cityMatch + roleFit + filled;
+  }
+
+  function renderNetworkSection(title, rows, mode) {
+    return `<section class="network-section">
+      <div class="network-section-head"><h3>${escapeHTML(title)}</h3><span>${rows.length}</span></div>
+      <div class="network-grid">
+        ${rows.length ? rows.map(row => mode === "request" ? renderRequestCard(row) : renderNetworkProfileCard(row, mode)).join("") : `<div class="empty-message-state">No ${escapeHTML(title.toLowerCase())} yet.</div>`}
+      </div>
+    </section>`;
+  }
+
+  function renderRequestCard(request) {
+    const profile = getAllProfiles().find(item => item.name === request.from) || { name: request.from, avatarInitials: initialsForName(request.from || "CH") };
+    return `<article class="network-card">
+      <div class="network-card-main">${avatarMarkup(profile, "user-avatar")}<div><strong>${escapeHTML(profile.name)}</strong><p>${escapeHTML(profile.title || profile.role || "ConnectHub member")}</p></div></div>
+      <div class="network-actions">
+        <button class="btn btn-primary" onclick="AppUX.respondConnection('${request.id}', 'Accepted')">Accept</button>
+        <button class="btn btn-secondary" onclick="AppUX.respondConnection('${request.id}', 'Declined')">Decline</button>
+      </div>
+    </article>`;
+  }
+
+  function renderNetworkProfileCard(profile, mode) {
+    const safeName = String(profile.name || "").replace(/'/g, "\\'");
+    const saved = isProfileSaved(profile.name);
+    return `<article class="network-card">
+      <div class="network-card-main">
+        <a href="${profileUrl(profile)}">${avatarMarkup(profile, "user-avatar")}</a>
+        <div><a class="profile-name-link" href="${profileUrl(profile)}"><strong>${escapeHTML(profile.name)}</strong></a><p>${escapeHTML(profile.title || profile.role || "ConnectHub member")}</p></div>
+      </div>
+      <div class="profile-tag-row">${[...(profile.skills || []), profile.city, profile.companyName].filter(Boolean).slice(0, 3).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
+      <div class="network-actions">
+        <button class="btn btn-secondary" onclick="AppUX.toggleSavedProfile('${safeName}')"><i data-lucide="${saved ? "bookmark-check" : "bookmark"}"></i>${saved ? "Saved" : "Save"}</button>
+        ${mode === "connected" ? `<button class="btn btn-secondary" onclick="AppUX.removeConnection('${safeName}')">Remove</button>` : `<button class="btn btn-secondary" onclick="connectUsers('${safeName}'); AppUX.showToast('Connection request sent'); AppUX.renderNetworkPage(document.getElementById('body'))">Connect</button>`}
+        <button class="btn btn-primary" onclick="AppUX.openMessageTo('${safeName}')">Message</button>
+      </div>
+    </article>`;
+  }
+
+  function isProfileSaved(name) {
+    const user = getCurrentUser?.();
+    const db = getDB();
+    return Boolean(user && (db.savedProfiles || []).some(item => item.owner === user.name && item.name === name));
+  }
+
+  function toggleSavedProfile(name) {
+    const user = getCurrentUser?.();
+    if (!user || !name) return;
+    const db = getDB();
+    db.savedProfiles = db.savedProfiles || [];
+    const index = db.savedProfiles.findIndex(item => item.owner === user.name && item.name === name);
+    if (index >= 0) {
+      db.savedProfiles.splice(index, 1);
+      showToast("Removed from saved profiles");
+    } else {
+      db.savedProfiles.push({ id: `saved-${Date.now()}`, owner: user.name, name, createdAt: new Date().toISOString() });
+      showToast("Profile saved");
+    }
+    saveDB(db);
+  }
+
+  function respondConnection(id, status) {
+    const db = getDB();
+    const request = (db.connections || []).find(item => item.id === id);
+    if (!request) return;
+    request.status = status;
+    request.updatedAt = new Date().toISOString();
+    if (status === "Accepted") {
+      db.notifications.push({ id: `not-${Date.now()}`, to: request.from, type: "connection_accepted", text: `${request.to} accepted your connection request.`, read: false, createdAt: new Date().toISOString() });
+    }
+    saveDB(db);
+    showToast(status === "Accepted" ? "Connection accepted" : "Request declined");
+    renderNetworkPage(document.getElementById("body"));
+  }
+
+  function removeConnection(name) {
+    const user = getCurrentUser?.();
+    if (!user || !name) return;
+    const db = getDB();
+    db.connections = (db.connections || []).filter(item => !([item.from, item.to].includes(user.name) && [item.from, item.to].includes(name)));
+    saveDB(db);
+    showToast("Connection removed");
+    renderNetworkPage(document.getElementById("body"));
   }
 
   function openExploreFilter(key) {
@@ -2207,5 +2344,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
 })();

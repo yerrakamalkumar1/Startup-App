@@ -232,6 +232,7 @@ function publicDB() {
   db.registeredProfiles = mergeById(db.registeredProfiles || [], registeredProfilesFromUsers());
   if (!Array.isArray(db.investorInterests)) db.investorInterests = [];
   if (!Array.isArray(db.reviews)) db.reviews = [];
+  if (!Array.isArray(db.savedProfiles)) db.savedProfiles = [];
   return db;
 }
 
@@ -259,6 +260,7 @@ function mergeDBState(existingDB, incomingDB) {
     events: mergeById(existing.events, incoming.events),
     investments: mergeById(existing.investments, incoming.investments),
     connections: mergeById(existing.connections, incoming.connections),
+    savedProfiles: mergeById(existing.savedProfiles, incoming.savedProfiles),
     messages: mergeById(existing.messages, incoming.messages),
     notifications: mergeById(existing.notifications, incoming.notifications),
     registeredProfiles: mergeById(existing.registeredProfiles, incoming.registeredProfiles),

@@ -341,6 +341,7 @@ function mergeDBState(localDB, remoteDB) {
     events: mergeById(local.events, remote.events),
     investments: mergeById(local.investments, remote.investments),
     connections: mergeById(local.connections, remote.connections),
+    savedProfiles: mergeById(local.savedProfiles, remote.savedProfiles),
     messages: mergeById(local.messages, remote.messages),
     notifications: mergeById(local.notifications, remote.notifications),
     profilePosts: mergeById(local.profilePosts, remote.profilePosts),
@@ -381,6 +382,7 @@ function getPlatformStats() {
 function ensureDBShape(db) {
   if (!Array.isArray(db.startupPromotions)) db.startupPromotions = [];
   if (!Array.isArray(db.connections)) db.connections = [];
+  if (!Array.isArray(db.savedProfiles)) db.savedProfiles = [];
   if (!Array.isArray(db.messages)) db.messages = [];
   if (!Array.isArray(db.notifications)) db.notifications = [];
   if (!Array.isArray(db.profilePosts)) db.profilePosts = [];
