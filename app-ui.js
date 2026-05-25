@@ -845,7 +845,7 @@ const AppUX = (() => {
       </section>` : ""}
       <div id="exploreResultsSummary" class="explore-results-summary"></div>
       <div id="exploreResults" class="explore-directory">
-        <div class="empty-message-state">Searching ConnectHub people...</div>
+        ${skeletonLoader(4)}
       </div>
     `;
     const input = document.getElementById("exploreSearch");
@@ -1421,7 +1421,7 @@ const AppUX = (() => {
       <div class="message-filter-row">
         ${["focused", "jobs", "unread", "network"].map(tab => `<button class="${currentMessageTab === tab ? "active" : ""}" type="button" onclick="AppUX.setMessageTab('${tab}')">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
       </div>
-      <div id="messageRows" class="message-list"><div class="empty-message-state">Loading ${currentMessageTab} messages...</div></div>
+      <div id="messageRows" class="message-list">${skeletonLoader(4)}</div>
     `;
     if (window.lucide) window.lucide.createIcons();
     const search = document.getElementById("messageSearch");
@@ -1508,6 +1508,10 @@ const AppUX = (() => {
       </span>
       <span class="message-row-meta"><small>${row.recentAt ? relativeTime(row.recentAt) : ""}</small>${row.unread ? `<b>${row.unread}</b>` : ""}</span>
     </button>`;
+  }
+
+  function skeletonLoader(count = 3) {
+    return `<div class="skeleton-stack">${Array.from({ length: count }, () => '<div class="skeleton-card"></div>').join("")}</div>`;
   }
 
   function handleMessageSearchKey(event) {
