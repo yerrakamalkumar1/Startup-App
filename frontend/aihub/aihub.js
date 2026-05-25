@@ -162,7 +162,7 @@
         document.getElementById("aihubSearchSummary").textContent = data.summary || "";
         renderResults(data.results || []);
       } catch {
-        results.innerHTML = "<div class='aihub-empty'>AI data temporarily unavailable. Retry →</div>";
+        results.innerHTML = "<div class='aihub-empty'>AI data temporarily unavailable. Retry -></div>";
       }
     });
   }
@@ -203,13 +203,24 @@
   }
 
   function setupSocket() {
-    if (!window.io) return;
-    state.socket = window.io();
-    state.socket.emit("aihub:join", { role: state.role, city: state.location.city });
-    state.socket.on("live_feed_update", data => window.ConnectHubAINotifications?.push(data.insight?.title || "New AI Hub update"));
-    state.socket.on("live_market_update", data => window.ConnectHubAINotifications?.push(data.insight?.title || "New market update"));
-    state.socket.on("live_deal_update", data => window.ConnectHubAINotifications?.push(data.insight?.title || "New deal update"));
-    state.socket.on("notification:new", item => window.ConnectHubAINotifications?.push(item.text || "New notification"));
+    const connect = () => {
+      if (!window.io || state.socket) return;
+      state.socket = window.io();
+      state.socket.emit("aihub:join", { role: state.role, city: state.location.city });
+      state.socket.on("live_feed_update", data => window.ConnectHubAINotifications?.push(data.insight?.title || "New AI Hub update"));
+      state.socket.on("live_market_update", data => window.ConnectHubAINotifications?.push(data.insight?.title || "New market update"));
+      state.socket.on("live_deal_update", data => window.ConnectHubAINotifications?.push(data.insight?.title || "New deal update"));
+      state.socket.on("notification:new", item => window.ConnectHubAINotifications?.push(item.text || "New notification"));
+    };
+    if (window.io) return connect();
+    if (document.querySelector("script[data-connecthub-socket-client]")) return;
+    const script = document.createElement("script");
+    script.dataset.connecthubSocketClient = "true";
+    script.src = "https://cdn.socket.io/4.7.5/socket.io.min.js";
+    script.crossOrigin = "anonymous";
+    script.onload = connect;
+    script.onerror = () => {};
+    document.head.appendChild(script);
   }
 
   function escapeHtml(value) {

@@ -222,8 +222,8 @@ function authFromRequest(req) {
 
 function registeredProfilesFromUsers() {
   const users = readJson(USERS_FILE, {});
-  return Object.values(users)
-    .map(entry => entry.profile)
+  return Object.entries(users)
+    .map(([email, entry]) => entry.profile ? { email, ...entry.profile } : null)
     .filter(Boolean);
 }
 
@@ -448,6 +448,7 @@ function mutualConnectionCount(db, currentName, otherName) {
 
 function searchPeople(db, { query = "", role = "", location = "", skills = "", company = "", currentName = "" } = {}, req) {
   const q = String(query || "").trim().toLowerCase().replace(/^@/, "");
+  const queryTerms = expandPeopleSearchTerms(q);
   const filters = {
     role: String(role || "").trim().toLowerCase(),
     location: String(location || "").trim().toLowerCase(),
@@ -470,11 +471,11 @@ function searchPeople(db, { query = "", role = "", location = "", skills = "", c
     if (handle === q) return 95;
     if (String(profile.name || "").toLowerCase().startsWith(q)) return 90;
     if (String(profile.name || "").toLowerCase().split(/\s+/).some(part => part.startsWith(q) || q.startsWith(part))) return 86;
-    if (roleText.includes(q)) return 70;
-    if (locationText.includes(q)) return 55;
-    if (skillsText.includes(q)) return 45;
-    if (companyText.includes(q)) return 40;
-    return haystack.includes(q) ? 20 : -1;
+    if (queryTerms.some(term => roleText.includes(term))) return 70;
+    if (queryTerms.some(term => locationText.includes(term))) return 55;
+    if (queryTerms.some(term => skillsText.includes(term))) return 45;
+    if (queryTerms.some(term => companyText.includes(term))) return 40;
+    return queryTerms.some(term => haystack.includes(term)) ? 20 : -1;
   };
   return allPeople(db)
     .map(profile => ({ profile, score: scoreFor(profile) }))
@@ -495,6 +496,26 @@ function searchPeople(db, { query = "", role = "", location = "", skills = "", c
       bio: profile.bio || "",
       profileUrl: profileUrlFor(profile, req)
     }));
+}
+
+function expandPeopleSearchTerms(query) {
+  const base = String(query || "").trim().toLowerCase();
+  if (!base) return [];
+  const synonyms = {
+    editor: ["editor", "editing", "video", "reel", "photo", "photographer", "designer", "creative", "social media"],
+    editing: ["editing", "editor", "video", "reel", "photo", "creative"],
+    designer: ["designer", "design", "creative", "branding", "canva", "figma"],
+    developer: ["developer", "dev", "frontend", "backend", "fullstack", "web", "app", "software"],
+    marketing: ["marketing", "growth", "sales", "social media", "branding"],
+    photographer: ["photographer", "photo", "camera", "reel", "video", "editing"]
+  };
+  const words = base.split(/\s+/).filter(Boolean);
+  return [...new Set([
+    base,
+    ...words,
+    ...words.flatMap(word => synonyms[word] || []),
+    ...(synonyms[base] || [])
+  ])].filter(term => term.length > 1);
 }
 
 function notificationMatchesTab(note, tab) {
@@ -863,6 +884,7 @@ async function handleApi(req, res) {
     const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
     const tab = String(url.searchParams.get("tab") || "focused").toLowerCase();
     const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+    const queryTerms = expandPeopleSearchTerms(q);
     if (!userName) return sendJson(res, 400, { success: false, message: "User is required." });
     const connected = connectionNamesFor(db, userName);
     const jobWords = /\b(hiring|role|opportunity|apply|job|gig)\b/i;
@@ -893,7 +915,7 @@ async function handleApi(req, res) {
       };
     }).filter(row => {
       const searchText = [row.name, row.handle, row.role, row.location, row.companyName, (row.skills || []).join(" "), row.searchText, row.lastText].join(" ").toLowerCase();
-      if (q && !searchText.includes(q)) return false;
+      if (q && !queryTerms.some(term => searchText.includes(term))) return false;
       if (tab === "jobs") return row.roleType === "startup" || row.roleType === "recruiter" || jobWords.test(row.lastText);
       if (tab === "unread") return row.unread > 0;
       if (tab === "network") return row.connected && row.roleType !== "startup";

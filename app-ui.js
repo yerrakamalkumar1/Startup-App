@@ -689,7 +689,8 @@ const AppUX = (() => {
     if (!user || window.__connectHubSocketStarted) return;
     window.__connectHubSocketStarted = true;
     const script = document.createElement("script");
-    script.src = "/socket.io/socket.io.js";
+    script.src = "https://cdn.socket.io/4.7.5/socket.io.min.js";
+    script.crossOrigin = "anonymous";
     script.onload = () => {
       if (!window.io) return;
       const socket = window.io();
@@ -908,6 +909,7 @@ const AppUX = (() => {
     const db = getDB();
     const user = getCurrentUser?.() || {};
     const q = String(query || "").trim().toLowerCase().replace(/^@/, "");
+    const queryTerms = expandLocalPeopleSearchTerms(q);
     const currentConnections = new Set((db.connections || [])
       .filter(item => item.from === user.name || item.to === user.name)
       .map(item => item.from === user.name ? item.to : item.from));
@@ -925,10 +927,10 @@ const AppUX = (() => {
         String(profile.name || "").toLowerCase().startsWith(q) ? 90 :
         id === q ? 95 :
         fuzzyWordsMatch(profile.name, q) ? 86 :
-        role.toLowerCase().includes(q) ? 70 :
-        location.toLowerCase().includes(q) ? 55 :
-        skills.join(" ").toLowerCase().includes(q) ? 50 :
-        haystack.includes(q) ? 20 : -1;
+        queryTerms.some(term => role.toLowerCase().includes(term)) ? 70 :
+        queryTerms.some(term => location.toLowerCase().includes(term)) ? 55 :
+        queryTerms.some(term => skills.join(" ").toLowerCase().includes(term)) ? 50 :
+        queryTerms.some(term => haystack.includes(term)) ? 20 : -1;
       return { ...profile, id, handle: id, role, location, companyName, skills, mutualConnections: currentConnections.has(profile.name) ? 1 : 0, profileUrl: profileUrl(profile), score };
     }).filter(profile => {
       if (profile.score < 0) return false;
@@ -964,6 +966,26 @@ const AppUX = (() => {
     const q = String(query || "").toLowerCase();
     if (!q) return true;
     return String(name || "").toLowerCase().split(/\s+/).some(part => part.startsWith(q) || q.startsWith(part));
+  }
+
+  function expandLocalPeopleSearchTerms(query) {
+    const base = String(query || "").trim().toLowerCase();
+    if (!base) return [];
+    const synonyms = {
+      editor: ["editor", "editing", "video", "reel", "photo", "photographer", "designer", "creative", "social media"],
+      editing: ["editing", "editor", "video", "reel", "photo", "creative"],
+      designer: ["designer", "design", "creative", "branding", "canva", "figma"],
+      developer: ["developer", "dev", "frontend", "backend", "fullstack", "web", "app", "software"],
+      marketing: ["marketing", "growth", "sales", "social media", "branding"],
+      photographer: ["photographer", "photo", "camera", "reel", "video", "editing"]
+    };
+    const words = base.split(/\s+/).filter(Boolean);
+    return [...new Set([
+      base,
+      ...words,
+      ...words.flatMap(word => synonyms[word] || []),
+      ...(synonyms[base] || [])
+    ])].filter(term => term.length > 1);
   }
 
   function renderPeopleSearchCard(person) {
@@ -1484,6 +1506,7 @@ const AppUX = (() => {
     const user = getCurrentUser();
     const db = getDB();
     const q = String(query || "").trim().toLowerCase();
+    const queryTerms = expandLocalPeopleSearchTerms(q);
     const connected = new Set((db.connections || [])
       .filter(item => item.from === user.name || item.to === user.name)
       .map(item => item.from === user.name ? item.to : item.from));
@@ -1514,7 +1537,7 @@ const AppUX = (() => {
       };
     }).filter(row => {
       const text = [row.name, row.handle, row.role, row.location, row.companyName, (row.skills || []).join(" "), row.searchText, row.lastText].join(" ").toLowerCase();
-      if (q && !text.includes(q)) return false;
+      if (q && !queryTerms.some(term => text.includes(term))) return false;
       if (tab === "jobs") return row.roleType === "startup" || row.roleType === "recruiter" || jobWords.test(row.lastText);
       if (tab === "unread") return row.unread > 0;
       if (tab === "network") return row.connected && row.roleType !== "startup";
