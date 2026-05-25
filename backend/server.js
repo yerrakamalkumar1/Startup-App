@@ -860,6 +860,9 @@ async function handleApi(req, res) {
         role: profile.title || roleBucket(profile.role),
         roleType: roleBucket(profile.role),
         location: [profile.city, profile.state].filter(Boolean).join(", "),
+        skills: profile.skills || [],
+        companyName: profile.companyName || "",
+        searchText: profile.searchText || profile.bio || "",
         avatarInitials: profile.avatarInitials || initialsFor(profile.name || "CH"),
         avatarPhoto: profile.avatarPhoto || null,
         lastMessage: last,
@@ -869,7 +872,7 @@ async function handleApi(req, res) {
         recentAt: last?.createdAt || ""
       };
     }).filter(row => {
-      const searchText = [row.name, row.handle, row.role, row.location, row.lastText].join(" ").toLowerCase();
+      const searchText = [row.name, row.handle, row.role, row.location, row.companyName, (row.skills || []).join(" "), row.searchText, row.lastText].join(" ").toLowerCase();
       if (q && !searchText.includes(q)) return false;
       if (tab === "jobs") return row.roleType === "startup" || row.roleType === "recruiter" || jobWords.test(row.lastText);
       if (tab === "unread") return row.unread > 0;

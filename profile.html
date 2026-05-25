@@ -431,17 +431,24 @@
       addInteraction(postId, ownerName, "share");
     }
 
-    syncFromBackend().finally(() => {
+    function findRequestedProfile() {
       const params = new URLSearchParams(location.search);
       const pathId = location.pathname.match(/\/profile\/([^/]+)\/?$/)?.[1] || "";
       const id = decodeURIComponent(pathId || params.get("id") || params.get("name") || "").toLowerCase();
-      const profile = getAllProfiles().find(item =>
+      return getAllProfiles().find(item =>
         String(item.email || "").toLowerCase() === id ||
         profileId(item) === id ||
         String(item.name || "").toLowerCase() === id
       );
+    }
+
+    const instantProfile = findRequestedProfile();
+    if (instantProfile) render(instantProfile);
+
+    syncFromBackend().finally(() => {
+      const profile = findRequestedProfile();
       if (profile) render(profile);
-      else document.getElementById("profileCard").innerHTML = '<section class="profile-info-card"><h1>Profile not found</h1><p>Open ConnectHub and search from Explore.</p><a class="btn btn-primary" href="index.html">Open app</a></section>';
+      else if (!instantProfile) document.getElementById("profileCard").innerHTML = '<section class="profile-info-card"><h1>Profile not found</h1><p>Open ConnectHub and search from Explore.</p><a class="btn btn-primary" href="index.html">Open app</a></section>';
     });
   </script>
 </body>

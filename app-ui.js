@@ -867,6 +867,11 @@ const AppUX = (() => {
     const holder = document.getElementById("exploreResults");
     const summary = document.getElementById("exploreResultsSummary");
     if (!holder) return;
+    const localResults = localPeopleSearch(query);
+    if (summary) summary.textContent = query ? `${localResults.length} people found for "${query}"` : "People you may want to connect with";
+    holder.innerHTML = localResults.map(renderPeopleSearchCard).join("") ||
+      `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}' yet. Checking live profiles...</div>`;
+    if (window.lucide) window.lucide.createIcons();
     try {
       const params = new URLSearchParams({
         q: query || "",
@@ -878,17 +883,14 @@ const AppUX = (() => {
       });
       const data = await apiRequest(`/api/people/search?${params.toString()}`);
       if (requestId !== exploreSearchRequestId) return;
-      const results = mergePeopleResults(data.results || [], localPeopleSearch(query));
+      const results = mergePeopleResults(data.results || [], localResults);
       if (summary) summary.textContent = query ? `${results.length} people found for "${query}"` : "People you may want to connect with";
       holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
         `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, or company.</div>`;
+      if (window.lucide) window.lucide.createIcons();
     } catch {
-      const results = localPeopleSearch(query);
-      if (summary) summary.textContent = query ? `${results.length} local results for "${query}"` : "People you may want to connect with";
-      holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
-        `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, or company.</div>`;
+      // Keep the instant local results when Render is waking up or offline.
     }
-    if (window.lucide) window.lucide.createIcons();
   }
 
   function mergePeopleResults(...groups) {
@@ -1391,7 +1393,8 @@ const AppUX = (() => {
     const user = getCurrentUser();
     const db = getDB();
     const seen = new Set();
-    const baseProfiles = getAllProfiles();
+    const baseProfiles = mergePeopleResults(getAllProfiles(), user?.name ? [user] : [])
+      .map(profile => enrichLocalProfileForSearch(profile, db));
     const startupContacts = (db.startups || []).map(startup => ({
       name: startup.name,
       title: `${startup.stage || "Startup"} - ${startup.sector || "Business"}`,
@@ -1400,7 +1403,9 @@ const AppUX = (() => {
       avatarInitials: startup.logoInitials,
       city: startup.city,
       state: startup.state,
-      bio: startup.description
+      bio: startup.description,
+      companyName: startup.name,
+      skills: [startup.sector, startup.stage].filter(Boolean)
     }));
     return [...baseProfiles, ...startupContacts]
       .filter(profile => profile?.name && profile.name !== user?.name)
@@ -1445,16 +1450,32 @@ const AppUX = (() => {
     const user = getCurrentUser();
     const holder = document.getElementById("messageRows");
     if (!user || !holder) return;
+    const localRows = localInboxRows(query, tab);
+    holder.innerHTML = localRows.map(renderMessageRow).join("") ||
+      `<div class="empty-message-state">No ${tab} messages yet. Checking live profiles...</div>`;
+    if (window.lucide) window.lucide.createIcons();
     try {
       const params = new URLSearchParams({ tab, q: query || "", user: user.name || "" });
       const data = await apiRequest(`/api/messages/inbox?${params.toString()}`);
-      holder.innerHTML = (data.conversations || []).map(renderMessageRow).join("") ||
+      const merged = mergeMessageRows(data.conversations || [], localRows);
+      holder.innerHTML = merged.map(renderMessageRow).join("") ||
         `<div class="empty-message-state">No ${tab} messages yet.</div>`;
+      if (window.lucide) window.lucide.createIcons();
     } catch {
-      holder.innerHTML = localInboxRows(query, tab).map(renderMessageRow).join("") ||
-        `<div class="empty-message-state">No ${tab} messages yet.</div>`;
+      // Keep instant local rows while Render wakes up.
     }
-    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function mergeMessageRows(...groups) {
+    const map = new Map();
+    groups.flat().filter(Boolean).forEach(row => {
+      const key = String(row.handle || row.email || row.name || "").toLowerCase();
+      if (!key) return;
+      const existing = map.get(key) || {};
+      const chosenLast = new Date(row.recentAt || 0) > new Date(existing.recentAt || 0) ? row : existing;
+      map.set(key, { ...existing, ...row, lastMessage: chosenLast.lastMessage || row.lastMessage || existing.lastMessage, recentAt: chosenLast.recentAt || row.recentAt || existing.recentAt, unread: Math.max(Number(existing.unread || 0), Number(row.unread || 0)) });
+    });
+    return Array.from(map.values()).sort((a, b) => new Date(b.recentAt || 0) - new Date(a.recentAt || 0) || String(a.name).localeCompare(String(b.name)));
   }
 
   function localInboxRows(query = "", tab = "focused") {
@@ -1478,6 +1499,9 @@ const AppUX = (() => {
         role: profile.title || roleType,
         roleType,
         location: [profile.city, profile.state].filter(Boolean).join(", "),
+        skills: profile.skills || [],
+        companyName: profile.companyName || "",
+        searchText: profile.searchText || profile.bio || "",
         avatarInitials: profile.avatarInitials,
         avatarPhoto: profile.avatarPhoto,
         lastMessage: last,
@@ -1487,7 +1511,7 @@ const AppUX = (() => {
         recentAt: last?.createdAt || ""
       };
     }).filter(row => {
-      const text = [row.name, row.handle, row.role, row.location, row.lastText].join(" ").toLowerCase();
+      const text = [row.name, row.handle, row.role, row.location, row.companyName, (row.skills || []).join(" "), row.searchText, row.lastText].join(" ").toLowerCase();
       if (q && !text.includes(q)) return false;
       if (tab === "jobs") return row.roleType === "startup" || row.roleType === "recruiter" || jobWords.test(row.lastText);
       if (tab === "unread") return row.unread > 0;
@@ -1520,7 +1544,8 @@ const AppUX = (() => {
     if (!q) return;
     const match = getMessageContacts().find(profile => {
       const id = userIdFor(profile);
-      return profile.name.toLowerCase().includes(q) || id.includes(q);
+      const text = [profile.name, id, profile.title, profile.role, profile.city, profile.state, profile.companyName, (profile.skills || []).join(" "), profile.searchText, profile.bio].join(" ").toLowerCase();
+      return text.includes(q);
     });
     if (match) openChat(match.name);
   }
