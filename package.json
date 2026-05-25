@@ -8,8 +8,14 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
+    "axios": "^1.7.9",
+    "bull": "^4.16.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^7.5.0",
     "fuse.js": "^7.0.0",
+    "ioredis": "^5.4.2",
+    "mongoose": "^8.9.3",
+    "node-cron": "^3.0.3",
     "nodemailer": "^7.0.10",
     "socket.io": "^4.7.5",
     "web-push": "^3.6.7"

@@ -15,6 +15,12 @@ try {
 } catch {
   nodemailer = null;
 }
+let handleAiApi = null;
+try {
+  ({ handleAiApi } = require("./routes/ai"));
+} catch {
+  handleAiApi = null;
+}
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -683,6 +689,7 @@ async function handleApi(req, res) {
   const auth = authFromRequest(req);
 
   if (route === "/api/health") return sendJson(res, 200, { ok: true });
+  if (handleAiApi && await handleAiApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
 
   if (route === "/api/state" && req.method === "GET") {
     return sendJson(res, 200, { db: publicDB() });

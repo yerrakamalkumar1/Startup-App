@@ -1,0 +1,44 @@
+services:
+  connecthub-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    command: node backend/server.js
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      AI_SERVICE_URL: http://connecthub-ai:8000
+      MONGODB_URI: mongodb://mongo:27017/connecthub
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-connecthub-local-secret}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      - connecthub-ai
+      - mongo
+      - redis
+
+  connecthub-ai:
+    build:
+      context: ./ai-service
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  mongo-data:

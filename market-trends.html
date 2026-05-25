@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectHub Market Trends</title>
+  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="frontend/ai-widgets.css">
+</head>
+<body>
+  <main class="public-profile-shell">
+    <section class="profile-info-card">
+      <h1>Market Trends</h1>
+      <p>AI-smoothed signals from ConnectHub startup, freelancer, and investor activity.</p>
+      <div id="trendsContent" class="dashboard-grid-2">Loading trends...</div>
+    </section>
+  </main>
+  <script>
+    fetch("/api/ai/market-trends").then(res => res.json()).then(data => {
+      const render = (title, rows, key, value) => `<article class="ai-card"><h2>${title}</h2>${(rows || []).map(row => `<p><strong>${row[key]}</strong> <span>${row[value]}</span></p>`).join("")}</article>`;
+      document.getElementById("trendsContent").innerHTML = [
+        render("Growing sectors", data.growingSectors, "sector", "growth"),
+        render("In-demand skills", data.inDemandSkills, "skill", "demand"),
+        render("Average funding goals", data.averageFundingGoals, "sector", "amount"),
+        render("Investor activity", data.investorActivity, "sector", "index")
+      ].join("");
+    }).catch(() => {
+      document.getElementById("trendsContent").textContent = "Market trend service is temporarily unavailable.";
+    });
+  </script>
+</body>
+</html>
