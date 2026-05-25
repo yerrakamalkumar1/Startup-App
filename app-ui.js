@@ -16,6 +16,7 @@ const AppUX = (() => {
   let currentMessageTab = "focused";
   let currentNotificationTab = "all";
   let visibleNotificationIds = [];
+  let deferredInstallPrompt = null;
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -66,7 +67,61 @@ const AppUX = (() => {
     installExplorePage();
     installBottomNav();
     installMediaOptimizer();
+    installAdvancedAppFeatures();
     applyUserChrome();
+  }
+
+  function installAdvancedAppFeatures() {
+    window.addEventListener("beforeinstallprompt", event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      showInstallHint();
+    });
+    window.addEventListener("online", () => updateConnectivityStatus(true));
+    window.addEventListener("offline", () => updateConnectivityStatus(false));
+    updateConnectivityStatus(navigator.onLine);
+    installCommandPalette();
+  }
+
+  function showInstallHint() {
+    if (localStorage.getItem("connecthub_install_hint_seen") === "true") return;
+    localStorage.setItem("connecthub_install_hint_seen", "true");
+    setTimeout(() => showToast("ConnectHub can be installed on your home screen"), 900);
+  }
+
+  function updateConnectivityStatus(isOnline) {
+    let badge = document.getElementById("connectivityBadge");
+    if (!badge) {
+      badge = document.createElement("button");
+      badge.id = "connectivityBadge";
+      badge.type = "button";
+      badge.className = "connectivity-badge";
+      badge.addEventListener("click", () => showToast(isOnline ? "You are online" : "Offline mode: cached dashboards are available"));
+      document.body.appendChild(badge);
+    }
+    badge.classList.toggle("offline", !isOnline);
+    badge.innerHTML = `<span></span>${isOnline ? "Online" : "Offline"}`;
+  }
+
+  function installCommandPalette() {
+    if (document.getElementById("commandPalette")) return;
+    const palette = document.createElement("section");
+    palette.id = "commandPalette";
+    palette.className = "command-palette";
+    palette.innerHTML = `
+      <button class="command-palette-scrim" type="button" onclick="AppUX.closeCommandPalette()" aria-label="Close command launcher"></button>
+      <div class="command-palette-card">
+        <div class="command-search"><i data-lucide="search"></i><input id="commandSearchInput" placeholder="Search actions, pages, people..." oninput="AppUX.renderCommandResults(this.value)" autocomplete="off"></div>
+        <div id="commandResults" class="command-results"></div>
+      </div>`;
+    document.body.appendChild(palette);
+    document.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openCommandPalette();
+      }
+      if (event.key === "Escape") closeCommandPalette();
+    });
   }
 
   function installMediaOptimizer() {
@@ -1993,6 +2048,66 @@ const AppUX = (() => {
     renderNotificationPanel();
   }
 
+  function openCommandPalette() {
+    const palette = document.getElementById("commandPalette");
+    if (!palette) return;
+    palette.classList.add("active");
+    renderCommandResults("");
+    setTimeout(() => document.getElementById("commandSearchInput")?.focus(), 40);
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeCommandPalette() {
+    document.getElementById("commandPalette")?.classList.remove("active");
+  }
+
+  function commandItems() {
+    const user = getCurrentUser?.() || {};
+    const role = String(user.role || "").includes("startup") ? "startup" : String(user.role || "").includes("investor") ? "investor" : "freelancer";
+    const people = getAllProfiles().filter(profile => profile.name && profile.name !== user.name).slice(0, 8);
+    return [
+      { label: "Home dashboard", icon: "home", action: () => window.go?.(homeView) },
+      { label: "Explore people", icon: "search", action: () => openExplorePage() },
+      { label: "Messages", icon: "message-circle", action: () => openMessageDock() },
+      { label: "My Network", icon: "users", action: () => window.go?.("network") },
+      { label: "Profile", icon: "user", action: () => window.go?.(profileView) },
+      { label: "Settings", icon: "settings", action: () => window.go?.("settings") },
+      { label: "AI Hub", icon: "sparkles", action: () => { window.location.href = `/dashboard/aihub?role=${role}`; } },
+      { label: "Install app", icon: "download", action: () => installConnectHubApp() },
+      ...people.map(profile => ({ label: `Open ${profile.name}`, icon: "user-round", action: () => { window.location.href = profileUrl(profile); } }))
+    ];
+  }
+
+  function renderCommandResults(query = "") {
+    const holder = document.getElementById("commandResults");
+    if (!holder) return;
+    const q = String(query || "").toLowerCase();
+    const rows = commandItems().filter(item => !q || item.label.toLowerCase().includes(q)).slice(0, 10);
+    holder.innerHTML = rows.map((item, index) => `
+      <button type="button" onclick="AppUX.runCommand(${index}, '${escapeAttr(query)}')">
+        <i data-lucide="${item.icon}"></i><span>${escapeHTML(item.label)}</span>
+      </button>
+    `).join("") || `<p>No command found.</p>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function runCommand(index, query = "") {
+    const q = String(query || "").toLowerCase();
+    const rows = commandItems().filter(item => !q || item.label.toLowerCase().includes(q)).slice(0, 10);
+    closeCommandPalette();
+    rows[index]?.action?.();
+  }
+
+  async function installConnectHubApp() {
+    if (!deferredInstallPrompt) {
+      showToast("Use your browser menu: Add to Home Screen");
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => null);
+    deferredInstallPrompt = null;
+  }
+
   function installButtonSounds() {
     document.addEventListener("click", event => {
       if (event.target.closest("button, .sidebar-item, .auth-tab, .role-chip")) {
@@ -2184,6 +2299,15 @@ const AppUX = (() => {
           </article>
 
           <article class="settings-card">
+            <div class="settings-card-head"><i data-lucide="smartphone"></i><div><h3>App Tools</h3><p>Install, launch commands, and use offline-friendly features.</p></div></div>
+            <div class="settings-actions">
+              <button class="btn btn-primary" type="button" onclick="AppUX.installConnectHubApp()"><i data-lucide="download"></i>Install app</button>
+              <button class="btn btn-secondary" type="button" onclick="AppUX.openCommandPalette()"><i data-lucide="command"></i>Command center</button>
+              <button class="btn btn-secondary" type="button" onclick="AppUX.sharePublicProfile()"><i data-lucide="share-2"></i>Share profile</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
             <div class="settings-card-head"><i data-lucide="log-out"></i><div><h3>Session</h3><p>Sign out from this device.</p></div></div>
             <button class="btn btn-secondary danger-soft" type="button" onclick="handleLogout()"><i data-lucide="log-out"></i>Logout</button>
           </article>
@@ -2344,5 +2468,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
 })();

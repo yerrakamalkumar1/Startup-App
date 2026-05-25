@@ -6,6 +6,31 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0f766e",
+  "categories": ["business", "social", "productivity"],
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Explore People",
+      "short_name": "Explore",
+      "description": "Find freelancers, startups, and investors.",
+      "url": "dashboard-freelancer.html#explore",
+      "icons": [{ "src": "assets/logo.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Messages",
+      "short_name": "Messages",
+      "description": "Open ConnectHub messages.",
+      "url": "dashboard-freelancer.html#messages",
+      "icons": [{ "src": "assets/logo.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "AI Hub",
+      "short_name": "AI Hub",
+      "description": "Open ConnectHub AI Hub.",
+      "url": "dashboard/aihub?role=freelancer",
+      "icons": [{ "src": "assets/logo.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "assets/logo.png",
