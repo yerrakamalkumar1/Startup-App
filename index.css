@@ -3720,24 +3720,60 @@ body.dark .ai-bot-input-area input::placeholder {
   }
 
   .top-navbar {
-    gap: 0.65rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem 0.65rem;
+    width: 100%;
+    overflow: hidden;
   }
 
   .nav-left-controls {
     gap: 0.35rem;
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .view-back-btn {
     margin-left: 0;
   }
 
-  .top-navbar > div:last-child {
-    justify-content: flex-end;
-    gap: 0.45rem !important;
+  .page-title {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
   }
 
   .page-title h1 {
     font-size: 1.05rem;
+    line-height: 1.18;
+    overflow-wrap: anywhere;
+  }
+
+  .top-navbar > div:last-child {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start !important;
+    gap: 0.45rem !important;
+    overflow: visible;
+  }
+
+  .top-navbar > div:last-child .btn,
+  .top-navbar > div:last-child .badge {
+    min-height: 42px;
+    max-width: 100%;
+    flex: 0 1 auto;
+    white-space: nowrap;
+  }
+
+  .top-navbar > div:last-child .btn-primary {
+    padding-inline: 0.75rem;
+  }
+
+  .top-navbar > div:last-child .badge {
+    padding-inline: 0.7rem;
   }
 
   .bottom-nav {
