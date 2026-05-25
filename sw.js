@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v33";
+const CACHE_NAME = "connecthub-v35-aihub";
 const APP_SHELL = [
   "index.html",
   "index.css",
@@ -12,6 +12,14 @@ const APP_SHELL = [
   "dashboard-startup.html",
   "dashboard-freelancer.html",
   "dashboard-investor.html",
+  "frontend/aihub/aihub.html",
+  "frontend/aihub/aihub.css",
+  "frontend/aihub/aihub.js",
+  "frontend/aihub/freelancer-hub.js",
+  "frontend/aihub/startup-hub.js",
+  "frontend/aihub/investor-hub.js",
+  "frontend/aihub/chatbot.js",
+  "frontend/aihub/notifications.js",
   "profile.html",
   "admin.html",
   "manifest.json",
@@ -33,7 +41,13 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith("/api/")) return;
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request))
+    fetch(event.request).then(response => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {});
+      return response;
+    }).catch(() => caches.match(event.request))
   );
 });
