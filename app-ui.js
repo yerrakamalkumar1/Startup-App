@@ -284,22 +284,6 @@ const AppUX = (() => {
   function installDarkMode() {
     const saved = localStorage.getItem("connecthub_theme") || "light";
     document.documentElement.dataset.theme = saved;
-    if (document.getElementById("themeToggle")) return;
-    const nav = document.querySelector(".top-navbar > div:last-child") || document.querySelector(".top-navbar");
-    if (!nav) return;
-    const button = document.createElement("button");
-    button.id = "themeToggle";
-    button.className = "btn btn-secondary btn-icon";
-    button.title = "Toggle dark mode";
-    button.innerHTML = '<i data-lucide="moon"></i>';
-    button.addEventListener("click", () => {
-      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-      document.documentElement.dataset.theme = next;
-      localStorage.setItem("connecthub_theme", next);
-      playSound("nav");
-    });
-    nav.prepend(button);
-    if (window.lucide) window.lucide.createIcons();
   }
 
   function installNotificationBell() {
@@ -1630,6 +1614,10 @@ const AppUX = (() => {
       .replace(/'/g, "&#039;");
   }
 
+  function escapeAttr(value) {
+    return escapeHTML(value);
+  }
+
   function renderMessageContent(message) {
     const text = escapeHTML(message.text || "");
     if (message.kind === "image" && message.attachment?.dataUrl) {
@@ -2006,6 +1994,111 @@ const AppUX = (() => {
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function renderSettingsPage(container, options = {}) {
+    const user = getCurrentUser?.() || {};
+    const role = options.role || user.role || "freelancer";
+    const aiHubUrl = options.aiHubUrl || `/dashboard/aihub?role=${role.includes("startup") ? "startup" : role.includes("investor") ? "investor" : "freelancer"}`;
+    const theme = document.documentElement.dataset.theme || localStorage.getItem("connecthub_theme") || "light";
+    container.innerHTML = `
+      <section class="settings-shell">
+        <div class="settings-card settings-profile-card">
+          ${avatarMarkup(user, "profile-hero-avatar")}
+          <div>
+            <h2>${escapeHTML(user.name || "ConnectHub user")}</h2>
+            <p>${escapeHTML(user.title || user.role || "Member")}</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <article class="settings-card">
+            <div class="settings-card-head"><i data-lucide="user-cog"></i><div><h3>Account</h3><p>Manage profile and public identity.</p></div></div>
+            <div class="settings-actions">
+              <button class="btn btn-secondary" type="button" onclick="go('profile')"><i data-lucide="edit-3"></i>Edit profile</button>
+              <a class="btn btn-secondary" href="${escapeAttr(currentPublicProfileUrl())}"><i data-lucide="external-link"></i>Public profile</a>
+              <a class="btn btn-primary" href="${escapeAttr(aiHubUrl)}"><i data-lucide="sparkles"></i>AI Hub</a>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-head"><i data-lucide="palette"></i><div><h3>Appearance</h3><p>Choose how ConnectHub looks on this device.</p></div></div>
+            <div class="settings-segment" role="group" aria-label="Theme">
+              <button type="button" class="${theme === "light" ? "active" : ""}" onclick="AppUX.setThemeMode('light')"><i data-lucide="sun"></i>Light</button>
+              <button type="button" class="${theme === "dark" ? "active" : ""}" onclick="AppUX.setThemeMode('dark')"><i data-lucide="moon"></i>Dark</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-head"><i data-lucide="shield-check"></i><div><h3>Security</h3><p>Reset your passcode using email OTP.</p></div></div>
+            <div class="settings-form">
+              <input id="settingsEmail" class="form-control" type="email" value="${escapeAttr(user.email || "")}" placeholder="Email address">
+              <button class="btn btn-secondary" type="button" onclick="AppUX.sendSettingsOtp()"><i data-lucide="mail"></i>Send OTP</button>
+              <input id="settingsOtp" class="form-control" inputmode="numeric" maxlength="6" placeholder="6 digit OTP">
+              <input id="settingsPasscode" class="form-control" type="password" minlength="4" placeholder="New passcode">
+              <button class="btn btn-primary" type="button" onclick="AppUX.updateSettingsPasscode()"><i data-lucide="key-round"></i>Update passcode</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-head"><i data-lucide="bell"></i><div><h3>Notifications</h3><p>View recent messages and network alerts.</p></div></div>
+            <div class="settings-actions">
+              <button class="btn btn-secondary" type="button" onclick="AppUX.openSettingsNotifications()"><i data-lucide="bell-ring"></i>Open notifications</button>
+              <button class="btn btn-secondary" type="button" onclick="AppUX.markNotificationsRead()"><i data-lucide="check-check"></i>Mark read</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-head"><i data-lucide="log-out"></i><div><h3>Session</h3><p>Sign out from this device.</p></div></div>
+            <button class="btn btn-secondary danger-soft" type="button" onclick="handleLogout()"><i data-lucide="log-out"></i>Logout</button>
+          </article>
+        </div>
+      </section>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function setThemeMode(mode) {
+    const next = mode === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("connecthub_theme", next);
+    playSound("nav");
+    const body = document.getElementById("body");
+    if (body && currentView === "settings") renderSettingsPage(body);
+  }
+
+  async function sendSettingsOtp() {
+    const email = document.getElementById("settingsEmail")?.value;
+    if (!email) return showToast("Enter your email first", "error");
+    try {
+      await requestPasswordOtp(email);
+      showToast("OTP sent to your email");
+    } catch (error) {
+      showToast(error.message || "Could not send OTP", "error");
+    }
+  }
+
+  async function updateSettingsPasscode() {
+    const email = document.getElementById("settingsEmail")?.value;
+    const otp = document.getElementById("settingsOtp")?.value;
+    const passcode = document.getElementById("settingsPasscode")?.value;
+    if (!email || !otp || !passcode) return showToast("Email, OTP and new passcode are required", "error");
+    try {
+      await resetPasswordWithOtp(email, otp, passcode);
+      showToast("Passcode updated successfully");
+      document.getElementById("settingsOtp").value = "";
+      document.getElementById("settingsPasscode").value = "";
+    } catch (error) {
+      showToast(error.message || "Passcode update failed", "error");
+    }
+  }
+
+  function openSettingsNotifications() {
+    renderNotificationPanel();
+    const panel = document.getElementById("notificationPanel");
+    if (panel) {
+      document.body.appendChild(panel);
+      panel.classList.add("active");
+    }
+  }
+
   async function saveEditProfile(event) {
     event.preventDefault();
     const user = getCurrentUser();
@@ -2114,5 +2207,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
 })();

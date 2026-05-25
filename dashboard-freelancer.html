@@ -23,6 +23,7 @@
       <li class="sidebar-item" id="t-calc" onclick="go('calc')"><a><i data-lucide="calculator"></i>Rate Estimator</a></li>
       <li class="sidebar-item" id="t-apps" onclick="go('apps')"><a><i data-lucide="file-check"></i>Applications</a></li>
       <li class="sidebar-item" onclick="window.location.href='/dashboard/aihub?role=freelancer'"><a><i data-lucide="sparkles"></i>AI Hub</a></li>
+      <li class="sidebar-item" id="t-settings" onclick="go('settings')"><a><i data-lucide="settings"></i>Settings</a></li>
     </ul>
     <div class="sidebar-footer">
       <div class="user-profile-badge">
@@ -129,7 +130,7 @@
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications', profile:'Profile' };
+    const titles = { gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications', profile:'Profile', settings:'Settings' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const b = document.getElementById('body');
     if (view === 'gigs') renderGigs(b);
@@ -137,6 +138,7 @@
     else if (view === 'calc') renderCalc(b);
     else if (view === 'apps') renderApps(b);
     else if (view === 'profile') renderProfile(b);
+    else if (view === 'settings') AppUX.renderSettingsPage(b, { role: 'freelancer', aiHubUrl: '/dashboard/aihub?role=freelancer' });
     lucide.createIcons();
     AppUX.onView(view);
   }

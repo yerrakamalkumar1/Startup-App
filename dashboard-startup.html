@@ -24,6 +24,7 @@
       <li class="sidebar-item" id="t-profile" onclick="go('profile')"><a><i data-lucide="building-2"></i>Business Profile</a></li>
       <li class="sidebar-item" id="t-candidates" onclick="go('candidates')"><a><i data-lucide="users"></i>Candidates</a></li>
       <li class="sidebar-item" onclick="window.location.href='/dashboard/aihub?role=startup'"><a><i data-lucide="sparkles"></i>AI Hub</a></li>
+      <li class="sidebar-item" id="t-settings" onclick="go('settings')"><a><i data-lucide="settings"></i>Settings</a></li>
     </ul>
     <div class="sidebar-footer">
       <div class="user-profile-badge">
@@ -163,7 +164,7 @@
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { analytics:'Dashboard', browse:'Browse Freelancers', profile:'Business Profile', candidates:'Candidates' };
+    const titles = { analytics:'Dashboard', browse:'Browse Freelancers', profile:'Business Profile', candidates:'Candidates', settings:'Settings' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const showActions = view === 'analytics';
     document.getElementById('postGigBtn').style.display = showActions ? 'inline-flex' : 'none';
@@ -173,6 +174,7 @@
     else if (view === 'browse') renderBrowse(b);
     else if (view === 'profile') renderProfile(b);
     else if (view === 'candidates') renderCandidates(b);
+    else if (view === 'settings') AppUX.renderSettingsPage(b, { role: 'startup', aiHubUrl: '/dashboard/aihub?role=startup' });
     lucide.createIcons();
     AppUX.onView(view);
   }
@@ -194,6 +196,7 @@
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="go('browse')"><i data-lucide="search"></i>Browse ${adsCount} Ads</button>
           <button class="btn btn-primary" onclick="openPromoModal()"><i data-lucide="image-plus"></i>Post Photo/Reel</button>
+          <button class="btn btn-primary" onclick="openGigModal()"><i data-lucide="plus"></i>Post Gig</button>
         </div>
       </div>
       ${renderCompleteness(user)}

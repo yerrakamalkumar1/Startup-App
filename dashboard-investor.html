@@ -24,6 +24,7 @@
       <li class="sidebar-item" id="t-events" onclick="go('events')"><a><i data-lucide="calendar"></i>Events</a></li>
       <li class="sidebar-item" id="t-portfolio" onclick="go('portfolio')"><a><i data-lucide="wallet"></i>My Portfolio</a></li>
       <li class="sidebar-item" onclick="window.location.href='/dashboard/aihub?role=investor'"><a><i data-lucide="sparkles"></i>AI Hub</a></li>
+      <li class="sidebar-item" id="t-settings" onclick="go('settings')"><a><i data-lucide="settings"></i>Settings</a></li>
     </ul>
     <div class="sidebar-footer">
       <div class="user-profile-badge">
@@ -106,13 +107,14 @@
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { explore:'Explore Indian Startups', events:'Investment Events', portfolio:'My Portfolio', profile:'Edit Profile' };
+    const titles = { explore:'Explore Indian Startups', events:'Investment Events', portfolio:'My Portfolio', profile:'Edit Profile', settings:'Settings' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const b = document.getElementById('body');
     if (view === 'explore') renderExplore(b);
     else if (view === 'events') renderEvents(b);
     else if (view === 'portfolio') renderPortfolio(b);
     else if (view === 'profile') renderProfile(b);
+    else if (view === 'settings') AppUX.renderSettingsPage(b, { role: 'investor', aiHubUrl: '/dashboard/aihub?role=investor' });
     lucide.createIcons();
     AppUX.onView(view);
   }
