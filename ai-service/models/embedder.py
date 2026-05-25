@@ -1,54 +1,55 @@
 import hashlib
 import math
-import re
+import os
 from functools import lru_cache
 from typing import List
 
-VECTOR_DIM = 384
+MODEL_NAME = os.getenv("SENTENCE_TRANSFORMER_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+VECTOR_DIMS = 384
 
 
 @lru_cache(maxsize=1)
-def _sentence_model():
+def _model():
+    if os.getenv("CONNECTHUB_DISABLE_HEAVY_AI") == "1":
+        return None
     try:
         from sentence_transformers import SentenceTransformer
 
-        return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        return SentenceTransformer(MODEL_NAME)
     except Exception:
         return None
 
 
-def normalize_text(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").strip().lower())
-
-
-def fallback_embedding(text: str, dim: int = VECTOR_DIM) -> List[float]:
-    """Deterministic hashing vector used when transformer models are unavailable."""
-    vector = [0.0] * dim
-    tokens = re.findall(r"[a-zA-Z0-9+#.-]+", normalize_text(text))
+def _hash_embedding(text: str, dims: int = VECTOR_DIMS) -> List[float]:
+    vector = [0.0] * dims
+    tokens = str(text or "").lower().replace("/", " ").replace(",", " ").split()
     if not tokens:
-        return vector
+        tokens = ["connecthub"]
     for token in tokens:
         digest = hashlib.sha256(token.encode("utf-8")).digest()
-        index = int.from_bytes(digest[:4], "big") % dim
-        sign = 1.0 if digest[4] % 2 == 0 else -1.0
-        vector[index] += sign
+        for index, byte in enumerate(digest):
+            slot = (byte + index * 31) % dims
+            vector[slot] += 1.0 if byte % 2 == 0 else -1.0
     norm = math.sqrt(sum(value * value for value in vector)) or 1.0
     return [round(value / norm, 6) for value in vector]
 
 
 def embed_text(text: str) -> List[float]:
-    model = _sentence_model()
-    if model is None:
-        return fallback_embedding(text)
-    vector = model.encode([text or ""], normalize_embeddings=True)[0]
-    return [float(value) for value in vector.tolist()]
+    model = _model()
+    if model is not None:
+        try:
+            vector = model.encode([text or ""], normalize_embeddings=True)[0]
+            return [round(float(value), 6) for value in vector[:VECTOR_DIMS]]
+        except Exception:
+            pass
+    return _hash_embedding(text)
 
 
 def cosine_similarity(left: List[float], right: List[float]) -> float:
     if not left or not right:
         return 0.0
-    limit = min(len(left), len(right))
-    dot = sum(left[i] * right[i] for i in range(limit))
-    left_norm = math.sqrt(sum(value * value for value in left[:limit])) or 1.0
-    right_norm = math.sqrt(sum(value * value for value in right[:limit])) or 1.0
+    size = min(len(left), len(right))
+    dot = sum(left[i] * right[i] for i in range(size))
+    left_norm = math.sqrt(sum(left[i] * left[i] for i in range(size))) or 1.0
+    right_norm = math.sqrt(sum(right[i] * right[i] for i in range(size))) or 1.0
     return max(0.0, min(1.0, dot / (left_norm * right_norm)))

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ConnectHub AI Hub</title>
+    <meta name="description" content="ConnectHub AI Hub for Indian startups, freelancers, and investors." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/index.css" />
+    <link rel="stylesheet" href="/frontend/aihub/aihub.css" />
+  </head>
+  <body>
+    <main class="aihub-shell" data-role="freelancer">
+      <header class="aihub-header">
+        <a class="aihub-icon-btn" href="/dashboard-freelancer.html" aria-label="Back">‹</a>
+        <div>
+          <p class="aihub-eyebrow"><span class="live-dot"></span> Live</p>
+          <h1>AI Hub</h1>
+        </div>
+        <span class="aihub-role-pill" id="aihubRolePill">Freelancer</span>
+        <button class="aihub-icon-btn" id="aihubBell" type="button" aria-label="Notifications">⌾<span id="aihubBellCount">0</span></button>
+      </header>
+
+      <section class="aihub-location-banner" id="aihubLocationBadge">Location is used only for nearby AI suggestions.</section>
+
+      <section class="aihub-grid">
+        <aside class="aihub-panel ai-search-panel">
+          <div class="aihub-panel-title">
+            <h2>AI Search</h2>
+            <span id="aihubIntent">Semantic</span>
+          </div>
+          <form class="aihub-search-form" id="aihubSearchForm">
+            <input id="aihubSearchInput" autocomplete="off" placeholder="Ask AI anything about gigs, skills, talent, or deals near you..." />
+            <button type="submit">Search</button>
+          </form>
+          <div class="aihub-filter-row" id="aihubQuickFilters"></div>
+          <div class="aihub-search-summary" id="aihubSearchSummary">Search combines ConnectHub profiles, live jobs, nearby businesses, and startup news.</div>
+          <div class="aihub-result-list" id="aihubSearchResults"></div>
+        </aside>
+
+        <section class="aihub-panel ai-analysis-panel">
+          <div class="aihub-panel-title">
+            <h2>AI Analysis</h2>
+            <button class="aihub-text-btn" id="aihubRefresh" type="button">Refresh</button>
+          </div>
+          <nav class="aihub-tabs" id="aihubTabs"></nav>
+          <div class="aihub-tab-content fade-in" id="aihubTabContent"></div>
+        </section>
+      </section>
+    </main>
+
+    <div class="aihub-modal" id="aihubLocationModal" aria-hidden="true">
+      <div class="aihub-modal-card">
+        <h2>✦ Enable AI Location Features</h2>
+        <p>ConnectHub AI can show startups hiring near you, local talent, and market signals in your city.</p>
+        <p class="muted">Your location is stored temporarily for 30 minutes and is not shared with other users.</p>
+        <div class="aihub-modal-actions">
+          <button id="aihubEnableLocation" type="button">Enable Location</button>
+          <button id="aihubSkipLocation" type="button" class="ghost">Not Now</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="aihub-fab" id="aihubFab" type="button" aria-label="Open ConnectHub AI">✦</button>
+    <div id="aihubChatbotRoot"></div>
+    <div id="aihubNotificationPanel"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/frontend/aihub/freelancer-hub.js"></script>
+    <script src="/frontend/aihub/startup-hub.js"></script>
+    <script src="/frontend/aihub/investor-hub.js"></script>
+    <script src="/frontend/aihub/chatbot.js"></script>
+    <script src="/frontend/aihub/notifications.js"></script>
+    <script src="/frontend/aihub/aihub.js"></script>
+  </body>
+</html>

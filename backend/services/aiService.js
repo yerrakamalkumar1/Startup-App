@@ -1,5 +1,18 @@
-const AI_SERVICE_URL = (process.env.AI_SERVICE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const AI_SERVICE_URL = (process.env.PYTHON_AI_SERVICE_URL || process.env.AI_SERVICE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 7000);
+
+function fallbackEmbedding(text = "") {
+  const dim = 384;
+  const vector = Array(dim).fill(0);
+  const tokens = String(text).toLowerCase().match(/[a-z0-9+#.-]+/g) || ["connecthub"];
+  tokens.forEach(token => {
+    let hash = 0;
+    for (let index = 0; index < token.length; index += 1) hash = ((hash << 5) - hash + token.charCodeAt(index)) | 0;
+    vector[Math.abs(hash) % dim] += hash % 2 === 0 ? 1 : -1;
+  });
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
+  return vector.map(value => Number((value / norm).toFixed(6)));
+}
 
 async function requestAi(path, payload, options = {}) {
   const controller = new AbortController();
@@ -19,24 +32,129 @@ async function requestAi(path, payload, options = {}) {
   }
 }
 
-function fallbackEmbedding(text = "") {
-  const dim = 384;
-  const vector = Array(dim).fill(0);
-  const tokens = String(text).toLowerCase().match(/[a-z0-9+#.-]+/g) || [];
-  tokens.forEach(token => {
-    let hash = 0;
-    for (let index = 0; index < token.length; index++) hash = ((hash << 5) - hash + token.charCodeAt(index)) | 0;
-    vector[Math.abs(hash) % dim] += hash % 2 === 0 ? 1 : -1;
+function profileText(profile = {}) {
+  return [profile.name, profile.title, profile.role, profile.city, profile.sector, profile.companyName, ...(profile.skills || [])]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function localSearch({ query = "", profiles = [], role = "", lat = 17.385, lng = 78.4867 }) {
+  const q = String(query).toLowerCase().trim();
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const rows = (profiles.length ? profiles : defaultProfiles()).map(profile => {
+    const text = profileText(profile);
+    const tokenHits = tokens.filter(token => text.includes(token)).length;
+    const exact = text.includes(q) ? 30 : 0;
+    const roleBoost = role && String(profile.role || "").includes(role) ? 10 : 0;
+    const score = Math.min(98, 58 + tokenHits * 12 + exact + roleBoost);
+    return {
+      source: "ConnectHub",
+      title: profile.name || profile.companyName || "ConnectHub profile",
+      description: profile.title || profile.sector || "Profile on ConnectHub",
+      role: profile.role,
+      city: profile.city || profile.location || "India",
+      sector: profile.sector,
+      matchPercent: score,
+      distanceKm: profile.lat && profile.lng ? distanceKm(lat, lng, profile.lat, profile.lng) : null,
+      url: `/profile/${profile.handle || profile.id || slug(profile.name || profile.companyName || "profile")}`,
+      why: "Matched by local ConnectHub profile text, role, skill, city, and sector signals."
+    };
   });
-  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
-  return vector.map(value => Number((value / norm).toFixed(6)));
+  return rows.sort((a, b) => b.matchPercent - a.matchPercent).slice(0, 8);
+}
+
+function defaultProfiles() {
+  return [
+    { id: "kamal", name: "Kamal Kumar", role: "freelancer", title: "Photographer and Editor", city: "Hyderabad", sector: "Media & Entertainment", skills: ["photography", "video editing", "reels"], lat: 17.385, lng: 78.4867 },
+    { id: "nexalocal", name: "NexaLocal Commerce", role: "startup", title: "Local commerce startup", city: "Hyderabad", sector: "Commerce & Retail", skills: ["branding", "operations"], lat: 17.42, lng: 78.45 },
+    { id: "india-venture", name: "India Venture Fund", role: "investor", title: "Seed investor", city: "Bangalore", sector: "SaaS & Technology", skills: ["seed", "fintech"] }
+  ];
+}
+
+function slug(value = "") {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "profile";
+}
+
+function distanceKm(lat1, lng1, lat2, lng2) {
+  const toRad = value => Number(value) * Math.PI / 180;
+  const dlat = toRad(lat2 - lat1);
+  const dlng = toRad(lng2 - lng1);
+  const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dlng / 2) ** 2;
+  return Number((6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1));
 }
 
 async function embed(text) {
   try {
     return await requestAi("/embed", { text });
   } catch {
-    return { embedding: fallbackEmbedding(text), fallback: true };
+    return { embedding: fallbackEmbedding(text), dims: 384, fallback: true };
+  }
+}
+
+async function semanticSearch(payload) {
+  try {
+    return await requestAi("/search", payload);
+  } catch {
+    return {
+      summary: "AI service is temporarily unavailable, so ConnectHub used local profile matching.",
+      intent: "general",
+      sources_used: ["ConnectHub local data"],
+      results: localSearch(payload),
+      fallback: true
+    };
+  }
+}
+
+async function nearbyOpportunities(payload) {
+  try {
+    return await requestAi("/nearby-opportunities", payload);
+  } catch {
+    return { results: localSearch({ query: payload.user_sector || "startup", profiles: payload.profiles || [], lat: payload.lat, lng: payload.lng }), fallback: true };
+  }
+}
+
+async function skillDemand(payload) {
+  try {
+    return await requestAi("/skill-demand", payload);
+  } catch {
+    const skills = payload.skills || ["video editing", "react", "branding", "sales", "photography"];
+    return { skills: skills.map((skill, index) => ({ skill, score: 90 - index * 8, direction: index < 2 ? "rising" : "stable" })), fallback: true };
+  }
+}
+
+async function aiFeedItem(payload) {
+  try {
+    return await requestAi("/ai-feed-item", payload);
+  } catch {
+    return { title: "Fresh ConnectHub signal", body: "Your AI Hub found new market activity related to your role and city.", type: "Insight", fallback: true };
+  }
+}
+
+async function marketIntel(payload) { return safePost("/market-intel", payload, { news: [], trends: {}, summary: "Market intelligence fallback is active." }); }
+async function competitorRadar(payload) { return safePost("/competitor-radar", payload, { competitors: [], analysis: "Add API keys for live competitor intelligence." }); }
+async function growthSuggestions(payload) { return safePost("/growth-suggestions", payload, { overall_health_score: 72, top_3_suggestions: [] }); }
+async function dealFlow(payload) { return semanticSearch({ ...payload, query: payload.query || "startup investment opportunities" }); }
+async function sectorIntel(payload) { return marketIntel(payload); }
+async function dealNews(payload) { return marketIntel({ ...payload, sector: "startup funding India" }); }
+async function portfolioRisk(payload) { return safePost("/portfolio-risk", payload, { diversificationScore: 0, overallRiskScore: 0, recommendation: "Select startups to analyze." }); }
+async function rateEstimate(payload) { return safePost("/rate-estimate", payload, { recommendedLow: 800, recommendedHigh: 1800, reason: "Fallback rate based on ConnectHub local logic." }); }
+async function chatbot(payload) { return safePost("/chatbot", payload, { reply: "I can help you find matches, draft messages, and understand AI Hub insights." }); }
+async function geoMapData() { return safeGet("/geo-map-data", { states: [] }); }
+
+async function safePost(path, payload, fallback) {
+  try {
+    return await requestAi(path, payload);
+  } catch {
+    return { ...fallback, fallback: true };
+  }
+}
+
+async function safeGet(path, fallback) {
+  try {
+    return await requestAi(path);
+  } catch {
+    return { ...fallback, fallback: true };
   }
 }
 
@@ -58,90 +176,29 @@ async function matchStartups(investor, startups) {
   }
 }
 
-async function enhanceProfile(profile) {
-  try {
-    return await requestAi("/enhance-profile", profile);
-  } catch {
-    const skills = [...new Set([...(profile.skills || []), ...String(profile.title || "").split(/[,\s/]+/).filter(Boolean)])].slice(0, 8);
-    return {
-      skills,
-      headlineSuggestions: [
-        `${profile.title || "Professional"} for Indian startups`,
-        `${profile.title || "Professional"} focused on practical growth`,
-        `${profile.title || "Professional"} open to trusted collaborations`
-      ],
-      bio: profile.bio || `${profile.name || "This member"} is building a stronger ConnectHub profile for Indian startup networking, opportunities, and partnerships.`,
-      profileScore: Math.min(100, 40 + skills.length * 7 + (profile.bio ? 20 : 0)),
-      tips: ["Add city and sector.", "Add proof of work.", "Add at least 3 specific skills."],
-      fallback: true
-    };
-  }
-}
-
-async function scoreFraud(payload) {
-  try {
-    return await requestAi("/score-fraud", payload);
-  } catch {
-    return { fraudScore: 0.05, reasons: ["AI fraud service unavailable; default low-risk fallback applied."], fallback: true };
-  }
-}
-
-async function predictChurn(behavior) {
-  try {
-    return await requestAi("/predict-churn", behavior);
-  } catch {
-    return { churnProbability: 0.25, atRisk: false, fallback: true };
-  }
-}
-
-async function generateAd(payload) {
-  try {
-    return await requestAi("/generate-ad", payload);
-  } catch {
-    return {
-      variants: [
-        { headline: `Grow with ${payload.productName}`, body: "A practical offer for Indian startups looking for reliable execution.", cta: "Post this ad" },
-        { headline: `${payload.productName} for faster launch`, body: "Clear scope, startup-friendly pricing, and quick delivery.", cta: "Get started" },
-        { headline: `Make ${payload.productName} visible`, body: "Reach founders, operators, and business teams on ConnectHub.", cta: "Publish now" }
-      ],
-      hashtags: ["#IndianStartups", "#StartupIndia", "#ConnectHub"],
-      bestTimeToPost: "Tuesday to Thursday, 7:00 PM - 9:00 PM IST",
-      fallback: true
-    };
-  }
-}
-
-async function recommendCourses(payload) {
-  try {
-    return await requestAi("/recommend-courses", payload);
-  } catch {
-    return {
-      recommendations: [
-        { title: "NPTEL", url: "https://nptel.ac.in/" },
-        { title: "freeCodeCamp", url: "https://www.freecodecamp.org/learn/" },
-        { title: "Startup India", url: "https://www.startupindia.gov.in/" }
-      ],
-      fallback: true
-    };
-  }
-}
-
-async function marketTrends() {
-  try {
-    return await requestAi("/market-trends");
-  } catch {
-    return {
-      growingSectors: [],
-      inDemandSkills: [],
-      averageFundingGoals: [],
-      investorActivity: [],
-      fallback: true
-    };
-  }
-}
+async function enhanceProfile(profile) { return safePost("/enhance-profile", profile, { skills: profile.skills || [], profileScore: 60, tips: ["Add skills and city."] }); }
+async function scoreFraud(payload) { return safePost("/score-fraud", payload, { fraudScore: 0.05, reasons: ["Fallback low-risk result."] }); }
+async function predictChurn(behavior) { return safePost("/predict-churn", behavior, { churnProbability: 0.25, atRisk: false }); }
+async function generateAd(payload) { return safePost("/generate-ad", payload, { variants: [], hashtags: ["#ConnectHub"], bestTimeToPost: "7 PM IST" }); }
+async function recommendCourses(payload) { return safePost("/recommend-courses", payload, { recommendations: [] }); }
+async function marketTrends() { return safeGet("/market-trends", { growingSectors: [], inDemandSkills: [], averageFundingGoals: [], investorActivity: [] }); }
 
 module.exports = {
   embed,
+  semanticSearch,
+  nearbyOpportunities,
+  skillDemand,
+  aiFeedItem,
+  marketIntel,
+  competitorRadar,
+  growthSuggestions,
+  dealFlow,
+  sectorIntel,
+  dealNews,
+  portfolioRisk,
+  rateEstimate,
+  chatbot,
+  geoMapData,
   matchFreelancers,
   matchStartups,
   enhanceProfile,

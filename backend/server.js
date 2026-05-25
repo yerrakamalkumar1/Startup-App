@@ -21,6 +21,12 @@ try {
 } catch {
   handleAiApi = null;
 }
+let handleAiHubApi = null;
+try {
+  ({ handleAiHubApi } = require("./routes/aihub"));
+} catch {
+  handleAiHubApi = null;
+}
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -643,7 +649,13 @@ function createUserProfile({ name, role, title, additionalInfo = {} }) {
 
 function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
-  const requestedPath = urlPath === "/" ? "/index.html" : /^\/profile\/[^/]+\/?$/.test(urlPath) ? "/profile.html" : urlPath;
+  const requestedPath = urlPath === "/"
+    ? "/index.html"
+    : /^\/profile\/[^/]+\/?$/.test(urlPath)
+      ? "/profile.html"
+      : /^\/dashboard\/aihub\/?$/.test(urlPath)
+        ? "/frontend/aihub/aihub.html"
+        : urlPath;
   const filePath = path.normalize(path.join(ROOT_DIR, requestedPath));
 
   if (!filePath.startsWith(ROOT_DIR)) {
@@ -689,6 +701,7 @@ async function handleApi(req, res) {
   const auth = authFromRequest(req);
 
   if (route === "/api/health") return sendJson(res, 200, { ok: true });
+  if (handleAiHubApi && await handleAiHubApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
   if (handleAiApi && await handleAiApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
 
   if (route === "/api/state" && req.method === "GET") {
@@ -1063,6 +1076,10 @@ const server = http.createServer((req, res) => {
 if (Server) {
   const io = new Server(server, { cors: { origin: "*" } });
   const onlineUsers = new Map();
+  try {
+    const { registerAiHubSocket } = require("./services/socketService");
+    registerAiHubSocket(io, { publicDB });
+  } catch {}
 
   io.on("connection", socket => {
     socket.on("user:online", name => {

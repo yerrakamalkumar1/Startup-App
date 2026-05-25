@@ -1,44 +1,43 @@
 services:
-  connecthub-node:
+  connecthub-web:
     build:
       context: .
       dockerfile: Dockerfile.node
-    command: node backend/server.js
+    command: npm start
     ports:
       - "3000:3000"
     environment:
       PORT: 3000
-      AI_SERVICE_URL: http://connecthub-ai:8000
-      MONGODB_URI: mongodb://mongo:27017/connecthub
-      REDIS_URL: redis://redis:6379
+      PYTHON_AI_SERVICE_URL: http://connecthub-ai:8000
+      MONGO_URI: ${MONGO_URI:-}
       JWT_SECRET: ${JWT_SECRET:-connecthub-local-secret}
+      REDIS_URL: ${REDIS_URL:-redis://connecthub-redis:6379}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       - connecthub-ai
-      - mongo
-      - redis
+      - connecthub-redis
 
   connecthub-ai:
     build:
       context: ./ai-service
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     environment:
+      CONNECTHUB_DISABLE_HEAVY_AI: ${CONNECTHUB_DISABLE_HEAVY_AI:-1}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
-  mongo:
-    image: mongo:7
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-
-  redis:
+  connecthub-redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
-volumes:
-  mongo-data:
