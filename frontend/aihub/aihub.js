@@ -37,7 +37,7 @@
       chennai: { lat: 13.0827, lng: 80.2707, city: "Chennai" }
     };
     const key = city.trim().toLowerCase();
-    state.location = { ...(cityMap[key] || { lat: 17.385, lng: 78.4867, city: city.trim() }), source: "manual" };
+    state.location = { ...(cityMap[key] || { lat: 17.385, lng: 78.4867, city: "Hyderabad" }), source: "manual" };
   }
 
   function detectRole() {
@@ -106,11 +106,21 @@
       });
       const data = await response.json();
       state.location = data.location || state.location;
+      state.location = normalizeIndiaLocation(state.location);
       document.getElementById("aihubLocationBadge").textContent = data.badge || "Using city-level location";
     } catch {
       document.getElementById("aihubLocationBadge").textContent = "Using approximate location. Enable GPS for better results.";
     }
     renderActiveTab();
+  }
+
+  function normalizeIndiaLocation(location = {}) {
+    const city = String(location.city || "").toLowerCase();
+    const indiaCities = ["hyderabad", "bangalore", "bengaluru", "mumbai", "delhi", "delhi ncr", "chennai", "pune", "kolkata", "ahmedabad", "surat", "jaipur"];
+    if (location.source !== "gps" && city && !indiaCities.includes(city)) {
+      return { lat: 17.385, lng: 78.4867, city: "Hyderabad", region: "Telangana", source: "india-fallback" };
+    }
+    return location;
   }
 
   function setupFilters() {

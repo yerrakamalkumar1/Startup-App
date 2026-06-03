@@ -342,13 +342,36 @@
 
     @media (max-width: 900px) {
       .landing-wrap {
-        height: 100dvh;
-        padding: 0.9rem;
+        min-height: 100dvh;
+        height: auto;
+        padding: max(1.25rem, env(safe-area-inset-top)) 0.9rem max(1.25rem, env(safe-area-inset-bottom));
+        overflow-y: auto;
       }
 
       .landing-hero {
-        border-right: 0;
-        border-bottom: 1px solid var(--border-color);
+        display: none;
+      }
+
+      .landing-auth {
+        justify-content: flex-start;
+        width: min(100%, 430px);
+        max-height: none;
+        margin: 0 auto;
+        padding: 1.25rem;
+        border-radius: 22px;
+      }
+
+      .auth-brand {
+        margin-bottom: 0.85rem;
+      }
+
+      .auth-tabs {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        margin-bottom: 1.1rem;
+        background: var(--bg-primary);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
       }
 
     }
@@ -686,7 +709,7 @@
     try {
       const auth = await authenticateUser(email, pass);
       if (auth.success) {
-        await syncFromBackend();
+        syncFromBackend().catch(() => {});
         window.location.href = getDashboardUrl(auth.user.role);
         return;
       }
@@ -761,7 +784,7 @@
     try {
       const result = await registerUser(name, email, pass, role, title, additionalInfo);
       if (result.success) {
-        await syncFromBackend();
+        syncFromBackend().catch(() => {});
         window.location.href = getDashboardUrl(result.user.role);
         return;
       }

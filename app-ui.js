@@ -2729,6 +2729,7 @@ const AppUX = (() => {
     body.classList.remove("view-enter");
     void body.offsetWidth;
     body.classList.add("view-enter");
+    requestAnimationFrame(() => window.ConnectHubObserveEntrances?.(body));
   }
 
   function refreshPulse() {
