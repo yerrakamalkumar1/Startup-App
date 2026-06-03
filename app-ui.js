@@ -248,6 +248,18 @@ const AppUX = (() => {
     }
 
     const sidebarMenu = document.querySelector(".sidebar-menu");
+    if (sidebarMenu && !document.getElementById("feedShortcutItem")) {
+      const item = document.createElement("li");
+      item.id = "feedShortcutItem";
+      item.className = "sidebar-item";
+      item.innerHTML = '<a><i data-lucide="newspaper"></i>Feed</a>';
+      item.addEventListener("click", () => {
+        playSound("nav");
+        if (window.go && homeView) window.go(homeView);
+        closeMenu();
+      });
+      sidebarMenu.insertBefore(item, sidebarMenu.firstElementChild?.nextSibling || null);
+    }
     if (sidebarMenu && !document.getElementById("mobileLogoutItem")) {
       const item = document.createElement("li");
       item.id = "mobileLogoutItem";
@@ -2236,13 +2248,30 @@ const AppUX = (() => {
 
   function renderSocialPortal() {
     return `
-      <section class="ch-social-portal">
-        <div class="ch-portal-head">
-          <div><span class="section-eyebrow">Network pulse</span><h2>Reels & Posts</h2></div>
-          <button class="btn btn-primary" type="button" onclick="AppUX.openPostComposer()"><i data-lucide="plus"></i>Post</button>
+      <section class="ch-social-portal" aria-label="Feed Dashboard">
+        <div class="ch-feed-main">
+          <div class="ch-portal-head">
+            <div><span class="section-eyebrow">Feed dashboard</span><h2>Stories & Posts</h2></div>
+            <button class="btn btn-primary ch-desktop-post-btn" type="button" onclick="AppUX.openPostComposer()"><i data-lucide="plus"></i>Post</button>
+          </div>
+          <div class="ch-reels-row">${CH_REELS.map(renderReelBubble).join("")}</div>
+          <div class="ch-post-feed">${CH_POSTS.map(renderPostCard).join("")}</div>
         </div>
-        <div class="ch-reels-row">${CH_REELS.map(renderReelBubble).join("")}</div>
-        <div class="ch-post-feed">${CH_POSTS.map(renderPostCard).join("")}</div>
+        <aside class="ch-feed-aside" aria-label="Feed insights">
+          <article>
+            <h3>Trending hashtags</h3>
+            <div class="ch-aside-tags">${["startup", "freelance", "SaaS", "seed", "figma", "india"].map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${tag}</button>`).join("")}</div>
+          </article>
+          <article>
+            <h3>Suggested connections</h3>
+            ${CH_POSTS.slice(1, 4).map(post => `<a class="ch-suggested-user" href="profile.html?name=${encodeURIComponent(post.name)}"><span>${escapeHTML(post.initials)}</span><strong>${escapeHTML(post.name)}</strong><small>${escapeHTML(post.role)} · ${escapeHTML(post.city)}</small></a>`).join("")}
+          </article>
+          <article>
+            <h3>Active users</h3>
+            <p><span class="ch-live-dot"></span> 24 members active around Indian startup hubs</p>
+          </article>
+        </aside>
+        <button class="ch-mobile-post-fab" type="button" onclick="AppUX.openPostComposer()" aria-label="Create post"><i data-lucide="sparkles"></i></button>
       </section>
       ${renderReelModal()}
       ${renderPostComposer()}`;

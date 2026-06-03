@@ -680,6 +680,8 @@ function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
   const requestedPath = urlPath === "/"
     ? "/index.html"
+    : /^\/feed\/?$/.test(urlPath)
+      ? "/dashboard-freelancer.html"
     : /^\/profile\/[^/]+\/?$/.test(urlPath)
       ? "/profile.html"
       : /^\/dashboard\/aihub\/?$/.test(urlPath)

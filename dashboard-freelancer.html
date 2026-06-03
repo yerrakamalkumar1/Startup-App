@@ -117,7 +117,8 @@
   }
 
   const user = getCurrentUser();
-  if (!user || user.role !== 'freelancer') window.location.href = 'index.html';
+  if (!user) window.location.href = 'index.html';
+  if (user.role !== 'freelancer') window.location.href = getDashboardUrl(user.role);
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
