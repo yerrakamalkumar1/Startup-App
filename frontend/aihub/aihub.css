@@ -31,6 +31,19 @@ body {
   color: var(--aihub-text);
 }
 
+body,
+.aihub-shell {
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+.aihub-header h1,
+.aihub-panel h2,
+.aihub-insight-card h3,
+.nearby-access-card h2,
+.nearby-modal-card h2 {
+  font-family: "Syne", "DM Sans", system-ui, sans-serif;
+}
+
 .aihub-shell {
   max-width: 1180px;
   margin: 0 auto;
@@ -198,6 +211,334 @@ body {
 .aihub-search-form input:focus {
   border-color: var(--aihub-primary);
   box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.16);
+}
+
+.nearby-access-card {
+  min-height: 360px;
+  border: 1px solid rgba(15,118,110,0.2);
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 32px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(45,212,191,0.2), transparent 34%),
+    radial-gradient(circle at 80% 10%, rgba(124,58,237,0.18), transparent 30%),
+    var(--aihub-card);
+}
+
+.nearby-pin {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 2.4rem;
+  background: var(--aihub-primary-soft);
+  box-shadow: 0 0 0 12px rgba(15,118,110,0.08);
+}
+
+.manual-city {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  width: min(440px, 100%);
+}
+
+.manual-city input {
+  flex: 1;
+  border-radius: 14px;
+  border: 1px solid var(--aihub-border);
+  background: var(--aihub-bg);
+  color: var(--aihub-text);
+  padding: 12px;
+}
+
+.manual-city button,
+.nearby-sort button,
+.nearby-business-card button,
+.nearby-modal-actions button,
+.nearby-modal-actions a,
+.map-popup button {
+  border: 0;
+  border-radius: 999px;
+  background: var(--aihub-primary);
+  color: #fff;
+  font-weight: 800;
+  padding: 9px 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nearby-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.nearby-toolbar h3 {
+  margin: 0;
+}
+
+.nearby-toolbar p {
+  margin: 4px 0 0;
+  color: var(--aihub-muted);
+}
+
+.nearby-toolbar label {
+  min-width: 180px;
+  display: grid;
+  gap: 4px;
+  color: var(--aihub-muted);
+  font-weight: 800;
+}
+
+.nearby-toolbar input {
+  accent-color: var(--aihub-primary);
+}
+
+.enhanced-map {
+  height: 420px;
+  border: 1px solid var(--aihub-border);
+  overflow: hidden;
+}
+
+.sector-pin {
+  transition: transform 0.25s ease;
+}
+
+.leaflet-marker-icon:hover {
+  transform: translateY(-8px) scale(1.08);
+}
+
+.map-popup {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.map-popup span {
+  color: var(--aihub-primary);
+  font-weight: 900;
+}
+
+.map-popup button {
+  margin-right: 5px;
+  padding: 7px 10px;
+}
+
+.nearby-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.nearby-sort button {
+  background: var(--aihub-primary-soft);
+  color: var(--aihub-primary);
+  border: 1px solid rgba(15,118,110,0.18);
+}
+
+.nearby-card-row {
+  display: flex;
+  overflow-x: auto;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.nearby-business-card {
+  flex: 0 0 300px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  border: 1px solid var(--aihub-border);
+  border-radius: 20px;
+  background: var(--aihub-card);
+  padding: 14px;
+  box-shadow: var(--aihub-shadow);
+  transition: all 0.25s ease;
+}
+
+.nearby-business-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--sector);
+}
+
+.nearby-sector-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--sector);
+  color: #fff;
+  font-weight: 900;
+}
+
+.nearby-business-card h3 {
+  margin: 0 0 4px;
+  color: var(--aihub-text);
+}
+
+.nearby-business-card p {
+  margin: 0;
+}
+
+.nearby-business-card p span {
+  display: inline-flex;
+  margin: 0 4px 6px 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--aihub-primary-soft);
+  color: var(--aihub-primary);
+  font-weight: 800;
+  font-size: 0.75rem;
+}
+
+.nearby-business-card strong,
+.nearby-business-card small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--aihub-muted);
+}
+
+.nearby-business-card div div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nearby-business-card button:nth-child(2),
+.nearby-business-card button:nth-child(3) {
+  background: var(--aihub-primary-soft);
+  color: var(--aihub-primary);
+}
+
+.nearby-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.nearby-modal.active {
+  display: flex;
+}
+
+.nearby-modal-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(4,9,10,0.72);
+  backdrop-filter: blur(16px);
+}
+
+.nearby-modal-card {
+  width: min(680px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  position: relative;
+  border-radius: 28px 28px 0 0;
+  background: var(--aihub-card);
+  color: var(--aihub-text);
+  padding: 18px;
+  box-shadow: 0 -20px 80px rgba(0,0,0,0.36);
+  animation: slideSheet 0.28s ease;
+}
+
+.nearby-close {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(15,118,110,0.14);
+  color: var(--aihub-text);
+  font-size: 1.2rem;
+}
+
+.nearby-cover {
+  height: 170px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 25% 20%, color-mix(in srgb, var(--sector) 45%, transparent), transparent 36%),
+    linear-gradient(135deg, var(--sector), #061111);
+}
+
+.nearby-cover span {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+  font-weight: 900;
+  font-size: 2rem;
+}
+
+.nearby-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.nearby-profile-stats span {
+  border-radius: 14px;
+  background: var(--aihub-primary-soft);
+  color: var(--aihub-primary);
+  padding: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.nearby-modal-card textarea {
+  width: 100%;
+  min-height: 130px;
+  border-radius: 16px;
+  border: 1px solid var(--aihub-border);
+  background: var(--aihub-bg);
+  color: var(--aihub-text);
+  padding: 12px;
+  resize: vertical;
+}
+
+.nearby-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@keyframes slideSheet {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 720px) {
+  .nearby-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .enhanced-map {
+    height: 320px;
+  }
+  .nearby-business-card {
+    flex-basis: 86vw;
+  }
+  .nearby-profile-stats {
+    grid-template-columns: 1fr;
+  }
 }
 
 .aihub-search-form button,

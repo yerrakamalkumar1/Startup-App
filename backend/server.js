@@ -27,6 +27,12 @@ try {
 } catch {
   handleAiHubApi = null;
 }
+let aiService = null;
+try {
+  aiService = require("./services/aiService");
+} catch {
+  aiService = null;
+}
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -727,6 +733,129 @@ async function handleApi(req, res) {
   if (handleAiHubApi && await handleAiHubApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
   if (handleAiApi && await handleAiApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
 
+  if (route === "/api/nearby" && req.method === "GET") {
+    const lat = Number(url.searchParams.get("lat") || 17.385);
+    const lng = Number(url.searchParams.get("lng") || 78.4867);
+    const radius = Number(url.searchParams.get("radius") || 10);
+    const city = url.searchParams.get("city") || "Hyderabad";
+    const data = aiService
+      ? await aiService.nearbyOpportunities({ lat, lng, city, radius_km: radius, profiles: allPeople(publicDB()) })
+      : { results: [] };
+    const businesses = (data.results || []).filter(item => Number(item.distanceKm || 0) <= radius);
+    return sendJson(res, 200, { success: true, businesses, userCity: data.userCity || city, count: businesses.length });
+  }
+
+  if (route === "/api/auth/logout" && req.method === "POST") return sendJson(res, 200, { success: true });
+  if (route === "/api/users/me" && req.method === "GET") {
+    const profile = auth?.email ? (readJson(USERS_FILE, {})[auth.email]?.profile || DEMO_USERS[auth.email]) : null;
+    return sendJson(res, profile ? 200 : 401, profile ? { success: true, user: { ...profile, email: auth.email } } : { success: false, message: "Not signed in." });
+  }
+  if (route === "/api/users/me" && req.method === "PUT") {
+    const body = await readBody(req);
+    const users = readJson(USERS_FILE, {});
+    const email = normalizeEmail(auth?.email || body.email);
+    if (!email || !users[email]) return sendJson(res, 404, { success: false, message: "Profile account not found." });
+    users[email].profile = { ...users[email].profile, ...body };
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, user: users[email].profile });
+  }
+  if (route.startsWith("/api/users/") && req.method === "GET") {
+    const id = decodeURIComponent(route.replace("/api/users/", ""));
+    const profile = allPeople(publicDB()).find(item => item.handle === id || item.id === id || String(item.name || "").toLowerCase() === id.toLowerCase());
+    return sendJson(res, profile ? 200 : 404, profile ? { success: true, user: profile } : { success: false, message: "User not found." });
+  }
+
+  if (route === "/api/explore" && req.method === "GET") {
+    const db = publicDB();
+    const type = String(url.searchParams.get("type") || "").toLowerCase();
+    const city = String(url.searchParams.get("city") || "").toLowerCase();
+    const sector = String(url.searchParams.get("sector") || "").toLowerCase();
+    let results = allPeople(db);
+    if (type) results = results.filter(item => String(item.role || "").toLowerCase().includes(type));
+    if (city) results = results.filter(item => String(item.city || item.location || "").toLowerCase().includes(city));
+    if (sector) results = results.filter(item => String(item.sector || item.title || "").toLowerCase().includes(sector));
+    return sendJson(res, 200, { success: true, results });
+  }
+
+  if (route === "/api/posts/feed" && req.method === "GET") return sendJson(res, 200, { success: true, posts: publicDB().profilePosts || [] });
+  if (route === "/api/posts" && req.method === "POST") {
+    const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const post = { id: `post-${Date.now()}`, author: auth?.name || body.author || "ConnectHub member", content: body.content || "", images: body.images || [], hashtags: body.hashtags || [], likes: [], comments: [], saves: [], createdAt: new Date().toISOString() };
+    db.profilePosts = [...(db.profilePosts || []), post];
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, post, db: publicDB() });
+  }
+  if (route.match(/^\/api\/posts\/[^/]+\/like$/) && req.method === "PUT") {
+    const id = route.split("/")[3];
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const post = (db.profilePosts || []).find(item => item.id === id);
+    if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
+    post.likes = post.likes || [];
+    if (!post.likes.includes(auth?.name || "guest")) post.likes.push(auth?.name || "guest");
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, post, db: publicDB() });
+  }
+  if (route.match(/^\/api\/posts\/[^/]+\/comment$/) && req.method === "POST") {
+    const id = route.split("/")[3];
+    const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const post = (db.profilePosts || []).find(item => item.id === id);
+    if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
+    post.comments = post.comments || [];
+    post.comments.push({ user: auth?.name || body.user || "Guest", text: body.text || "", createdAt: new Date().toISOString() });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, post, db: publicDB() });
+  }
+  if (route === "/api/reels/feed" && req.method === "GET") return sendJson(res, 200, { success: true, reels: publicDB().reels || [] });
+  if (route === "/api/reels" && req.method === "POST") {
+    const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const reel = { id: `reel-${Date.now()}`, author: auth?.name || body.author || "ConnectHub member", videoUrl: body.videoUrl || "", thumbnail: body.thumbnail || "", caption: body.caption || "", views: 0, likes: [], comments: [], duration: body.duration || 30, createdAt: new Date().toISOString() };
+    db.reels = [...(db.reels || []), reel];
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, reel, db: publicDB() });
+  }
+
+  if (route === "/api/messages/conversations" && req.method === "GET") {
+    const userName = auth?.name || url.searchParams.get("user") || "";
+    const db = publicDB();
+    const rows = (db.messages || [])
+      .filter(message => message.from === userName || message.to === userName)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return sendJson(res, 200, { success: true, conversations: rows });
+  }
+  if (route.match(/^\/api\/messages\/[^/]+$/) && req.method === "GET") {
+    const other = decodeURIComponent(route.replace("/api/messages/", ""));
+    const userName = auth?.name || url.searchParams.get("user") || "";
+    const messages = (publicDB().messages || []).filter(message =>
+      (message.from === userName && (message.to === other || message.to === decodeURIComponent(other))) ||
+      (message.to === userName && (message.from === other || message.from === decodeURIComponent(other)))
+    );
+    return sendJson(res, 200, { success: true, messages });
+  }
+  if (route === "/api/messages" && req.method === "POST") {
+    const body = await readBody(req);
+    req.url = "/api/messages/send";
+    body.from = body.from || auth?.name;
+    body.to = body.to || body.receiver;
+    body.text = body.text || body.content;
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const message = { id: `msg-${Date.now()}`, from: body.from, to: body.to, text: body.text, attachment: body.mediaUrl || body.attachment || "", read: false, createdAt: new Date().toISOString() };
+    if (!message.from || !message.to || !message.text) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
+    db.messages = [...(db.messages || []), message];
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, message, db: publicDB() });
+  }
+  if (route === "/api/notifications/read" && req.method === "PUT") {
+    const db = readJson(DB_FILE, INITIAL_DB);
+    (db.notifications || []).forEach(note => { note.read = true; });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, db: publicDB() });
+  }
+  if (route === "/api/settings" && req.method === "GET") return sendJson(res, 200, { success: true, settings: {} });
+  if (route === "/api/settings" && req.method === "PUT") return sendJson(res, 200, { success: true, settings: await readBody(req) });
+
   if (route === "/api/state" && req.method === "GET") {
     return sendJson(res, 200, { db: publicDB() });
   }
@@ -771,7 +900,7 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, db: publicDB() });
   }
 
-  if (route === "/api/login" && req.method === "POST") {
+  if ((route === "/api/login" || route === "/api/auth/login") && req.method === "POST") {
     const { email: rawEmail, password } = await readBody(req);
     const email = normalizeEmail(rawEmail);
     if (DEMO_USERS[email]) {
@@ -786,7 +915,7 @@ async function handleApi(req, res) {
     return sendJson(res, 401, { success: false, message: "Invalid email or passcode." });
   }
 
-  if (route === "/api/register" && req.method === "POST") {
+  if ((route === "/api/register" || route === "/api/auth/register") && req.method === "POST") {
     const body = await readBody(req);
     const email = normalizeEmail(body.email);
     const users = readJson(USERS_FILE, {});
@@ -822,7 +951,7 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, user: safeProfile });
   }
 
-  if (route === "/api/password/request" && req.method === "POST") {
+  if ((route === "/api/password/request" || route === "/api/auth/forgot-password" || route === "/api/auth/verify-otp") && req.method === "POST") {
     const { email: rawEmail } = await readBody(req);
     const email = normalizeEmail(rawEmail);
     const users = readJson(USERS_FILE, {});
@@ -834,7 +963,7 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, message: "OTP sent to your email." });
   }
 
-  if (route === "/api/password/reset" && req.method === "POST") {
+  if ((route === "/api/password/reset" || route === "/api/auth/reset-password") && req.method === "POST") {
     const { email: rawEmail, otp, password } = await readBody(req);
     const email = normalizeEmail(rawEmail);
     if (!password || String(password).length < 4) {

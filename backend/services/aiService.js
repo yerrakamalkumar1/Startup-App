@@ -110,8 +110,99 @@ async function nearbyOpportunities(payload) {
   try {
     return await requestAi("/nearby-opportunities", payload);
   } catch {
-    return { results: localSearch({ query: payload.user_sector || "startup", profiles: payload.profiles || [], lat: payload.lat, lng: payload.lng }), fallback: true };
+    return { results: localNearbyBusinesses(payload), userCity: detectCity(payload.lat, payload.lng, payload.city), count: localNearbyBusinesses(payload).length, fallback: true };
   }
+}
+
+function detectCity(lat, lng, city = "") {
+  const label = String(city || "").toLowerCase();
+  const nlat = Number(lat || 0);
+  const nlng = Number(lng || 0);
+  if (label.includes("hyderabad") || (Math.abs(nlat - 17.385) < 0.7 && Math.abs(nlng - 78.4867) < 0.9)) return "Hyderabad";
+  if (label.includes("bangalore") || label.includes("bengaluru") || (Math.abs(nlat - 12.9716) < 0.7 && Math.abs(nlng - 77.5946) < 0.9)) return "Bangalore";
+  if (label.includes("mumbai") || (Math.abs(nlat - 19.076) < 0.7 && Math.abs(nlng - 72.8777) < 0.9)) return "Mumbai";
+  if (label.includes("delhi") || label.includes("ncr") || (Math.abs(nlat - 28.6139) < 0.8 && Math.abs(nlng - 77.209) < 1)) return "Delhi NCR";
+  return city || "Your City";
+}
+
+function localNearbyBusinesses(payload = {}) {
+  const lat = Number(payload.lat || 17.385);
+  const lng = Number(payload.lng || 78.4867);
+  const city = detectCity(lat, lng, payload.city);
+  const cityRows = {
+    Hyderabad: [
+      ["Zomato Partner Kitchen", "FoodTech", "Cloud kitchen, hiring delivery ops", 0.006, 0.004, "Growth"],
+      ["InMobi Regional Office", "SaaS", "Mobile ad-tech, Seed funded", 0.011, -0.006, "Seed"],
+      ["PayU India", "FinTech", "Fintech payments, Series B", -0.015, 0.01, "Series B"],
+      ["HealthKart Hub", "HealthTech", "Health supplements, hiring marketing", 0.01, 0.012, "Hiring"],
+      ["UrbanCompany Hyderabad", "Consumer", "Home services platform, expanding", -0.004, -0.006, "Growth"],
+      ["Swiggy Dark Store", "Logistics", "Quick commerce hub, hiring", 0.02, -0.012, "Hiring"],
+      ["GITAM Innovation Center", "EdTech", "EdTech incubator, looking for mentors", -0.018, 0.012, "Incubator"],
+      ["T-Hub Startup", "SaaS", "Gov-backed startup hub, 300+ startups", 0.014, 0.015, "Hub"],
+      ["Dhruva Space", "Manufacturing", "Space tech startup, Seed stage", -0.026, 0.02, "Seed"],
+      ["Mihup.ai", "SaaS", "Conversational AI, hiring ML engineers", 0.022, 0.008, "Hiring"]
+    ],
+    Bangalore: [
+      ["Zepto Dark Store", "Logistics", "Quick commerce, Pre-IPO", 0.005, 0.004, "Pre-IPO"],
+      ["Meesho Office", "Consumer", "Social commerce, Series F", 0.014, -0.01, "Series F"],
+      ["Cred HQ", "FinTech", "Credit card payments, Series E", -0.012, 0.015, "Series E"],
+      ["Unacademy Hub", "EdTech", "Online learning, Series F", 0.01, 0.008, "Series F"],
+      ["Bounce Electric", "Logistics", "EV rentals, Seed funded, hiring", -0.008, -0.006, "Seed"],
+      ["Groww Office", "FinTech", "Investment app, Series D", 0.02, -0.013, "Series D"],
+      ["Navi Technologies", "FinTech", "Insurance + lending, IPO stage", -0.018, 0.02, "IPO"],
+      ["Classplus", "EdTech", "Ed platform for tutors, Series D", 0.013, 0.018, "Series D"],
+      ["Razorpay Office", "SaaS", "Payment gateway, Series F", -0.016, -0.014, "Series F"],
+      ["Darwinbox", "SaaS", "HR tech, Series D, hiring", 0.025, 0.006, "Hiring"]
+    ],
+    Mumbai: [
+      ["Nykaa Office", "Consumer", "Beauty e-commerce, listed", 0.008, 0.006, "Listed"],
+      ["Dream11 HQ", "Consumer", "Fantasy sports, Unicorn", -0.017, 0.01, "Unicorn"],
+      ["OYO Mumbai", "Property", "Hotel tech, Series G", 0.006, -0.007, "Series G"],
+      ["Mamaearth", "Consumer", "D2C personal care, listed", 0.013, 0.012, "Listed"],
+      ["Pepperfry Showroom", "Consumer", "Furniture marketplace, Series F", -0.021, 0.015, "Series F"],
+      ["Licious Hub", "FoodTech", "Fresh meat delivery, Unicorn", 0.011, -0.011, "Unicorn"],
+      ["Rupeek", "FinTech", "Gold loans, Series E", -0.016, -0.006, "Series E"],
+      ["Dunzo Hub", "Logistics", "Quick commerce, Series E", 0.004, 0.004, "Series E"],
+      ["Sequoia India Office", "Investor", "Top-tier VC, actively investing", -0.024, 0.018, "Investor"],
+      ["Nexus Venture Partners", "Investor", "Early stage VC, Seed-Series A", 0.02, -0.017, "Investor"]
+    ],
+    "Delhi NCR": [
+      ["Policybazaar", "FinTech", "Insurance marketplace, listed", 0.011, 0.008, "Listed"],
+      ["MakeMyTrip", "Consumer", "Travel platform, NASDAQ listed", -0.018, 0.012, "Listed"],
+      ["Zomato NCR", "FoodTech", "Food delivery, listed", 0.007, -0.006, "Listed"],
+      ["Info Edge", "SaaS", "Naukri parent, listed", -0.024, 0.018, "Listed"],
+      ["Snapdeal Office", "Consumer", "E-commerce, Series G", 0.015, -0.012, "Series G"],
+      ["IndiaMart", "SaaS", "B2B marketplace, listed", -0.02, -0.01, "Listed"],
+      ["Housing.com", "Property", "PropTech, Series D", 0.009, 0.01, "Series D"],
+      ["Delhivery", "Logistics", "Logistics, listed", -0.028, 0.02, "Listed"],
+      ["Vedantu", "EdTech", "Online tutoring, Series E", 0.018, -0.018, "Series E"],
+      ["Bharatpe", "FinTech", "Merchant payments, Unicorn", -0.014, 0.014, "Unicorn"]
+    ]
+  };
+  const rows = cityRows[city] || Array.from({ length: 10 }, (_, index) => {
+    const sectors = ["SaaS", "FinTech", "EdTech", "Consumer", "Logistics", "HealthTech", "Manufacturing"];
+    const sector = sectors[index % sectors.length];
+    return [`${city} ${sector} Hub ${index + 1}`, sector, `${sector} business near you on ConnectHub`, (index % 5 - 2) * 0.006, (index % 4 - 1) * 0.008, "Local"];
+  });
+  return rows.map(([name, sector, description, dlat, dlng, stage], index) => {
+    const rowLat = lat + dlat;
+    const rowLng = lng + dlng;
+    return {
+      id: slug(name),
+      source: "Nearby Business",
+      title: name,
+      name,
+      sector,
+      stage,
+      description,
+      city,
+      lat: Number(rowLat.toFixed(6)),
+      lng: Number(rowLng.toFixed(6)),
+      distanceKm: distanceKm(lat, lng, rowLat, rowLng),
+      matchPercent: Math.max(72, 96 - index * 3),
+      why: `Nearby ${sector} signal in ${city}, useful for local networking and opportunities.`
+    };
+  }).sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
 async function skillDemand(payload) {

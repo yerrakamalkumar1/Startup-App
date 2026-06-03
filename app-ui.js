@@ -68,7 +68,56 @@ const AppUX = (() => {
     installBottomNav();
     installMediaOptimizer();
     installAdvancedAppFeatures();
+    installPremiumInteractions();
     applyUserChrome();
+  }
+
+  const CH_REELS = [
+    { id: "create", name: "Your Story", initials: "+", role: "Create", city: "India", caption: "Share a reel, image, or announcement with your network.", views: "Create", new: false, type: "create" },
+    { id: "reel-technova", name: "TechNova", initials: "TN", role: "Startup", city: "Bangalore", caption: "We're hiring React Developers!", views: "2.3K", new: true, sector: "SaaS" },
+    { id: "reel-priya", name: "Priya Sharma", initials: "PS", role: "Freelancer", city: "Mumbai", caption: "Just completed a dashboard UI for a fintech client.", views: "1.1K", new: true, sector: "Design" },
+    { id: "reel-greeneats", name: "GreenEats", initials: "GE", role: "Startup", city: "Mumbai", caption: "Launching in 5 cities this June.", views: "874", new: false, sector: "FoodTech" },
+    { id: "reel-arjun", name: "Arjun Kapoor", initials: "AK", role: "Investor", city: "Delhi", caption: "Looking for SaaS startups in Seed stage.", views: "3.2K", new: true, sector: "Investor" },
+    { id: "reel-eduleap", name: "EduLeap", initials: "EL", role: "Startup", city: "Pune", caption: "Our beta crossed 10,000 users.", views: "2.8K", new: false, sector: "EdTech" },
+    { id: "reel-meera", name: "Meera Nair", initials: "MN", role: "Freelancer", city: "Chennai", caption: "Available for data analytics projects this month.", views: "654", new: true, sector: "Analytics" },
+    { id: "reel-logitrack", name: "LogiTrack", initials: "LT", role: "Startup", city: "Chennai", caption: "Pilot launch: 40 percent faster deliveries.", views: "988", new: false, sector: "Logistics" },
+    { id: "reel-sneha", name: "Sneha Patel", initials: "SP", role: "Freelancer", city: "Pune", caption: "New e-commerce platform delivered in 3 weeks.", views: "1.4K", new: true, sector: "Full Stack" }
+  ];
+
+  const CH_POSTS = [
+    { id: "post-rahul", name: "Rahul Mehta", role: "Startup", title: "TechNova", city: "Bangalore", initials: "RM", time: "3h", likes: 142, comments: 28, shares: 12, text: "Excited to announce TechNova just closed its seed round! Thank you to our early investors and team. We're building the future of B2B CRM for Indian SMEs. #startup #seed #SaaS", tags: ["startup", "seed", "SaaS"], accent: "#0f766e" },
+    { id: "post-priya", name: "Priya Sharma", role: "Freelancer", title: "UI/UX Designer", city: "Mumbai", initials: "PS", time: "6h", likes: 89, comments: 14, shares: 7, text: "Just delivered a complete design system for a fintech startup in 2 weeks. Clean, accessible, and scalable. Open to new projects this June. DM me or check my profile. #UIdesign #freelance #figma", tags: ["UIdesign", "freelance", "figma"], accent: "#7c3aed" },
+    { id: "post-sunita", name: "Sunita Rao", role: "Investor", title: "Angel Investor", city: "Bangalore", initials: "SR", time: "1d", likes: 231, comments: 47, shares: 31, text: "I'm actively looking for EdTech and Consumer startups in Seed stage. Ticket size: Rs 25L-Rs 1Cr. If you're building something impactful, drop me a message. #investing #edtech #india", tags: ["investing", "edtech", "india"], accent: "#f59e0b" },
+    { id: "post-greeneats", name: "GreenEats", role: "Startup", title: "FoodTech", city: "Mumbai", initials: "GE", time: "2d", likes: 178, comments: 33, shares: 16, text: "We've reduced food waste by 32 percent in our pilot kitchens using AI demand forecasting. This is what sustainable food tech looks like. #foodtech #sustainability #startup", tags: ["foodtech", "sustainability", "startup"], accent: "#10b981" },
+    { id: "post-karthik", name: "Karthik Raj", role: "Freelancer", title: "Android Developer", city: "Chennai", initials: "KR", time: "3d", likes: 67, comments: 9, shares: 4, text: "Available for Android projects starting June 10th. 5 years experience, 30+ apps delivered, Rs 950/hr. Let's build something great! #android #freelance #mobile", tags: ["android", "freelance", "mobile"], accent: "#3b82f6" },
+    { id: "post-dev", name: "Dev Malhotra", role: "Investor", title: "Sequoia Scout", city: "Mumbai", initials: "DM", time: "4d", likes: 312, comments: 61, shares: 45, text: "Spent the last week visiting startups in Tier 2 cities: Nagpur, Indore, Surat. The energy is incredible. Ecosystem is growing fast. #india #startups #tier2", tags: ["india", "startups", "tier2"], accent: "#ec4899" }
+  ];
+
+  function installPremiumInteractions() {
+    if (window.__connectHubPremiumInteractions) return;
+    window.__connectHubPremiumInteractions = true;
+    document.addEventListener("click", event => {
+      const button = event.target.closest("button, .btn, .sidebar-item a, .bottom-nav button");
+      if (!button) return;
+      const ripple = document.createElement("span");
+      ripple.className = "ch-ripple";
+      const rect = button.getBoundingClientRect();
+      ripple.style.left = `${event.clientX - rect.left}px`;
+      ripple.style.top = `${event.clientY - rect.top}px`;
+      button.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 620);
+    });
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in-view");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08 });
+    window.ConnectHubObserveEntrances = root => {
+      (root || document).querySelectorAll(".glass-card, .glass-panel, .settings-card, .ch-post-card, .ch-reel-bubble, .aihub-panel").forEach(item => observer.observe(item));
+    };
   }
 
   function installAdvancedAppFeatures() {
@@ -2176,6 +2225,191 @@ const AppUX = (() => {
     }
   }
 
+  function enhanceDashboardHome(view) {
+    const body = document.getElementById("body");
+    if (!body || view !== homeView) return;
+    if (body.querySelector(".ch-social-portal")) return;
+    body.insertAdjacentHTML("afterbegin", renderSocialPortal());
+    window.ConnectHubObserveEntrances?.(body);
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderSocialPortal() {
+    return `
+      <section class="ch-social-portal">
+        <div class="ch-portal-head">
+          <div><span class="section-eyebrow">Network pulse</span><h2>Reels & Posts</h2></div>
+          <button class="btn btn-primary" type="button" onclick="AppUX.openPostComposer()"><i data-lucide="plus"></i>Post</button>
+        </div>
+        <div class="ch-reels-row">${CH_REELS.map(renderReelBubble).join("")}</div>
+        <div class="ch-post-feed">${CH_POSTS.map(renderPostCard).join("")}</div>
+      </section>
+      ${renderReelModal()}
+      ${renderPostComposer()}`;
+  }
+
+  function renderReelBubble(reel, index) {
+    const action = reel.type === "create" ? "AppUX.openPostComposer()" : `AppUX.openReel('${reel.id}')`;
+    return `<button class="ch-reel-bubble ${reel.type === "create" ? "create" : ""}" type="button" onclick="${action}" style="--delay:${index * 50}ms">
+      <span class="ch-reel-ring"><span>${escapeHTML(reel.initials)}</span>${reel.new ? "<i></i>" : ""}</span>
+      <strong>${escapeHTML(reel.name)}</strong>
+    </button>`;
+  }
+
+  function renderPostCard(post, index) {
+    const safeName = post.name.replace(/'/g, "\\'");
+    return `<article class="ch-post-card" style="--accent:${post.accent};--delay:${index * 70}ms" data-post-id="${post.id}">
+      <header>
+        <button class="ch-avatar-button" type="button" onclick="AppUX.openProfileFromPost('${safeName}')">${escapeHTML(post.initials)}</button>
+        <div>
+          <h3><button type="button" onclick="AppUX.openProfileFromPost('${safeName}')">${escapeHTML(post.name)}</button> <span>${escapeHTML(post.role)}</span></h3>
+          <p>${escapeHTML(post.title)} - ${escapeHTML(post.city)} - ${escapeHTML(post.time)} ago</p>
+        </div>
+        <button class="ch-follow-btn" type="button" onclick="AppUX.toggleFollow(this)">Follow</button>
+      </header>
+      <p class="ch-post-text">${linkPostTags(post.text)}</p>
+      <div class="ch-post-visual"><div><i data-lucide="image"></i><strong>${escapeHTML(post.title)}</strong><span>${escapeHTML(post.role)} update</span></div></div>
+      <div class="ch-post-tags">${post.tags.map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${escapeHTML(tag)}</button>`).join("")}</div>
+      <footer>
+        <button type="button" onclick="AppUX.likePost(this, '${post.id}')"><i data-lucide="thumbs-up"></i><span>Like</span><b>${post.likes}</b></button>
+        <button type="button" onclick="AppUX.togglePostComments('${post.id}')"><i data-lucide="message-circle"></i><span>Comment</span><b>${post.comments}</b></button>
+        <button type="button" onclick="AppUX.sharePost('${post.id}')"><i data-lucide="send"></i><span>Share</span><b>${post.shares}</b></button>
+        <button type="button" onclick="AppUX.savePost(this)"><i data-lucide="bookmark"></i><span>Save</span></button>
+      </footer>
+      <div id="comments-${post.id}" class="ch-comments" hidden>
+        <p><strong>Kamal:</strong> Great signal for Indian startups.</p>
+        <p><strong>ConnectHub:</strong> Message them directly from Explore.</p>
+      </div>
+    </article>`;
+  }
+
+  function linkPostTags(text = "") {
+    return escapeHTML(text).replace(/#([a-z0-9_]+)/gi, `<button type="button" class="inline-tag" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('$1')">#$1</button>`);
+  }
+
+  function renderReelModal() {
+    return `<section id="chReelModal" class="ch-reel-modal" aria-hidden="true">
+      <button class="ch-reel-close" type="button" onclick="AppUX.closeReel()" aria-label="Close">x</button>
+      <button class="ch-reel-nav prev" type="button" onclick="AppUX.prevReel()" aria-label="Previous"><i data-lucide="chevron-left"></i></button>
+      <div class="ch-reel-stage"><span class="ch-reel-progress"><i></i></span><div class="ch-reel-card" id="chReelCard"></div></div>
+      <button class="ch-reel-nav next" type="button" onclick="AppUX.nextReel()" aria-label="Next"><i data-lucide="chevron-right"></i></button>
+    </section>`;
+  }
+
+  function renderPostComposer() {
+    return `<section id="chPostComposer" class="modal-overlay ch-post-composer">
+      <div class="modal-content glass-panel">
+        <div class="modal-header"><h3 class="modal-title">Create post</h3><button class="close-btn" onclick="AppUX.closePostComposer()">&times;</button></div>
+        <textarea id="chPostText" class="form-control" rows="5" placeholder="What's on your mind?"></textarea>
+        <div class="ch-post-toolbar">
+          <button type="button"><i data-lucide="image"></i>Photo</button>
+          <button type="button"><i data-lucide="video"></i>Video</button>
+          <button type="button"><i data-lucide="hash"></i>Hashtag</button>
+          <button type="button"><i data-lucide="map-pin"></i>Location</button>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="AppUX.publishComposedPost()"><i data-lucide="send"></i>Post Now</button>
+      </div>
+    </section>`;
+  }
+
+  let activeReelIndex = 1;
+
+  function openReel(id) {
+    activeReelIndex = Math.max(1, CH_REELS.findIndex(reel => reel.id === id));
+    renderActiveReel();
+    document.getElementById("chReelModal")?.classList.add("active");
+    playSound("nav");
+  }
+
+  function renderActiveReel() {
+    const reel = CH_REELS[activeReelIndex] || CH_REELS[1];
+    const card = document.getElementById("chReelCard");
+    if (!card) return;
+    card.innerHTML = `
+      <div class="ch-reel-media" style="--accent:${sectorColor(reel.sector)}"><span>${escapeHTML(reel.initials)}</span></div>
+      <div class="ch-reel-overlay"><strong>${escapeHTML(reel.name)}</strong><span>${escapeHTML(reel.role)} - ${escapeHTML(reel.city)}</span><p>${escapeHTML(reel.caption)}</p></div>
+      <div class="ch-reel-actions">
+        <button onclick="AppUX.playSound('done')"><i data-lucide="heart"></i><span>${escapeHTML(reel.views)}</span></button>
+        <button><i data-lucide="message-circle"></i><span>Comment</span></button>
+        <button onclick="AppUX.sharePublicProfile()"><i data-lucide="share-2"></i><span>Share</span></button>
+        <button onclick="AppUX.toggleFollow(this)"><i data-lucide="user-plus"></i><span>Follow</span></button>
+      </div>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeReel() { document.getElementById("chReelModal")?.classList.remove("active"); }
+  function nextReel() { activeReelIndex = activeReelIndex >= CH_REELS.length - 1 ? 1 : activeReelIndex + 1; renderActiveReel(); }
+  function prevReel() { activeReelIndex = activeReelIndex <= 1 ? CH_REELS.length - 1 : activeReelIndex - 1; renderActiveReel(); }
+
+  function sectorColor(sector = "") {
+    if (/fin|invest/i.test(sector)) return "#f59e0b";
+    if (/ed/i.test(sector)) return "#7c3aed";
+    if (/food/i.test(sector)) return "#f97316";
+    if (/log/i.test(sector)) return "#3b82f6";
+    return "#0f766e";
+  }
+
+  function openPostComposer() { document.getElementById("chPostComposer")?.classList.add("active"); }
+  function closePostComposer() { document.getElementById("chPostComposer")?.classList.remove("active"); }
+
+  function publishComposedPost() {
+    const text = document.getElementById("chPostText")?.value.trim();
+    if (!text) return showToast("Write something first", "warning");
+    closePostComposer();
+    showToast("Post published to your ConnectHub feed");
+    playSound("done");
+  }
+
+  function likePost(button) {
+    button.classList.toggle("active");
+    const count = button.querySelector("b");
+    if (count && !button.dataset.liked) {
+      count.textContent = String(Number(count.textContent || 0) + 1);
+      button.dataset.liked = "true";
+    }
+    burst(button, "heart");
+    showToast("Post liked. The creator will be notified.");
+  }
+
+  function savePost(button) {
+    button.classList.toggle("active");
+    showToast(button.classList.contains("active") ? "Saved for later" : "Removed from saved");
+  }
+
+  function togglePostComments(id) {
+    const section = document.getElementById(`comments-${id}`);
+    if (section) section.hidden = !section.hidden;
+  }
+
+  function toggleFollow(button) {
+    const following = button.classList.toggle("following");
+    button.textContent = following ? "Following" : "Follow";
+    showToast(following ? "Connection signal sent" : "Follow removed");
+  }
+
+  function sharePost(id) {
+    navigator.clipboard?.writeText(`${location.origin}${location.pathname}#${id}`);
+    showToast("Post link copied");
+  }
+
+  function openProfileFromPost(name) {
+    saveExploreRecent({ name, role: "Member", avatarInitials: initialsForName(name) });
+    window.location.href = `profile.html?name=${encodeURIComponent(name)}`;
+  }
+
+  function burst(target, type = "heart") {
+    const icon = type === "heart" ? "♥" : "•";
+    for (let i = 0; i < 7; i += 1) {
+      const particle = document.createElement("span");
+      particle.className = "ch-burst";
+      particle.textContent = icon;
+      particle.style.setProperty("--x", `${(Math.random() - 0.5) * 90}px`);
+      particle.style.setProperty("--y", `${-20 - Math.random() * 70}px`);
+      target.appendChild(particle);
+      setTimeout(() => particle.remove(), 720);
+    }
+  }
+
   function onView(view) {
     if (currentView && currentView !== view) historyStack.push(currentView);
     currentView = view;
@@ -2185,6 +2419,7 @@ const AppUX = (() => {
     refreshPulse();
     updateBackButton();
     updateBottomNav();
+    enhanceDashboardHome(view);
     playSound("nav");
   }
 
@@ -2312,8 +2547,66 @@ const AppUX = (() => {
             <button class="btn btn-secondary danger-soft" type="button" onclick="handleLogout()"><i data-lucide="log-out"></i>Logout</button>
           </article>
         </div>
+        ${renderAdvancedSettings(role)}
       </section>`;
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderAdvancedSettings(role) {
+    const roleName = role.includes("startup") ? "Startup" : role.includes("investor") ? "Investor" : "Freelancer";
+    return `<section class="advanced-settings">
+      <div class="advanced-settings-head">
+        <span class="section-eyebrow">Advanced controls</span>
+        <h2>Settings for ${escapeHTML(roleName)} Portal</h2>
+        <p>Professional-grade controls inspired by modern networking apps. These are saved visually now and ready for backend persistence through /api/settings.</p>
+      </div>
+      <div class="settings-nav-grid">
+        ${[
+          ["user-cog", "Profile & Identity", "Photo, cover, bio, skills, portfolio, WhatsApp, LinkedIn, GitHub."],
+          ["shield-check", "Privacy & Security", "Visibility, messages, contact info, password, 2FA, sessions."],
+          ["bell", "Notifications", "Email and push toggles, quiet hours, sounds, digest frequency."],
+          ["palette", "Appearance", "Theme, accent color, font size, compact mode, reduced motion."],
+          ["briefcase", "Professional Preferences", "Availability, hiring status, ticket size, sectors, work mode."],
+          ["sparkles", "AI & Recommendations", "Smart matches, profile summary, location discovery, AI writing."],
+          ["credit-card", "Billing & Subscription", "Free plan, Pro preview, promo code, payment history."],
+          ["languages", "Language & Region", "English, Hindi, Telugu, Tamil, Kannada, Marathi, INR and IST."],
+          ["accessibility", "Accessibility", "High contrast, reduce motion, large targets, focus indicators."],
+          ["link", "Connected Apps", "WhatsApp, LinkedIn, GitHub, Instagram, Calendar, Notion."],
+          ["ban", "Blocked Users", "Manage blocked users and unblock profiles."],
+          ["bar-chart-3", "Data & Analytics", "Views, search appearances, success rate, data export."],
+          ["help-circle", "Help & Support", "FAQ, support email, call support, bug report, feature request."],
+          ["log-out", "Account Actions", "Switch role, export profile PDF, sign out, deactivate, delete."]
+        ].map(([icon, title, text]) => `
+          <article class="settings-card advanced-card">
+            <div class="settings-card-head"><i data-lucide="${icon}"></i><div><h3>${title}</h3><p>${text}</p></div></div>
+            ${renderAdvancedControls(title, role)}
+          </article>`).join("")}
+      </div>
+    </section>`;
+  }
+
+  function renderAdvancedControls(title, role) {
+    if (title === "Appearance") {
+      return `<div class="settings-form">
+        <label>Accent color</label><div class="accent-swatches">${["#0f766e", "#7c3aed", "#2563eb", "#10b981", "#f97316", "#ec4899", "#ef4444", "#f59e0b"].map(color => `<button type="button" style="--swatch:${color}" onclick="document.documentElement.style.setProperty('--teal','${color}'); AppUX.showToast('Accent preview applied')"></button>`).join("")}</div>
+        <label>Animation speed</label><select class="form-control"><option>Normal</option><option>Reduced</option><option>Off</option></select>
+        <label>Card style</label><select class="form-control"><option>Rounded</option><option>Sharp</option><option>Minimal</option></select>
+      </div>`;
+    }
+    if (title === "Notifications") {
+      return `<div class="settings-toggle-list">${["Connection requests", "Messages", "Profile views", "Job matches", "Investor interest", "Post likes", "Weekly digest"].map(label => `<label><span>${label}</span><input type="checkbox" checked></label>`).join("")}</div>`;
+    }
+    if (title === "Professional Preferences") {
+      const roleSpecific = role.includes("investor") ? "Ticket size and preferred sectors" : role.includes("startup") ? "Hiring and fundraising status" : "Availability and project budget";
+      return `<div class="settings-form"><input class="form-control" placeholder="${roleSpecific}"><select class="form-control"><option>Available Now</option><option>Available Soon</option><option>Paused</option></select></div>`;
+    }
+    if (title === "Help & Support") {
+      return `<div class="settings-actions"><a class="btn btn-secondary" href="mailto:support@connecthub.in">Email Support</a><a class="btn btn-secondary" href="tel:6301394850">Call 6301394850</a></div>`;
+    }
+    if (title === "Account Actions") {
+      return `<div class="settings-actions"><button class="btn btn-secondary" onclick="AppUX.showToast('Role switch will be available after backend verification')">Switch Role</button><button class="btn btn-secondary danger-soft" onclick="handleLogout()">Sign Out</button></div>`;
+    }
+    return `<div class="settings-actions"><button class="btn btn-secondary" onclick="AppUX.showToast('${escapeAttr(title)} saved locally')">Configure</button><button class="btn btn-primary" onclick="AppUX.showToast('Saved')">Save</button></div>`;
   }
 
   function setThemeMode(mode) {
@@ -2468,5 +2761,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, toggleFollow, sharePost, openProfileFromPost };
 })();

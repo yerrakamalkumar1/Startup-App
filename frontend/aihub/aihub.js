@@ -7,15 +7,10 @@
     socket: null
   };
 
-  const roleModules = {
-    freelancer: window.ConnectHubFreelancerHub,
-    startup: window.ConnectHubStartupHub,
-    investor: window.ConnectHubInvestorHub
-  };
-
   document.addEventListener("DOMContentLoaded", init);
 
   function init() {
+    applyManualCityFromUrl();
     document.querySelector(".aihub-shell").dataset.role = state.role;
     document.getElementById("aihubRolePill").textContent = labelRole(state.role);
     setupFilters();
@@ -26,6 +21,23 @@
     window.ConnectHubAIChatbot?.init({ role: state.role, getLocation: () => state.location });
     window.ConnectHubAINotifications?.init();
     renderActiveTab();
+  }
+
+  function applyManualCityFromUrl() {
+    const params = new URLSearchParams(location.search);
+    const city = params.get("city");
+    if (!city) return;
+    const cityMap = {
+      hyderabad: { lat: 17.385, lng: 78.4867, city: "Hyderabad" },
+      bengaluru: { lat: 12.9716, lng: 77.5946, city: "Bangalore" },
+      bangalore: { lat: 12.9716, lng: 77.5946, city: "Bangalore" },
+      mumbai: { lat: 19.076, lng: 72.8777, city: "Mumbai" },
+      delhi: { lat: 28.6139, lng: 77.209, city: "Delhi NCR" },
+      pune: { lat: 18.5204, lng: 73.8567, city: "Pune" },
+      chennai: { lat: 13.0827, lng: 80.2707, city: "Chennai" }
+    };
+    const key = city.trim().toLowerCase();
+    state.location = { ...(cityMap[key] || { lat: 17.385, lng: 78.4867, city: city.trim() }), source: "manual" };
   }
 
   function detectRole() {
@@ -43,7 +55,10 @@
   function setupLocationFlow() {
     const consent = localStorage.getItem("ch_location_consent");
     const modal = document.getElementById("aihubLocationModal");
-    if (consent === "true") {
+    if (state.location.source === "manual") {
+      closeLocationModal();
+      document.getElementById("aihubLocationBadge").textContent = `Using ${state.location.city} for nearby AI suggestions.`;
+    } else if (consent === "true") {
       requestGps();
     } else if (consent === "false") {
       useIpFallback();
@@ -192,13 +207,26 @@
   }
 
   async function renderActiveTab() {
+    const roleModules = {
+      freelancer: window.ConnectHubFreelancerHub,
+      startup: window.ConnectHubStartupHub,
+      investor: window.ConnectHubInvestorHub
+    };
     const module = roleModules[state.role];
     const content = document.getElementById("aihubTabContent");
-    if (!module) return;
+    if (!module) {
+      content.innerHTML = "<div class='aihub-empty'>AI Hub module is still loading. Refresh once if this stays visible.</div>";
+      return;
+    }
     content.classList.remove("fade-in");
     content.innerHTML = "<div class='skeleton'></div><div class='skeleton'></div>";
     await new Promise(resolve => setTimeout(resolve, 80));
-    await module.render(state.activeTab, content, { ...state });
+    try {
+      await module.render(state.activeTab, content, { ...state });
+    } catch (error) {
+      console.warn("ConnectHub AI Hub render failed:", error);
+      content.innerHTML = "<div class='aihub-empty'>AI data temporarily unavailable. Tap Refresh to retry.</div>";
+    }
     content.classList.add("fade-in");
   }
 

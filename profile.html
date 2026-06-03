@@ -62,6 +62,14 @@
       const db = getDB();
       const users = getAllProfiles();
       const existing = new Set(users.map(profile => normalizeProfileLookupId(profile.email || profile.name)));
+      const feedProfiles = [
+        { name: "Rahul Mehta", email: "rahul_mehta", role: "startup_admin", title: "Founder", companyName: "TechNova", city: "Bangalore", state: "Karnataka", bio: "Building B2B CRM for Indian SMEs and hiring product talent.", sector: "SaaS & Technology", avatarInitials: "RM", skills: ["SaaS", "CRM", "Seed Funding"] },
+        { name: "Priya Sharma", email: "priya_sharma", role: "freelancer", title: "UI/UX Designer", city: "Mumbai", state: "Maharashtra", bio: "Design systems, fintech dashboards, and startup launch interfaces.", avatarInitials: "PS", skills: ["Figma", "UI Design", "Design Systems"] },
+        { name: "Sunita Rao", email: "sunita_rao", role: "investor", title: "Angel Investor", city: "Bangalore", state: "Karnataka", bio: "Investing in EdTech, consumer products, and early Indian startup teams.", avatarInitials: "SR", skills: ["Seed", "EdTech", "Consumer"] },
+        { name: "GreenEats", email: "greeneats", role: "startup_admin", title: "FoodTech Startup", companyName: "GreenEats", city: "Mumbai", state: "Maharashtra", bio: "Reducing food waste in pilot kitchens using AI demand forecasting.", sector: "FoodTech", avatarInitials: "GE", skills: ["FoodTech", "Sustainability", "AI Forecasting"] },
+        { name: "Karthik Raj", email: "karthik_raj", role: "freelancer", title: "Android Developer", city: "Chennai", state: "Tamil Nadu", bio: "Android developer with 30+ shipped mobile apps for startups.", avatarInitials: "KR", skills: ["Android", "Kotlin", "Mobile Apps"] },
+        { name: "Dev Malhotra", email: "dev_malhotra", role: "investor", title: "Sequoia Scout", city: "Mumbai", state: "Maharashtra", bio: "Tracking Tier 2 startup opportunities across India.", avatarInitials: "DM", skills: ["Investing", "Tier 2", "Startups"] }
+      ].filter(profile => !existing.has(normalizeProfileLookupId(profile.email || profile.name)));
       const startupProfiles = (db.startups || [])
         .filter(startup => startup?.name)
         .map(startup => ({
@@ -78,7 +86,7 @@
           avatarInitials: startup.logoInitials || startup.name.split(" ").map(word => word[0]).join("").slice(0, 2).toUpperCase()
         }))
         .filter(profile => !existing.has(normalizeProfileLookupId(profile.email || profile.name)));
-      return [...users, ...startupProfiles];
+      return [...users, ...startupProfiles, ...feedProfiles];
     }
 
     function escapeHTML(value) {
