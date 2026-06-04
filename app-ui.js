@@ -401,7 +401,11 @@ const AppUX = (() => {
 
   function installDarkMode() {
     const saved = localStorage.getItem("connecthub_theme") || "light";
-    document.documentElement.dataset.theme = saved;
+    const applied = saved === "system"
+      ? (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      : saved === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = applied;
+    document.documentElement.classList.toggle("dark", applied === "dark");
   }
 
   function installNotificationBell() {
@@ -2566,6 +2570,7 @@ const AppUX = (() => {
     if (currentView && currentView !== view) historyStack.push(currentView);
     currentView = view;
     document.body.dataset.currentView = view || "";
+    document.querySelectorAll(".modal-overlay.active").forEach(overlay => overlay.classList.remove("active"));
     closeMenu();
     animateContent();
     refreshPulse();
@@ -2637,7 +2642,7 @@ const AppUX = (() => {
     const user = getCurrentUser?.() || {};
     const role = options.role || user.role || "freelancer";
     const aiHubUrl = options.aiHubUrl || `/dashboard/aihub?role=${role.includes("startup") ? "startup" : role.includes("investor") ? "investor" : "freelancer"}`;
-    const theme = document.documentElement.dataset.theme || localStorage.getItem("connecthub_theme") || "light";
+    const theme = localStorage.getItem("connecthub_theme") || document.documentElement.dataset.theme || "light";
     const roleLabel = role.includes("startup") ? "Startup Owner" : role.includes("investor") ? "Investor" : "Freelancer";
     container.innerHTML = `
       <section class="settings-shell settings-list-page">
@@ -2804,6 +2809,7 @@ const AppUX = (() => {
     const next = mode === "dark" ? "dark" : mode === "system" ? "system" : "light";
     const applied = next === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : next === "system" ? "light" : next;
     document.documentElement.dataset.theme = applied;
+    document.documentElement.classList.toggle("dark", applied === "dark");
     localStorage.setItem("connecthub_theme", next);
     playSound("nav");
     const body = document.getElementById("body");
