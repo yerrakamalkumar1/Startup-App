@@ -201,6 +201,37 @@ const DEMO_USERS = {
     bio: "Angel sponsor backing useful Indian startup networks.",
     fundsCommitted: "Rs 5,00,000",
     portfolioSize: 1
+  },
+  "kamal@connecthub.in": {
+    name: "Kamal Kumar",
+    role: "freelancer",
+    title: "Video Editor & Photographer",
+    avatarInitials: "KK",
+    city: "Hyderabad",
+    state: "Telangana",
+    bio: "Creates reels, product videos, and photo campaigns for Indian startups.",
+    skills: ["Video Editing", "Photography", "Reels", "Social Media"]
+  },
+  "meera@connecthub.in": {
+    name: "Meera Nair",
+    role: "freelancer",
+    title: "Frontend Developer",
+    avatarInitials: "MN",
+    city: "Bengaluru",
+    state: "Karnataka",
+    bio: "Builds clean React and mobile-first web interfaces for SaaS teams.",
+    skills: ["React", "Tailwind", "UI Development"]
+  },
+  "vikram@connecthub.in": {
+    name: "Vikram Reddy",
+    role: "startup_admin",
+    title: "Founder, FoodLoop",
+    avatarInitials: "VR",
+    companyName: "FoodLoop",
+    city: "Chennai",
+    state: "Tamil Nadu",
+    bio: "Food and hospitality startup connecting cafes with local digital talent.",
+    skills: ["FoodTech", "Operations", "Marketing"]
   }
 };
 

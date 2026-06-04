@@ -67,6 +67,37 @@ const DEMO_USERS = {
     avatarInitials: "AS",
     fundsCommitted: "Rs 5,00,000",
     portfolioSize: 1
+  },
+  "kamal@connecthub.in": {
+    name: "Kamal Kumar",
+    role: "freelancer",
+    title: "Video Editor & Photographer",
+    avatarInitials: "KK",
+    city: "Hyderabad",
+    state: "Telangana",
+    bio: "Creates reels, product videos, and photo campaigns for Indian startups.",
+    skills: ["Video Editing", "Photography", "Reels", "Social Media"]
+  },
+  "meera@connecthub.in": {
+    name: "Meera Nair",
+    role: "freelancer",
+    title: "Frontend Developer",
+    avatarInitials: "MN",
+    city: "Bengaluru",
+    state: "Karnataka",
+    bio: "Builds clean React and mobile-first web interfaces for SaaS teams.",
+    skills: ["React", "Tailwind", "UI Development"]
+  },
+  "vikram@connecthub.in": {
+    name: "Vikram Reddy",
+    role: "startup_admin",
+    title: "Founder, FoodLoop",
+    avatarInitials: "VR",
+    companyName: "FoodLoop",
+    city: "Chennai",
+    state: "Tamil Nadu",
+    bio: "Food and hospitality startup connecting cafes with local digital talent.",
+    skills: ["FoodTech", "Operations", "Marketing"]
   }
 };
 
@@ -682,6 +713,8 @@ function serveStatic(req, res) {
     ? "/index.html"
     : /^\/feed\/?$/.test(urlPath)
       ? "/dashboard-freelancer.html"
+    : /^\/settings\/?$/.test(urlPath)
+      ? "/dashboard-freelancer.html"
     : /^\/profile\/[^/]+\/?$/.test(urlPath)
       ? "/profile.html"
       : /^\/dashboard\/aihub\/?$/.test(urlPath)
@@ -760,6 +793,18 @@ async function handleApi(req, res) {
     users[email].profile = { ...users[email].profile, ...body };
     writeJson(USERS_FILE, users);
     return sendJson(res, 200, { success: true, user: users[email].profile });
+  }
+  if (route === "/api/users/search" && req.method === "GET") {
+    const db = publicDB();
+    const results = searchPeople(db, {
+      query: url.searchParams.get("q") || "",
+      role: url.searchParams.get("role") || "",
+      location: url.searchParams.get("location") || "",
+      skills: url.searchParams.get("skills") || "",
+      company: url.searchParams.get("company") || "",
+      currentName: auth?.name || ""
+    }, req);
+    return sendJson(res, 200, { success: true, results: results.slice(0, 30) });
   }
   if (route.startsWith("/api/users/") && req.method === "GET") {
     const id = decodeURIComponent(route.replace("/api/users/", ""));

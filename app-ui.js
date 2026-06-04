@@ -17,6 +17,8 @@ const AppUX = (() => {
   let currentNotificationTab = "all";
   let visibleNotificationIds = [];
   let deferredInstallPrompt = null;
+  let networkSearchTimer = null;
+  let networkRoleFilter = "";
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -248,9 +250,9 @@ const AppUX = (() => {
     }
 
     const sidebarMenu = document.querySelector(".sidebar-menu");
-    if (sidebarMenu && !document.getElementById("feedShortcutItem")) {
+    if (sidebarMenu && !document.getElementById("t-feed")) {
       const item = document.createElement("li");
-      item.id = "feedShortcutItem";
+      item.id = "t-feed";
       item.className = "sidebar-item";
       item.innerHTML = '<a><i data-lucide="newspaper"></i>Feed</a>';
       item.addEventListener("click", () => {
@@ -1145,6 +1147,22 @@ const AppUX = (() => {
             <span><strong>${saved.length}</strong> Saved</span>
           </div>
         </div>
+        <div class="network-search-panel">
+          <div class="network-search-box">
+            <i data-lucide="search"></i>
+            <input id="networkSearchInput" type="search" placeholder="Search freelancers, startups, investors..." oninput="AppUX.handleNetworkSearchInput()" onkeydown="if(event.key==='Enter') AppUX.runNetworkSearch()">
+            <button type="button" onclick="AppUX.runNetworkSearch()">Search</button>
+          </div>
+          <div class="network-filter-tabs">
+            ${[
+              ["", "All"],
+              ["freelancer", "Freelancers"],
+              ["startup", "Startups"],
+              ["investor", "Investors"]
+            ].map(([role, label], index) => `<button type="button" class="${index === 0 ? "active" : ""}" data-network-role="${role}" onclick="AppUX.setNetworkRoleFilter('${role}')">${label}</button>`).join("")}
+          </div>
+          <div id="networkSearchResults" class="network-search-results" hidden></div>
+        </div>
         ${renderNetworkSection("Connection requests", pendingIn, "request")}
         ${renderNetworkSection("Suggested for you", suggestions, "suggestion")}
         ${renderNetworkSection("My connections", accepted.map(item => people.find(profile => profile.name === (item.from === user.name ? item.to : item.from))).filter(Boolean), "connected")}
@@ -1198,6 +1216,102 @@ const AppUX = (() => {
         ${mode === "connected" ? `<button class="btn btn-secondary" onclick="AppUX.removeConnection('${safeName}')">Remove</button>` : `<button class="btn btn-secondary" onclick="connectUsers('${safeName}'); AppUX.showToast('Connection request sent'); AppUX.renderNetworkPage(document.getElementById('body'))">Connect</button>`}
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${safeName}')">Message</button>
       </div>
+    </article>`;
+  }
+
+  function setNetworkRoleFilter(role = "") {
+    networkRoleFilter = role;
+    document.querySelectorAll("[data-network-role]").forEach(button => {
+      button.classList.toggle("active", button.dataset.networkRole === role);
+    });
+    runNetworkSearch();
+  }
+
+  function handleNetworkSearchInput() {
+    clearTimeout(networkSearchTimer);
+    networkSearchTimer = setTimeout(runNetworkSearch, 300);
+  }
+
+  async function runNetworkSearch() {
+    const input = document.getElementById("networkSearchInput");
+    const mount = document.getElementById("networkSearchResults");
+    if (!input || !mount) return;
+    const query = input.value.trim();
+    const user = getCurrentUser?.() || {};
+    if (!query && !networkRoleFilter) {
+      mount.hidden = true;
+      mount.innerHTML = "";
+      return;
+    }
+    mount.hidden = false;
+    mount.innerHTML = `<div class="network-search-loading">Searching people...</div>`;
+    let results = [];
+    try {
+      const params = new URLSearchParams({ q: query });
+      if (networkRoleFilter) params.set("role", networkRoleFilter);
+      const response = await fetch(`/api/users/search?${params.toString()}`);
+      if (response.ok) {
+        const payload = await response.json();
+        results = payload.results || [];
+      }
+    } catch {
+      results = [];
+    }
+    if (!results.length) {
+      results = localNetworkSearch(query, networkRoleFilter, user.name);
+    }
+    mount.innerHTML = results.length
+      ? results.slice(0, 10).map(renderNetworkSearchResult).join("")
+      : `<div class="network-search-empty">No results found for "${escapeHTML(query || networkRoleFilter)}".</div>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function localNetworkSearch(query, role, currentName) {
+    const q = String(query || "").toLowerCase().replace(/^@/, "");
+    const roleFilter = String(role || "").toLowerCase();
+    return getAllProfiles()
+      .filter(profile => profile.name && profile.name !== currentName)
+      .map(profile => {
+        const roleText = [profile.role, profile.title].filter(Boolean).join(" ").toLowerCase();
+        const text = [
+          profile.name,
+          profile.handle,
+          roleText,
+          profile.companyName,
+          profile.city,
+          profile.state,
+          profile.sector,
+          ...(profile.skills || [])
+        ].filter(Boolean).join(" ").toLowerCase();
+        if (roleFilter && !roleText.includes(roleFilter)) return null;
+        if (q && !text.includes(q)) return null;
+        const name = String(profile.name || "").toLowerCase();
+        const score = name === q ? 100 : name.startsWith(q) ? 90 : roleText.includes(q) ? 70 : text.includes(q) ? 40 : 1;
+        return {
+          ...profile,
+          handle: profile.handle || userIdFor(profile),
+          roleType: roleText.includes("startup") ? "startup" : roleText.includes("investor") ? "investor" : "freelancer",
+          location: [profile.city, profile.state].filter(Boolean).join(", "),
+          mutualConnections: 0,
+          profileUrl: profileUrl(profile),
+          score
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)));
+  }
+
+  function renderNetworkSearchResult(profile) {
+    const safeName = String(profile.name || "").replace(/'/g, "\\'");
+    const handle = profile.handle ? `@${String(profile.handle).replace(/^@/, "")}` : "@connecthub";
+    return `<article class="network-search-result">
+      <a href="${escapeAttr(profile.profileUrl || profileUrl(profile))}">${avatarMarkup(profile, "user-avatar")}</a>
+      <div>
+        <a class="profile-name-link" href="${escapeAttr(profile.profileUrl || profileUrl(profile))}"><strong>${escapeHTML(profile.name || "ConnectHub member")}</strong></a>
+        <p>${escapeHTML(handle)} · ${escapeHTML(profile.role || profile.title || profile.roleType || "Member")}</p>
+        <small>${escapeHTML(profile.location || [profile.city, profile.state].filter(Boolean).join(", ") || "India")} · ${Number(profile.mutualConnections || 0)} mutual connections</small>
+      </div>
+      <button type="button" onclick="connectUsers('${safeName}'); AppUX.showToast('Connection request sent')">Connect</button>
     </article>`;
   }
 
@@ -2251,30 +2365,39 @@ const AppUX = (() => {
       <section class="ch-social-portal" aria-label="Feed Dashboard">
         <div class="ch-feed-main">
           <div class="ch-portal-head">
-            <div><span class="section-eyebrow">Feed dashboard</span><h2>Stories & Posts</h2></div>
+            <div><span class="section-eyebrow">Network Pulse</span><p>What's happening in your startup world</p></div>
             <button class="btn btn-primary ch-desktop-post-btn" type="button" onclick="AppUX.openPostComposer()"><i data-lucide="plus"></i>Post</button>
           </div>
+          <div class="ch-feed-section-title">Stories</div>
           <div class="ch-reels-row">${CH_REELS.map(renderReelBubble).join("")}</div>
           <div class="ch-post-feed">${CH_POSTS.map(renderPostCard).join("")}</div>
+          <div class="ch-mobile-feed-insights">
+            ${renderFeedInsightCards()}
+          </div>
         </div>
         <aside class="ch-feed-aside" aria-label="Feed insights">
-          <article>
-            <h3>Trending hashtags</h3>
-            <div class="ch-aside-tags">${["startup", "freelance", "SaaS", "seed", "figma", "india"].map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${tag}</button>`).join("")}</div>
-          </article>
-          <article>
-            <h3>Suggested connections</h3>
-            ${CH_POSTS.slice(1, 4).map(post => `<a class="ch-suggested-user" href="profile.html?name=${encodeURIComponent(post.name)}"><span>${escapeHTML(post.initials)}</span><strong>${escapeHTML(post.name)}</strong><small>${escapeHTML(post.role)} · ${escapeHTML(post.city)}</small></a>`).join("")}
-          </article>
-          <article>
-            <h3>Active users</h3>
-            <p><span class="ch-live-dot"></span> 24 members active around Indian startup hubs</p>
-          </article>
+          ${renderFeedInsightCards()}
         </aside>
         <button class="ch-mobile-post-fab" type="button" onclick="AppUX.openPostComposer()" aria-label="Create post"><i data-lucide="sparkles"></i></button>
       </section>
       ${renderReelModal()}
       ${renderPostComposer()}`;
+  }
+
+  function renderFeedInsightCards() {
+    return `
+      <article>
+        <h3>Trending hashtags</h3>
+        <div class="ch-aside-tags">${["startup", "freelance", "SaaS", "seed", "figma", "india"].map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${tag}</button>`).join("")}</div>
+      </article>
+      <article>
+        <h3>Suggested connections</h3>
+        ${CH_POSTS.slice(1, 4).map(post => `<a class="ch-suggested-user" href="profile.html?name=${encodeURIComponent(post.name)}"><span>${escapeHTML(post.initials)}</span><strong>${escapeHTML(post.name)}</strong><small>${escapeHTML(post.role)} · ${escapeHTML(post.city)}</small></a>`).join("")}
+      </article>
+      <article>
+        <h3>Active users</h3>
+        <p><span class="ch-live-dot"></span> 24 members active around Indian startup hubs</p>
+      </article>`;
   }
 
   function renderReelBubble(reel, index) {
@@ -2515,70 +2638,109 @@ const AppUX = (() => {
     const role = options.role || user.role || "freelancer";
     const aiHubUrl = options.aiHubUrl || `/dashboard/aihub?role=${role.includes("startup") ? "startup" : role.includes("investor") ? "investor" : "freelancer"}`;
     const theme = document.documentElement.dataset.theme || localStorage.getItem("connecthub_theme") || "light";
+    const roleLabel = role.includes("startup") ? "Startup Owner" : role.includes("investor") ? "Investor" : "Freelancer";
     container.innerHTML = `
-      <section class="settings-shell">
-        <div class="settings-card settings-profile-card">
-          ${avatarMarkup(user, "profile-hero-avatar")}
+      <section class="settings-shell settings-list-page">
+        <div class="settings-list-header">
+          <button type="button" onclick="AppUX.back()"><i data-lucide="arrow-left"></i></button>
+          <h2>Settings</h2>
+          <button type="button" onclick="go('${homeView}')">Done</button>
+        </div>
+        <div class="settings-search">
+          <i data-lucide="search"></i>
+          <input type="search" placeholder="Search settings...">
+        </div>
+        <div class="settings-account-card">
+          ${avatarMarkup(user, "user-avatar")}
           <div>
-            <h2>${escapeHTML(user.name || "ConnectHub user")}</h2>
-            <p>${escapeHTML(user.title || user.role || "Member")}</p>
+            <strong>${escapeHTML(user.name || "ConnectHub user")}</strong>
+            <span>${escapeHTML(user.title || roleLabel)}</span>
           </div>
+          <span>${escapeHTML(roleLabel)}</span>
         </div>
 
-        <div class="settings-grid">
-          <article class="settings-card">
-            <div class="settings-card-head"><i data-lucide="user-cog"></i><div><h3>Account</h3><p>Manage profile and public identity.</p></div></div>
-            <div class="settings-actions">
-              <button class="btn btn-secondary" type="button" onclick="go('profile')"><i data-lucide="edit-3"></i>Edit profile</button>
-              <a class="btn btn-secondary" href="${escapeAttr(currentPublicProfileUrl())}"><i data-lucide="external-link"></i>Public profile</a>
-              <a class="btn btn-primary" href="${escapeAttr(aiHubUrl)}"><i data-lucide="sparkles"></i>AI Hub</a>
-            </div>
-          </article>
-
-          <article class="settings-card">
-            <div class="settings-card-head"><i data-lucide="palette"></i><div><h3>Appearance</h3><p>Choose how ConnectHub looks on this device.</p></div></div>
-            <div class="settings-segment" role="group" aria-label="Theme">
+        ${renderSettingsGroup("Your Account", [
+          ["user-pen", "Edit Profile", "Name, bio, avatar, location", "go('profile')"],
+          ["key-round", "Change Password", "Send OTP and update passcode", "AppUX.showToast('Use the password reset form below')"],
+          ["mail", "Manage Email & Phone", escapeHTML(user.email || "Add contact details"), "go('profile')"],
+          ["link", "Linked Accounts", "Google, LinkedIn and portfolio links", "AppUX.showToast('Linked accounts are coming soon')"],
+          ["sparkles", "AI Hub", "Role-specific intelligence tools", `window.location.href='${escapeAttr(aiHubUrl)}'`]
+        ])}
+        <div class="settings-inline-form">
+          <input id="settingsEmail" class="form-control" type="email" value="${escapeAttr(user.email || "")}" placeholder="Email address">
+          <button class="btn btn-secondary" type="button" onclick="AppUX.sendSettingsOtp()"><i data-lucide="mail"></i>Send OTP</button>
+          <input id="settingsOtp" class="form-control" inputmode="numeric" maxlength="6" placeholder="6 digit OTP">
+          <input id="settingsPasscode" class="form-control" type="password" minlength="4" placeholder="New passcode">
+          <button class="btn btn-primary" type="button" onclick="AppUX.updateSettingsPasscode()"><i data-lucide="key-round"></i>Update passcode</button>
+        </div>
+        ${renderSettingsGroup("Privacy & Security", [
+          ["eye", "Profile Visibility", "Public", "AppUX.showToast('Visibility saved locally')"],
+          ["message-circle", "Who can message me", "Everyone", "AppUX.showToast('Messaging preference saved')"],
+          ["users", "Who can see my connections", "Enabled", "", true],
+          ["shield-check", "Two-Factor Authentication", "Disabled", "", false],
+          ["monitor-smartphone", "Active Sessions", "This device", "AppUX.showToast('Only current session is active')"],
+          ["ban", "Block / Muted Users", "Manage list", "AppUX.showToast('No blocked users yet')"]
+        ])}
+        ${renderSettingsGroup("Notifications", [
+          ["user-plus", "Connection requests", "On", "", true],
+          ["message-square", "Messages", "On", "", true],
+          ["heart", "Post likes & comments", "On", "", true],
+          ["briefcase", "Gig applications", "On", "", true],
+          ["megaphone", "Platform announcements", "On", "", true],
+          ["mail", "Email notifications", "On", "", true],
+          ["bell-ring", "Open notification panel", "Recent alerts", "AppUX.openSettingsNotifications()"]
+        ])}
+        <div class="settings-section-label">Appearance</div>
+        <div class="settings-group">
+          <div class="settings-row settings-row-tall">
+            <span><i data-lucide="palette"></i><b>Theme</b></span>
+            <div class="settings-segment">
               <button type="button" class="${theme === "light" ? "active" : ""}" onclick="AppUX.setThemeMode('light')"><i data-lucide="sun"></i>Light</button>
               <button type="button" class="${theme === "dark" ? "active" : ""}" onclick="AppUX.setThemeMode('dark')"><i data-lucide="moon"></i>Dark</button>
+              <button type="button" class="${theme === "system" ? "active" : ""}" onclick="AppUX.setThemeMode('system')"><i data-lucide="monitor"></i>System</button>
             </div>
-          </article>
-
-          <article class="settings-card">
-            <div class="settings-card-head"><i data-lucide="shield-check"></i><div><h3>Security</h3><p>Reset your passcode using email OTP.</p></div></div>
-            <div class="settings-form">
-              <input id="settingsEmail" class="form-control" type="email" value="${escapeAttr(user.email || "")}" placeholder="Email address">
-              <button class="btn btn-secondary" type="button" onclick="AppUX.sendSettingsOtp()"><i data-lucide="mail"></i>Send OTP</button>
-              <input id="settingsOtp" class="form-control" inputmode="numeric" maxlength="6" placeholder="6 digit OTP">
-              <input id="settingsPasscode" class="form-control" type="password" minlength="4" placeholder="New passcode">
-              <button class="btn btn-primary" type="button" onclick="AppUX.updateSettingsPasscode()"><i data-lucide="key-round"></i>Update passcode</button>
-            </div>
-          </article>
-
-          <article class="settings-card">
-            <div class="settings-card-head"><i data-lucide="bell"></i><div><h3>Notifications</h3><p>View recent messages and network alerts.</p></div></div>
-            <div class="settings-actions">
-              <button class="btn btn-secondary" type="button" onclick="AppUX.openSettingsNotifications()"><i data-lucide="bell-ring"></i>Open notifications</button>
-              <button class="btn btn-secondary" type="button" onclick="AppUX.markNotificationsRead()"><i data-lucide="check-check"></i>Mark read</button>
-            </div>
-          </article>
-
-          <article class="settings-card">
-            <div class="settings-card-head"><i data-lucide="smartphone"></i><div><h3>App Tools</h3><p>Install, launch commands, and use offline-friendly features.</p></div></div>
-            <div class="settings-actions">
-              <button class="btn btn-primary" type="button" onclick="AppUX.installConnectHubApp()"><i data-lucide="download"></i>Install app</button>
-              <button class="btn btn-secondary" type="button" onclick="AppUX.openCommandPalette()"><i data-lucide="command"></i>Command center</button>
-              <button class="btn btn-secondary" type="button" onclick="AppUX.sharePublicProfile()"><i data-lucide="share-2"></i>Share profile</button>
-            </div>
-          </article>
-
-          <article class="settings-card">
-            <div class="settings-card-head"><i data-lucide="log-out"></i><div><h3>Session</h3><p>Sign out from this device.</p></div></div>
-            <button class="btn btn-secondary danger-soft" type="button" onclick="handleLogout()"><i data-lucide="log-out"></i>Logout</button>
-          </article>
+          </div>
+          <button class="settings-row" type="button" onclick="AppUX.showToast('Language saved locally')"><span><i data-lucide="languages"></i><b>Language</b></span><em>English</em><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row" type="button" onclick="AppUX.showToast('Font size saved locally')"><span><i data-lucide="type"></i><b>Font size</b></span><em>Medium</em><i data-lucide="chevron-right"></i></button>
         </div>
-        ${renderAdvancedSettings(role)}
+        ${renderSettingsGroup("Subscription & Billing", [
+          ["badge-indian-rupee", "Current Plan", "Free", "AppUX.showToast('You are on Free plan')"],
+          ["rocket", "Upgrade to Pro", "Preview", "AppUX.showToast('Pro plan will be enabled after payments')"],
+          ["receipt", "Billing history", "No invoices yet", "AppUX.showToast('No billing history yet')"]
+        ])}
+        ${renderSettingsGroup("Data & Activity", [
+          ["download", "Download your data", "Export profile", "AppUX.showToast('Data export is being prepared')"],
+          ["activity", "Your activity log", "Views and actions", "AppUX.openCommandPalette()"],
+          ["bookmark", "Saved posts & gigs", "Open saved items", "AppUX.showToast('Saved items are visible in Network and Ads')"],
+          ["archive", "Archive", "Hidden items", "AppUX.showToast('Archive is empty')"]
+        ])}
+        ${renderSettingsGroup("Support", [
+          ["help-circle", "Help Center", "Guides and support", "window.location.href='tel:6301394850'"],
+          ["flag", "Report a problem", "Send feedback", "window.location.href='mailto:support@connecthub.in'"],
+          ["star", "Rate the app", "★★★★★", "AppUX.showToast('Thank you for rating ConnectHub')"],
+          ["file-text", "Terms of Service", "Read terms", "AppUX.showToast('Terms will open soon')"],
+          ["info", "About ConnectHub", "Version 1.0", "AppUX.showToast('ConnectHub India v1.0')"]
+        ])}
+        <div class="settings-section-label">Account Actions</div>
+        <div class="settings-group">
+          <button class="settings-row" type="button" onclick="handleLogout()"><span><i data-lucide="log-out"></i><b>Log Out</b></span><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row warning" type="button" onclick="AppUX.showToast('Deactivate request saved for admin review')"><span><i data-lucide="pause-circle"></i><b>Deactivate Account</b></span><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row danger" type="button" onclick="AppUX.showToast('Delete account is disabled in demo mode')"><span><i data-lucide="trash-2"></i><b>Delete Account</b></span><i data-lucide="chevron-right"></i></button>
+        </div>
       </section>`;
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderSettingsGroup(label, rows) {
+    return `<div class="settings-section-label">${escapeHTML(label)}</div>
+      <div class="settings-group">
+        ${rows.map(([icon, title, detail, action, toggle]) => {
+          if (typeof toggle === "boolean") {
+            return `<div class="settings-row"><span><i data-lucide="${icon}"></i><b>${escapeHTML(title)}</b></span><em>${escapeHTML(detail || "")}</em><label class="settings-switch"><input type="checkbox" ${toggle ? "checked" : ""}><i></i></label></div>`;
+          }
+          return `<button class="settings-row" type="button" onclick="${action || "AppUX.showToast('Saved locally')"}"><span><i data-lucide="${icon}"></i><b>${escapeHTML(title)}</b></span><em>${detail || ""}</em><i data-lucide="chevron-right"></i></button>`;
+        }).join("")}
+      </div>`;
   }
 
   function renderAdvancedSettings(role) {
@@ -2639,8 +2801,9 @@ const AppUX = (() => {
   }
 
   function setThemeMode(mode) {
-    const next = mode === "dark" ? "dark" : "light";
-    document.documentElement.dataset.theme = next;
+    const next = mode === "dark" ? "dark" : mode === "system" ? "system" : "light";
+    const applied = next === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : next === "system" ? "light" : next;
+    document.documentElement.dataset.theme = applied;
     localStorage.setItem("connecthub_theme", next);
     playSound("nav");
     const body = document.getElementById("body");
@@ -2791,5 +2954,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, toggleFollow, sharePost, openProfileFromPost };
 })();

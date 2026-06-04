@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v43-feed-polish";
+const CACHE_NAME = "connecthub-v45-visible-search";
 const APP_SHELL = [
   "index.html",
   "index.css",

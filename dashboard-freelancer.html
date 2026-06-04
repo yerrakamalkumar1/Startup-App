@@ -122,18 +122,19 @@
   document.getElementById('av').textContent = user.avatarInitials;
   document.getElementById('uname').textContent = user.name;
   document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'gigs', exploreView: 'explore', adsView: 'mads', profileView: 'profile' });
+  AppUX.init({ homeView: 'feed', exploreView: 'explore', adsView: 'mads', profileView: 'profile' });
 
   let currentJobId = '';
-  syncFromBackend().then(() => go('gigs'));
+  syncFromBackend().then(() => go(location.pathname.replace(/\/$/, '') === '/settings' ? 'settings' : 'feed'));
 
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications', network:'My Network', profile:'Profile', settings:'Settings' };
+    const titles = { feed:'Feed', gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications', network:'My Network', profile:'Profile', settings:'Settings' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const b = document.getElementById('body');
-    if (view === 'gigs') renderGigs(b);
+    if (view === 'feed') b.innerHTML = '';
+    else if (view === 'gigs') renderGigs(b);
     else if (view === 'mads') renderMyAds(b);
     else if (view === 'calc') renderCalc(b);
     else if (view === 'apps') renderApps(b);
@@ -152,41 +153,45 @@
       const st = db.startups.find(s => s.id === job.startupId) || {};
       const match = scoreGigForFreelancer(job, user);
       return `
-        <div class="glass-card ad-card">
-          ${renderMedia(job.media, job.mediaType)}
-          <div class="ad-header">
-            <div class="ad-company-info">
-              <div class="ad-logo" style="background:${st.logoColor || '#0f766e'}20;color:${st.logoColor || '#0f766e'};">${st.logoInitials || 'ST'}</div>
-              <div class="ad-titles">
-                <span class="ad-title">${job.title}</span>
-                <span class="ad-company-name"><a class="profile-name-link" href="profile/${encodeURIComponent(String(st.id || st.name || 'startup').toLowerCase().replace(/@.*/, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))}">${st.name || 'Startup'}</a> - ${st.sector || 'Business'}</span>
-              </div>
+        <article class="gig-board-card">
+          <div class="gig-board-head">
+            <div class="gig-board-logo" style="background:${st.logoColor || '#6366F1'}18;color:${st.logoColor || '#6366F1'};">${st.logoInitials || 'ST'}</div>
+            <div>
+              <a class="profile-name-link" href="profile/${encodeURIComponent(String(st.id || st.name || 'startup').toLowerCase().replace(/@.*/, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))}">${st.name || 'Startup'}</a>
+              <p>${st.location || st.city || 'India'} · Posted recently</p>
             </div>
-            <span class="badge badge-indigo">${st.stage || 'Open'}</span>
+            <span class="gig-match-badge">${match.score || 72}% Match</span>
           </div>
-          <p class="ad-body">${job.description}</p>
-          <div class="ad-meta">${job.tags.map(t => `<span class="badge badge-green">${t}</span>`).join('')}</div>
-          ${match.score ? `<div class="match-meter"><span style="width:${Math.min(100, match.score)}%"></span></div><small class="match-copy">AI match ${match.score}%${match.matches.length ? ` - ${match.matches.join(', ')}` : ''}</small>` : ''}
-          <div class="ad-footer">
-            <div class="ad-price"><span class="price-label">STARTING RATE</span><span class="price-amount">Rs ${job.hourlyRate}/hr</span></div>
-            <button class="btn btn-primary" onclick="openApply('${job.id}','${job.title.replace(/'/g, "\\'")}',${job.hourlyRate})">Apply</button>
+          ${renderMedia(job.media, job.mediaType)}
+          <h3>${job.title}</h3>
+          <p>${job.description}</p>
+          <div class="gig-board-meta">
+            <span><strong>Budget:</strong> Rs ${job.hourlyRate}/hr</span>
+            <span><strong>Duration:</strong> ${job.duration || 'Flexible'}</span>
+            <span><strong>Sector:</strong> ${st.sector || 'Business'}</span>
           </div>
-        </div>`;
+          <div class="gig-skill-row">${job.tags.map(t => `<span>${t}</span>`).join('')}</div>
+          <div class="gig-board-actions">
+            <button class="btn btn-secondary" type="button" onclick="AppUX.showToast('Gig saved')"><i data-lucide="bookmark"></i>Save Gig</button>
+            <button class="btn btn-primary" type="button" onclick="openApply('${job.id}','${job.title.replace(/'/g, "\\'")}',${job.hourlyRate})">Apply Now <i data-lucide="arrow-right"></i></button>
+          </div>
+        </article>`;
     }).join('');
 
     b.innerHTML = `
-      <div class="hero-strip">
+      <div class="gig-board-hero">
         <div>
-          <h2>Find work from Indian startups</h2>
-          <p>Apply to opportunities from startups across sectors. Your applications appear in the startup dashboard.</p>
+          <span class="section-eyebrow">Startup Gigs</span>
+          <h2>Find freelance gigs & startup opportunities</h2>
+          <p>Browse active work from Indian startups, save relevant gigs, and apply with your rate.</p>
         </div>
         <button class="btn btn-primary" onclick="go('mads')"><i data-lucide="megaphone"></i>Post Service Ad</button>
       </div>
-      ${renderAnalyticsCards()}
-      ${renderCompleteness(user)}
+      <div class="gig-filter-row">
+        ${['All','Design','Dev','Marketing','Sales','Remote'].map((label, index) => `<button class="${index === 0 ? 'active' : ''}" type="button">${label}</button>`).join('')}
+      </div>
       ${renderMatchedGigs(suggested, db)}
-      <div class="dashboard-grid-3">${cards || emptyState('No gigs posted yet. Publish a service ad so startups can find you directly.')}</div>
-      ${renderStartupMediaFeed(db)}`;
+      <div class="gig-board-list">${cards || emptyState('No gigs posted yet. Publish a service ad so startups can find you directly.')}</div>`;
   }
 
   function renderMatchedGigs(jobs, db) {
