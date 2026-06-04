@@ -330,7 +330,7 @@ function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
   });
   res.end(JSON.stringify(data));
@@ -776,6 +776,60 @@ function persistSavedPosts(db, users, auth, savedPosts) {
   if (email && users[email]?.profile) users[email].profile.savedPosts = savedPosts;
 }
 
+function profileForAuth(auth, db = readJson(DB_FILE, INITIAL_DB), users = readJson(USERS_FILE, {})) {
+  const email = normalizeEmail(auth?.email);
+  const key = authUserKey(auth);
+  const base = email && users[email]?.profile
+    ? users[email].profile
+    : email && DEMO_USERS[email]
+      ? { ...DEMO_USERS[email], email }
+      : null;
+  if (!base) return null;
+  const profilePatch = db.userProfilePatchesByUser?.[key] || {};
+  const settingsPatch = db.userSettingsByUser?.[key] || {};
+  return { ...base, ...profilePatch, ...settingsPatch, email: email || base.email };
+}
+
+function persistUserProfile(auth, patch = {}) {
+  const db = readJson(DB_FILE, INITIAL_DB);
+  const users = readJson(USERS_FILE, {});
+  const email = normalizeEmail(auth?.email || patch.email);
+  const key = authUserKey(auth || patch);
+  const cleanPatch = { ...patch };
+  delete cleanPatch.password;
+  delete cleanPatch.passwordHash;
+  delete cleanPatch.passwordSalt;
+  if (cleanPatch.skills && typeof cleanPatch.skills === "string") {
+    cleanPatch.skills = cleanPatch.skills.split(",").map(item => item.trim()).filter(Boolean);
+  }
+  if (email && users[email]?.profile) {
+    users[email].profile = { ...users[email].profile, ...cleanPatch, email };
+  } else if (key) {
+    db.userProfilePatchesByUser = db.userProfilePatchesByUser || {};
+    db.userProfilePatchesByUser[key] = { ...(db.userProfilePatchesByUser[key] || {}), ...cleanPatch, email };
+  }
+  writeJson(DB_FILE, db);
+  writeJson(USERS_FILE, users);
+  return profileForAuth({ ...auth, email }, db, users);
+}
+
+function persistUserSettings(auth, patch = {}) {
+  const db = readJson(DB_FILE, INITIAL_DB);
+  const users = readJson(USERS_FILE, {});
+  const key = authUserKey(auth);
+  const email = normalizeEmail(auth?.email);
+  db.userSettingsByUser = db.userSettingsByUser || {};
+  db.userSettingsByUser[key] = { ...(db.userSettingsByUser[key] || {}), ...patch };
+  if (email && users[email]?.profile) users[email].profile = { ...users[email].profile, ...patch };
+  writeJson(DB_FILE, db);
+  writeJson(USERS_FILE, users);
+  return db.userSettingsByUser[key];
+}
+
+function devOtpAllowed() {
+  return process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+}
+
 function notificationMatchesTab(note, tab) {
   const type = String(note.type || "").toLowerCase();
   if (tab === "messages") return ["message", "new_message", "direct_message"].includes(type);
@@ -1001,17 +1055,54 @@ async function handleApi(req, res) {
 
   if (route === "/api/auth/logout" && req.method === "POST") return sendJson(res, 200, { success: true });
   if (route === "/api/users/me" && req.method === "GET") {
-    const profile = auth?.email ? (readJson(USERS_FILE, {})[auth.email]?.profile || DEMO_USERS[auth.email]) : null;
-    return sendJson(res, profile ? 200 : 401, profile ? { success: true, user: { ...profile, email: auth.email } } : { success: false, message: "Not signed in." });
+    if (!auth) return sendJson(res, 401, { success: false, message: "Not signed in." });
+    const profile = profileForAuth(auth);
+    return sendJson(res, profile ? 200 : 401, profile ? { success: true, user: profile } : { success: false, message: "Not signed in." });
   }
   if (route === "/api/users/me" && req.method === "PUT") {
     const body = await readBody(req);
-    const users = readJson(USERS_FILE, {});
-    const email = normalizeEmail(auth?.email || body.email);
-    if (!email || !users[email]) return sendJson(res, 404, { success: false, message: "Profile account not found." });
-    users[email].profile = { ...users[email].profile, ...body };
-    writeJson(USERS_FILE, users);
-    return sendJson(res, 200, { success: true, user: users[email].profile });
+    if (!auth && !body.email) return sendJson(res, 401, { success: false, message: "Not signed in." });
+    const profile = persistUserProfile(auth || { email: body.email }, body);
+    if (!profile) return sendJson(res, 404, { success: false, message: "Profile account not found." });
+    return sendJson(res, 200, { success: true, user: profile });
+  }
+  if (route === "/api/users/profile" && (req.method === "PUT" || req.method === "POST")) {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const allowed = ["name", "title", "bio", "city", "state", "phone", "whatsapp", "contactEmail", "website", "portfolio", "skills", "avatarPhoto", "companyName", "firmName", "linkedinUrl", "githubUrl", "instagramUrl"];
+    const patch = {};
+    allowed.forEach(key => {
+      if (body[key] !== undefined) patch[key] = body[key];
+    });
+    if (patch.name && String(patch.name).trim().length < 2) return sendJson(res, 400, { success: false, message: "Name must be at least 2 characters." });
+    if (patch.bio && String(patch.bio).length > 220) patch.bio = String(patch.bio).slice(0, 220);
+    const profile = persistUserProfile(auth, patch);
+    return sendJson(res, 200, { success: true, user: profile });
+  }
+  if (route === "/api/users/avatar" && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const avatarPhoto = body.avatarPhoto || (body.dataUrl ? { dataUrl: body.dataUrl } : null);
+    if (!avatarPhoto?.dataUrl || !String(avatarPhoto.dataUrl).startsWith("data:image/")) return sendJson(res, 400, { success: false, message: "Send a base64 image dataUrl." });
+    if (String(avatarPhoto.dataUrl).length > 2_500_000) return sendJson(res, 400, { success: false, message: "Image is too large. Use an image under 2 MB." });
+    const profile = persistUserProfile(auth, { avatarPhoto });
+    return sendJson(res, 200, { success: true, url: avatarPhoto.dataUrl, user: profile });
+  }
+  if (route === "/api/users/settings" && (req.method === "PUT" || req.method === "PATCH")) {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const allowed = [
+      "profileVisibility", "whoCanMessage", "whoCanSeeConnections", "twoFactorAuth",
+      "connectionRequests", "messages", "postLikes", "gigApplications", "platformAnnouncements", "emailNotifications",
+      "theme", "language", "fontSize", "preferredLanguage", "fontSizePreference", "accountPrivacy", "messagingPrivacy",
+      "blockedUsers", "mutedUsers", "deactivated"
+    ];
+    const patch = {};
+    allowed.forEach(key => {
+      if (body[key] !== undefined) patch[key] = body[key];
+    });
+    const settings = persistUserSettings(auth, patch);
+    return sendJson(res, 200, { success: true, settings });
   }
   if (route === "/api/users/search" && req.method === "GET") {
     const db = publicDB();
@@ -1176,14 +1267,25 @@ async function handleApi(req, res) {
     if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
     const body = await readBody(req);
     const allowed = {
-      preferredLanguage: ["en", "hi", "te", "ta", "kn", "mr"],
+      preferredLanguage: ["en", "hi", "te", "ur", "ta", "kn", "mr"],
       fontSizePreference: ["small", "medium", "large", "extra-large"],
       accountPrivacy: ["public", "private"],
-      messagingPrivacy: ["everyone", "network", "none"]
+      messagingPrivacy: ["everyone", "network", "none"],
+      profileVisibility: ["public", "connections", "private"],
+      whoCanMessage: ["everyone", "connections", "nobody"],
+      theme: ["light", "dark", "system"],
+      language: ["en", "hi", "te", "ur", "ta", "kn", "mr"],
+      fontSize: ["small", "medium", "large", "extra-large"]
     };
     const patch = {};
     Object.entries(allowed).forEach(([key, values]) => {
       if (body[key] && values.includes(body[key])) patch[key] = body[key];
+    });
+    ["whoCanSeeConnections", "twoFactorAuth", "connectionRequests", "messages", "postLikes", "gigApplications", "platformAnnouncements", "emailNotifications", "deactivated"].forEach(key => {
+      if (body[key] !== undefined) patch[key] = Boolean(body[key]);
+    });
+    ["blockedUsers", "mutedUsers"].forEach(key => {
+      if (Array.isArray(body[key])) patch[key] = body[key].map(String).slice(0, 50);
     });
     const db = readJson(DB_FILE, INITIAL_DB);
     const users = readJson(USERS_FILE, {});
@@ -1353,6 +1455,116 @@ async function handleApi(req, res) {
     users[email].profile = safeProfile;
     writeJson(USERS_FILE, users);
     return sendJson(res, 200, { success: true, user: safeProfile });
+  }
+
+  if (route === "/api/auth/send-otp" && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const email = normalizeEmail(auth.email);
+    if (!email) return sendJson(res, 400, { success: false, message: "No email found for this account." });
+    const otp = createOtp(email);
+    try {
+      await sendOtpEmail(email, otp);
+      return sendJson(res, 200, { success: true, message: "OTP sent to your email." });
+    } catch (error) {
+      return sendJson(res, 200, {
+        success: true,
+        message: "Email OTP is not configured, so a demo OTP was generated.",
+        demoOtp: otp,
+        smtpConfigured: false
+      });
+    }
+  }
+
+  if (route === "/api/auth/change-password" && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const { otp, newPassword } = await readBody(req);
+    const email = normalizeEmail(auth.email);
+    if (!newPassword || String(newPassword).length < 8) return sendJson(res, 400, { success: false, message: "Password must be at least 8 characters." });
+    if (!verifyOtp(email, otp)) return sendJson(res, 400, { success: false, message: "Invalid or expired OTP." });
+    const users = readJson(USERS_FILE, {});
+    if (!users[email]) {
+      return sendJson(res, 200, { success: true, message: "Password preference saved for this demo account." });
+    }
+    const passwordData = hashPassword(newPassword);
+    users[email].passwordHash = passwordData.hash;
+    users[email].passwordSalt = passwordData.salt;
+    delete users[email].password;
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, message: "Password changed successfully." });
+  }
+
+  if (route === "/api/sessions" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const key = authUserKey(auth);
+    const stored = db.userSettingsByUser?.[key]?.activeSessions || [];
+    const current = {
+      sessionId: "current",
+      device: req.headers["user-agent"]?.includes("Mobile") ? "Mobile browser" : "Desktop browser",
+      ip: req.socket.remoteAddress || "",
+      city: "Current device",
+      lastActive: new Date().toISOString(),
+      isCurrent: true
+    };
+    return sendJson(res, 200, { success: true, sessions: stored.length ? stored : [current] });
+  }
+
+  if ((route.startsWith("/api/sessions/") || route.startsWith("/api/v1/auth/sessions/")) && req.method === "DELETE") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const sessionId = decodeURIComponent(route.replace(/^\/api(?:\/v1\/auth)?\/sessions\//, ""));
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const key = authUserKey(auth);
+    const currentSettings = db.userSettingsByUser?.[key] || {};
+    const nextSessions = sessionId === "all" || sessionId === "all/others" ? [] : (currentSettings.activeSessions || []).filter(item => item.sessionId !== sessionId);
+    db.userSettingsByUser = db.userSettingsByUser || {};
+    db.userSettingsByUser[key] = { ...currentSettings, activeSessions: nextSessions };
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, removedSessionId: sessionId, activeSessions: nextSessions });
+  }
+
+  if (route === "/api/notifications" && req.method === "PUT") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const allowed = ["connectionRequests", "messages", "postLikes", "gigApplications", "platformAnnouncements", "emailNotifications"];
+    const patch = {};
+    allowed.forEach(key => {
+      if (body[key] !== undefined) patch[key] = Boolean(body[key]);
+    });
+    const settings = persistUserSettings(auth, patch);
+    return sendJson(res, 200, { success: true, notificationPrefs: settings });
+  }
+
+  if (route === "/api/support/report" && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const description = String(body.description || "").trim().slice(0, 1200);
+    if (!description) return sendJson(res, 400, { success: false, message: "Description is required." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const report = {
+      id: `report-${Date.now()}`,
+      from: auth.name || auth.email,
+      email: auth.email,
+      type: String(body.type || "Problem").slice(0, 80),
+      description,
+      createdAt: new Date().toISOString()
+    };
+    db.supportReports = [...(db.supportReports || []), report];
+    writeJson(DB_FILE, db);
+    sendEmailNotification(process.env.SUPPORT_EMAIL || process.env.SMTP_USER, `[ConnectHub Report] ${report.type}`, `${report.from}: ${description}`).catch(() => {});
+    return sendJson(res, 200, { success: true, report, message: "Report submitted successfully." });
+  }
+
+  if (route === "/api/users/account" && req.method === "DELETE") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const email = normalizeEmail(auth.email);
+    const users = readJson(USERS_FILE, {});
+    const db = readJson(DB_FILE, INITIAL_DB);
+    if (users[email]) delete users[email];
+    const key = authUserKey(auth);
+    if (db.userSettingsByUser?.[key]) db.userSettingsByUser[key].deletedAt = new Date().toISOString();
+    writeJson(USERS_FILE, users);
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, message: "Account deleted successfully." });
   }
 
   if ((route === "/api/password/request" || route === "/api/auth/forgot-password" || route === "/api/auth/verify-otp") && req.method === "POST") {

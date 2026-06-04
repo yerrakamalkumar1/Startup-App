@@ -61,7 +61,7 @@ const UserSchema = new mongoose.Schema({
   activeSessions: { type: [ActiveSessionSchema], default: [] },
   accountPrivacy: { type: String, enum: ["public", "private"], default: "public" },
   messagingPrivacy: { type: String, enum: ["everyone", "network", "none"], default: "everyone" },
-  preferredLanguage: { type: String, enum: ["en", "hi", "te", "ta", "kn", "mr"], default: "en" },
+  preferredLanguage: { type: String, enum: ["en", "hi", "te", "ur", "ta", "kn", "mr"], default: "en" },
   fontSizePreference: { type: String, enum: ["small", "medium", "large", "extra-large"], default: "medium" },
   profileViews: { type: Number, default: 0 },
   joinedAt: { type: Date, default: Date.now },

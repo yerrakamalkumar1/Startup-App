@@ -20,6 +20,7 @@ const AppUX = (() => {
   let networkSearchTimer = null;
   let networkRoleFilter = "";
   let settingsSearchTimer = null;
+  let settingsSheetSelect = null;
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -68,6 +69,7 @@ const AppUX = (() => {
     installNotificationBell();
     installRealtime();
     installMessageDock();
+    installSettingsOverlays();
     installExplorePage();
     installBottomNav();
     installMediaOptimizer();
@@ -113,8 +115,9 @@ const AppUX = (() => {
 
   const LANGUAGE_OPTIONS = [
     { value: "en", label: "English" },
-    { value: "hi", label: "Hindi" },
     { value: "te", label: "Telugu" },
+    { value: "hi", label: "Hindi" },
+    { value: "ur", label: "Urdu" },
     { value: "ta", label: "Tamil" },
     { value: "kn", label: "Kannada" },
     { value: "mr", label: "Marathi" }
@@ -2764,6 +2767,11 @@ const AppUX = (() => {
     const fontSize = user.fontSizePreference || localStorage.getItem("connecthub_font_size") || "medium";
     const languageLabel = LANGUAGE_OPTIONS.find(item => item.value === language)?.label || "English";
     const fontSizeLabel = FONT_SIZE_OPTIONS.find(item => item.value === fontSize)?.label || "Medium";
+    const profileVisibility = user.profileVisibility || (user.accountPrivacy === "private" ? "private" : "public");
+    const whoCanMessage = user.whoCanMessage || (user.messagingPrivacy === "network" ? "connections" : user.messagingPrivacy === "none" ? "nobody" : "everyone");
+    const profileVisibilityLabel = profileVisibility === "connections" ? "Connections only" : profileVisibility === "private" ? "Private" : "Public";
+    const whoCanMessageLabel = whoCanMessage === "connections" ? "Connections only" : whoCanMessage === "nobody" ? "No one" : "Everyone";
+    const pref = key => user[key] !== false;
     container.innerHTML = `
       <section class="settings-shell settings-list-page">
         <div class="settings-list-header">
@@ -2786,34 +2794,27 @@ const AppUX = (() => {
         </div>
 
         ${renderSettingsGroup("Your Account", [
-          ["user-pen", "Edit Profile", "Name, bio, avatar, location", "go('profile')"],
-          ["key-round", "Change Password", "Send OTP and update passcode", "AppUX.showToast('Use the password reset form below')"],
-          ["mail", "Manage Email & Phone", escapeHTML(user.email || "Add contact details"), "go('profile')"],
-          ["link", "Linked Accounts", "Google, LinkedIn and portfolio links", "AppUX.showToast('Linked accounts are coming soon')"],
+          ["user-pen", "Edit Profile", "Name, bio, avatar, location", "AppUX.openSettingsEditProfile()"],
+          ["key-round", "Change Password", "Send OTP and update passcode", "AppUX.openChangePassword()"],
+          ["mail", "Manage Email & Phone", escapeHTML(user.contactEmail || user.email || "Add contact details"), "AppUX.openManageContact()"],
+          ["link", "Linked Accounts", "Google, LinkedIn and portfolio links", "AppUX.openLinkedAccounts()"],
           ["sparkles", "AI Hub", "Role-specific intelligence tools", `window.location.href='${escapeAttr(aiHubUrl)}'`]
         ])}
-        <div class="settings-inline-form">
-          <input id="settingsEmail" class="form-control" type="email" value="${escapeAttr(user.email || "")}" placeholder="Email address">
-          <button class="btn btn-secondary" type="button" onclick="AppUX.sendSettingsOtp()"><i data-lucide="mail"></i>Send OTP</button>
-          <input id="settingsOtp" class="form-control" inputmode="numeric" maxlength="6" placeholder="6 digit OTP">
-          <input id="settingsPasscode" class="form-control" type="password" minlength="4" placeholder="New passcode">
-          <button class="btn btn-primary" type="button" onclick="AppUX.updateSettingsPasscode()"><i data-lucide="key-round"></i>Update passcode</button>
-        </div>
         ${renderSettingsGroup("Privacy & Security", [
-          ["eye", "Profile Visibility", user.accountPrivacy === "private" ? "Private" : "Public", "AppUX.toggleAccountPrivacy()"],
-          ["message-circle", "Who can message me", user.messagingPrivacy === "network" ? "Network only" : user.messagingPrivacy === "none" ? "No one" : "Everyone", "AppUX.cycleMessagingPrivacy()"],
-          ["users", "Who can see my connections", "Enabled", "", true],
-          ["shield-check", "Two-Factor Authentication", "Disabled", "", false],
-          ["monitor-smartphone", "Active Sessions", "This device", "AppUX.openSecurityHub()"],
-          ["ban", "Block / Muted Users", "Manage list", "AppUX.openSecurityHub()"]
+          ["eye", "Profile Visibility", profileVisibilityLabel, "AppUX.openProfileVisibilitySelector()"],
+          ["message-circle", "Who can message me", whoCanMessageLabel, "AppUX.openMessagingPrivacySelector()"],
+          ["users", "Who can see my connections", user.whoCanSeeConnections === false ? "Hidden" : "Visible", "AppUX.saveSettingsToggle('whoCanSeeConnections', this.checked)", user.whoCanSeeConnections !== false],
+          ["shield-check", "Two-Factor Authentication", user.twoFactorAuth ? "Enabled" : "Disabled", "AppUX.saveSettingsToggle('twoFactorAuth', this.checked)", Boolean(user.twoFactorAuth)],
+          ["monitor-smartphone", "Active Sessions", "This device", "AppUX.openActiveSessions()"],
+          ["ban", "Block / Muted Users", "Manage list", "AppUX.openBlockMutedUsers()"]
         ])}
         ${renderSettingsGroup("Notifications", [
-          ["user-plus", "Connection requests", "On", "", true],
-          ["message-square", "Messages", "On", "", true],
-          ["heart", "Post likes & comments", "On", "", true],
-          ["briefcase", "Gig applications", "On", "", true],
-          ["megaphone", "Platform announcements", "On", "", true],
-          ["mail", "Email notifications", "On", "", true],
+          ["user-plus", "Connection requests", pref("connectionRequests") ? "On" : "Off", "AppUX.saveNotificationPref('connectionRequests', this.checked)", pref("connectionRequests")],
+          ["message-square", "Messages", pref("messages") ? "On" : "Off", "AppUX.saveNotificationPref('messages', this.checked)", pref("messages")],
+          ["heart", "Post likes & comments", pref("postLikes") ? "On" : "Off", "AppUX.saveNotificationPref('postLikes', this.checked)", pref("postLikes")],
+          ["briefcase", "Gig applications", pref("gigApplications") ? "On" : "Off", "AppUX.saveNotificationPref('gigApplications', this.checked)", pref("gigApplications")],
+          ["megaphone", "Platform announcements", pref("platformAnnouncements") ? "On" : "Off", "AppUX.saveNotificationPref('platformAnnouncements', this.checked)", pref("platformAnnouncements")],
+          ["mail", "Email notifications", pref("emailNotifications") ? "On" : "Off", "AppUX.saveNotificationPref('emailNotifications', this.checked)", pref("emailNotifications")],
           ["bell-ring", "Open notification panel", "Recent alerts", "AppUX.openSettingsNotifications()"]
         ])}
         <div class="settings-section-label">Appearance</div>
@@ -2826,32 +2827,32 @@ const AppUX = (() => {
               <button type="button" class="${theme === "system" ? "active" : ""}" onclick="AppUX.setThemeMode('system')"><i data-lucide="monitor"></i>System</button>
             </div>
           </div>
-          <button class="settings-row" type="button" onclick="AppUX.cycleLanguagePreference()"><span><i data-lucide="languages"></i><b>Language</b></span><em>${escapeHTML(languageLabel)}</em><i data-lucide="chevron-right"></i></button>
-          <button class="settings-row" type="button" onclick="AppUX.cycleFontSizePreference()"><span><i data-lucide="type"></i><b>Font size</b></span><em>${escapeHTML(fontSizeLabel)}</em><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row" type="button" onclick="AppUX.openLanguageSelector()"><span><i data-lucide="languages"></i><b>Language</b></span><em>${escapeHTML(languageLabel)}</em><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row" type="button" onclick="AppUX.openFontSizeSelector()"><span><i data-lucide="type"></i><b>Font size</b></span><em>${escapeHTML(fontSizeLabel)}</em><i data-lucide="chevron-right"></i></button>
         </div>
         ${renderSettingsGroup("Subscription & Billing", [
-          ["badge-indian-rupee", "Current Plan", "Free", "AppUX.showToast('You are on Free plan')"],
-          ["rocket", "Upgrade to Pro", "Preview", "AppUX.showToast('Pro plan will be enabled after payments')"],
-          ["receipt", "Billing history", "No invoices yet", "AppUX.showToast('No billing history yet')"]
+          ["badge-indian-rupee", "Current Plan", "Free", "AppUX.openCurrentPlan()"],
+          ["rocket", "Upgrade to Pro", "Preview", "AppUX.openUpgradePro()"],
+          ["receipt", "Billing history", "No invoices yet", "AppUX.openBillingHistory()"]
         ])}
         ${renderSettingsGroup("Data & Activity", [
-          ["download", "Download your data", "Export profile", "AppUX.showToast('Data export is being prepared')"],
-          ["activity", "Your activity log", "Views and actions", "AppUX.openCommandPalette()"],
-          ["bookmark", "Saved posts & gigs", "Open saved items", "AppUX.showToast('Saved items are visible in Network and Ads')"],
-          ["archive", "Archive", "Hidden items", "AppUX.showToast('Archive is empty')"]
+          ["download", "Download your data", "Export profile", "AppUX.downloadUserData()"],
+          ["activity", "Your activity log", "Views and actions", "AppUX.openActivityLog()"],
+          ["bookmark", "Saved posts & gigs", "Open saved items", "AppUX.openSettingsSavedPosts()"],
+          ["archive", "Archive", "Hidden items", "AppUX.openArchive()"]
         ])}
         ${renderSettingsGroup("Support", [
-          ["help-circle", "Help Center", "Guides and support", "window.location.href='tel:6301394850'"],
-          ["flag", "Report a problem", "Send feedback", "window.location.href='mailto:support@connecthub.in'"],
-          ["star", "Rate the app", "★★★★★", "AppUX.showToast('Thank you for rating ConnectHub')"],
-          ["file-text", "Terms of Service", "Read terms", "AppUX.showToast('Terms will open soon')"],
-          ["info", "About ConnectHub", "Version 1.0", "AppUX.showToast('ConnectHub India v1.0')"]
+          ["help-circle", "Help Center", "Guides and support", "AppUX.openHelpCenter()"],
+          ["flag", "Report a problem", "Send feedback", "AppUX.openReportProblem()"],
+          ["star", "Rate the app", "★★★★★", "AppUX.openRateApp()"],
+          ["file-text", "Terms of Service", "Read terms", "AppUX.openTerms()"],
+          ["info", "About ConnectHub", "Version 1.0", "AppUX.openAbout()"]
         ])}
         <div class="settings-section-label">Account Actions</div>
         <div class="settings-group">
           <button class="settings-row" type="button" onclick="handleLogout()"><span><i data-lucide="log-out"></i><b>Log Out</b></span><i data-lucide="chevron-right"></i></button>
-          <button class="settings-row warning" type="button" onclick="AppUX.showToast('Deactivate request saved for admin review')"><span><i data-lucide="pause-circle"></i><b>Deactivate Account</b></span><i data-lucide="chevron-right"></i></button>
-          <button class="settings-row danger" type="button" onclick="AppUX.showToast('Delete account is disabled in demo mode')"><span><i data-lucide="trash-2"></i><b>Delete Account</b></span><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row warning" type="button" onclick="AppUX.openDeactivateAccount()"><span><i data-lucide="pause-circle"></i><b>Deactivate Account</b></span><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row danger" type="button" onclick="AppUX.openDeleteAccount()"><span><i data-lucide="trash-2"></i><b>Delete Account</b></span><i data-lucide="chevron-right"></i></button>
         </div>
       </section>`;
     if (window.lucide) window.lucide.createIcons();
@@ -2862,9 +2863,9 @@ const AppUX = (() => {
       <div class="settings-group">
         ${rows.map(([icon, title, detail, action, toggle]) => {
           if (typeof toggle === "boolean") {
-            return `<div class="settings-row"><span><i data-lucide="${icon}"></i><b>${escapeHTML(title)}</b></span><em>${escapeHTML(detail || "")}</em><label class="settings-switch"><input type="checkbox" ${toggle ? "checked" : ""}><i></i></label></div>`;
+            return `<div class="settings-row"><span><i data-lucide="${escapeAttr(icon)}"></i><b>${escapeHTML(title)}</b></span><em>${escapeHTML(detail || "")}</em><label class="settings-switch"><input type="checkbox" ${toggle ? "checked" : ""} onchange="${action || "AppUX.showToast('Saved locally')"}"><i></i></label></div>`;
           }
-          return `<button class="settings-row" type="button" onclick="${action || "AppUX.showToast('Saved locally')"}"><span><i data-lucide="${icon}"></i><b>${escapeHTML(title)}</b></span><em>${detail || ""}</em><i data-lucide="chevron-right"></i></button>`;
+          return `<button class="settings-row" type="button" onclick="${action || "AppUX.showToast('Saved locally')"}"><span><i data-lucide="${escapeAttr(icon)}"></i><b>${escapeHTML(title)}</b></span><em>${detail || ""}</em><i data-lucide="chevron-right"></i></button>`;
         }).join("")}
       </div>`;
   }
@@ -2943,13 +2944,11 @@ const AppUX = (() => {
     if (input) input.blur();
     const targetKey = String(key || route || "").toLowerCase();
     if (targetKey.includes("password") || route.includes("/security/update")) {
-      document.getElementById("settingsPasscode")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      document.getElementById("settingsPasscode")?.focus();
-      showToast("Password update opened");
+      openChangePassword();
       return;
     }
     if (targetKey.includes("edit-profile") || route.includes("/account/profile")) {
-      if (window.go) window.go("profile");
+      openSettingsEditProfile();
       return;
     }
     if (targetKey.includes("notification") || route.includes("/notifications")) {
@@ -2966,15 +2965,15 @@ const AppUX = (() => {
       return;
     }
     if (targetKey.includes("language") || route.includes("/settings/language")) {
-      cycleLanguagePreference();
+      openLanguageSelector();
       return;
     }
     if (targetKey.includes("font") || route.includes("/accessibility/font-size")) {
-      cycleFontSizePreference();
+      openFontSizeSelector();
       return;
     }
     if (targetKey.includes("privacy") || route.includes("/privacy/visibility")) {
-      openSecurityHub();
+      openProfileVisibilitySelector();
       return;
     }
     if (targetKey.includes("ai-hub")) {
@@ -2993,6 +2992,7 @@ const AppUX = (() => {
   }
 
   async function openSettingsSavedPosts() {
+    openSettingsModal("Saved posts & gigs", `<div class="settings-smart-loading"><span></span>Loading saved items...</div>`);
     let saved = [];
     try {
       const data = await apiRequest("/api/v1/users/saved");
@@ -3000,15 +3000,20 @@ const AppUX = (() => {
     } catch {
       saved = (getDB().savedPostsByUser?.[getCurrentUser()?.email || getCurrentUser()?.name] || []);
     }
-    const list = saved.length
-      ? saved.map(item => `<li>${escapeHTML(item.post?.title || item.title || item.postId || "Saved item")}</li>`).join("")
-      : "<li>No saved posts yet. Tap bookmark on posts or gigs to save them.</li>";
+    const modalBody = document.querySelector("#settingsModal .settings-modal-body");
+    if (!modalBody) return;
+    modalBody.innerHTML = saved.length
+      ? `<div class="settings-saved-list">${saved.map(item => {
+          const post = item.post || item;
+          return `<article class="settings-saved-card">
+            <i data-lucide="bookmark"></i>
+            <span><b>${escapeHTML(post.title || post.content || item.postId || "Saved item")}</b><small>${escapeHTML(post.author || post.source || "ConnectHub")} - ${escapeHTML(new Date(item.savedAt || post.createdAt || Date.now()).toLocaleDateString("en-IN"))}</small></span>
+            <button class="btn btn-secondary" type="button" onclick="AppUX.showToast('Open from Feed or Explore')">Open</button>
+          </article>`;
+        }).join("")}</div>`
+      : `<div class="settings-empty-state"><i data-lucide="bookmark"></i><b>No saved posts yet</b><span>Tap bookmark on posts, gigs, or profiles to save them here.</span></div>`;
     showToast(`Saved folder: ${saved.length} item${saved.length === 1 ? "" : "s"}`);
-    const panel = document.getElementById("settingsSmartResults");
-    if (panel) {
-      panel.classList.add("active");
-      panel.innerHTML = `<div class="settings-saved-preview"><strong>Saved Posts & Gigs</strong><ul>${list}</ul></div>`;
-    }
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function renderAdvancedSettings(role) {
@@ -3113,6 +3118,625 @@ const AppUX = (() => {
     }
     const body = document.getElementById("body");
     if (body && currentView === "settings") renderSettingsPage(body);
+  }
+
+  function installSettingsOverlays() {
+    if (window.__connectHubSettingsOverlayInstalled) return;
+    window.__connectHubSettingsOverlayInstalled = true;
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      closeSettingsModal();
+      closeSettingsBottomSheet();
+    });
+  }
+
+  function openSettingsModal(title, bodyHTML, options = {}) {
+    closeSettingsModal();
+    const modal = document.createElement("div");
+    modal.id = "settingsModal";
+    modal.className = "settings-modal-overlay";
+    modal.innerHTML = `
+      <div class="settings-modal-card ${options.wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}" onclick="event.stopPropagation()">
+        <div class="settings-modal-header">
+          <div>
+            <span>${escapeHTML(options.eyebrow || "ConnectHub settings")}</span>
+            <h3>${escapeHTML(title)}</h3>
+          </div>
+          <button type="button" class="settings-icon-btn" onclick="AppUX.closeSettingsModal()" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="settings-modal-body">${bodyHTML}</div>
+      </div>`;
+    modal.addEventListener("click", closeSettingsModal);
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("active"));
+    if (window.lucide) window.lucide.createIcons();
+    const autofocus = modal.querySelector("[autofocus]");
+    if (autofocus) setTimeout(() => autofocus.focus(), 80);
+    return modal;
+  }
+
+  function closeSettingsModal() {
+    const modal = document.getElementById("settingsModal");
+    if (!modal) return;
+    modal.classList.remove("active");
+    setTimeout(() => modal.remove(), 180);
+  }
+
+  function openSettingsBottomSheet(title, options, selectedValue, onSelect) {
+    closeSettingsBottomSheet();
+    settingsSheetSelect = onSelect;
+    const sheet = document.createElement("div");
+    sheet.id = "settingsBottomSheet";
+    sheet.className = "settings-sheet-overlay";
+    sheet.innerHTML = `
+      <section class="settings-sheet-card" onclick="event.stopPropagation()" aria-label="${escapeAttr(title)}">
+        <div class="settings-sheet-handle"></div>
+        <div class="settings-modal-header compact">
+          <div><span>Choose option</span><h3>${escapeHTML(title)}</h3></div>
+          <button type="button" class="settings-icon-btn" onclick="AppUX.closeSettingsBottomSheet()" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="settings-sheet-options">
+          ${options.map(option => `
+            <button class="settings-option-row ${String(option.value) === String(selectedValue) ? "active" : ""}" type="button" onclick="AppUX.selectSettingsSheetOption('${escapeAttr(option.value)}')">
+              <span><i data-lucide="${escapeAttr(option.icon || "circle")}"></i><b>${escapeHTML(option.label)}</b><small>${escapeHTML(option.description || "")}</small></span>
+              ${String(option.value) === String(selectedValue) ? '<i data-lucide="check"></i>' : ""}
+            </button>`).join("")}
+        </div>
+      </section>`;
+    sheet.addEventListener("click", closeSettingsBottomSheet);
+    document.body.appendChild(sheet);
+    requestAnimationFrame(() => sheet.classList.add("active"));
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function closeSettingsBottomSheet() {
+    const sheet = document.getElementById("settingsBottomSheet");
+    settingsSheetSelect = null;
+    if (!sheet) return;
+    sheet.classList.remove("active");
+    setTimeout(() => sheet.remove(), 180);
+  }
+
+  function selectSettingsSheetOption(value) {
+    const callback = settingsSheetSelect;
+    closeSettingsBottomSheet();
+    if (callback) callback(value);
+  }
+
+  async function persistSettingsPatch(patch, message = "Settings updated") {
+    await persistSettingsPreferences(patch);
+    try {
+      await apiRequest("/api/users/settings", {
+        method: "PUT",
+        body: JSON.stringify(patch)
+      });
+    } catch (error) {
+      console.warn("ConnectHub settings sync failed:", error.message);
+    }
+    showToast(message);
+  }
+
+  async function saveSettingsToggle(key, value) {
+    await persistSettingsPatch({ [key]: Boolean(value) }, `${key.replace(/([A-Z])/g, " $1")} ${value ? "enabled" : "disabled"}`);
+  }
+
+  async function saveNotificationPref(key, value) {
+    updateCurrentProfile({ [key]: Boolean(value) });
+    try {
+      await apiRequest("/api/notifications", {
+        method: "PUT",
+        body: JSON.stringify({ [key]: Boolean(value) })
+      });
+    } catch (error) {
+      console.warn("ConnectHub notification sync failed:", error.message);
+    }
+    const body = document.getElementById("body");
+    if (body && currentView === "settings") renderSettingsPage(body);
+    showToast(`${key.replace(/([A-Z])/g, " $1")} ${value ? "enabled" : "disabled"}`);
+  }
+
+  function openProfileVisibilitySelector() {
+    const user = getCurrentUser() || {};
+    const current = user.profileVisibility || (user.accountPrivacy === "private" ? "private" : "public");
+    openSettingsBottomSheet("Profile visibility", [
+      { value: "public", label: "Public", description: "Everyone can open your public profile.", icon: "globe" },
+      { value: "connections", label: "Connections only", description: "Only your network can see full details.", icon: "users" },
+      { value: "private", label: "Private", description: "Hide your profile from public discovery.", icon: "lock" }
+    ], current, value => persistSettingsPatch({
+      profileVisibility: value,
+      accountPrivacy: value === "private" ? "private" : "public"
+    }, "Profile visibility updated"));
+  }
+
+  function openMessagingPrivacySelector() {
+    const user = getCurrentUser() || {};
+    const current = user.whoCanMessage || (user.messagingPrivacy === "network" ? "connections" : user.messagingPrivacy === "none" ? "nobody" : "everyone");
+    openSettingsBottomSheet("Who can message me", [
+      { value: "everyone", label: "Everyone", description: "Any ConnectHub user can message you.", icon: "message-circle" },
+      { value: "connections", label: "Connections only", description: "Only accepted connections can message you.", icon: "users" },
+      { value: "nobody", label: "No one", description: "Pause new inbound messages.", icon: "ban" }
+    ], current, value => persistSettingsPatch({
+      whoCanMessage: value,
+      messagingPrivacy: value === "connections" ? "network" : value === "nobody" ? "none" : "everyone"
+    }, "Messaging privacy updated"));
+  }
+
+  function openLanguageSelector() {
+    const current = getCurrentUser()?.preferredLanguage || localStorage.getItem("connecthub_language") || "en";
+    openSettingsBottomSheet("Language", LANGUAGE_OPTIONS.map(option => ({
+      value: option.value,
+      label: option.label,
+      description: option.value === "en" ? "Default app language." : "Stores your preference for translated app labels.",
+      icon: "languages"
+    })), current, value => {
+      const option = LANGUAGE_OPTIONS.find(item => item.value === value) || LANGUAGE_OPTIONS[0];
+      persistSettingsPatch({ preferredLanguage: option.value, language: option.value }, `Language set to ${option.label}`);
+    });
+  }
+
+  function openFontSizeSelector() {
+    const current = getCurrentUser()?.fontSizePreference || localStorage.getItem("connecthub_font_size") || "medium";
+    openSettingsBottomSheet("Font size", FONT_SIZE_OPTIONS.map(option => ({
+      value: option.value,
+      label: option.label,
+      description: option.value === "medium" ? "Recommended for most users." : "Adjust text scale across the app.",
+      icon: "type"
+    })), current, value => {
+      const option = FONT_SIZE_OPTIONS.find(item => item.value === value) || FONT_SIZE_OPTIONS[1];
+      persistSettingsPatch({ fontSizePreference: option.value, fontSize: option.value }, `Font size set to ${option.label}`);
+    });
+  }
+
+  function openSettingsEditProfile() {
+    const user = getCurrentUser() || {};
+    const skills = Array.isArray(user.skills) ? user.skills.join(", ") : (user.skills || "");
+    openSettingsModal("Edit profile", `
+      <form class="settings-form-grid" onsubmit="AppUX.saveSettingsProfile(event)">
+        <div class="settings-avatar-editor">
+          <div id="settingsAvatarPreview">${avatarMarkup(user, "user-avatar")}</div>
+          <label class="btn btn-secondary" for="settingsAvatarInput"><i data-lucide="camera"></i>Change photo</label>
+          <input id="settingsAvatarInput" type="file" accept="image/jpeg,image/png,image/webp" onchange="AppUX.previewSettingsAvatar(this)" hidden>
+        </div>
+        <label class="settings-form-field"><span>Full Name</span><input id="settingsName" class="form-control" required minlength="2" value="${escapeAttr(user.name || "")}" autofocus></label>
+        <label class="settings-form-field"><span>Professional title</span><input id="settingsTitle" class="form-control" value="${escapeAttr(user.title || "")}" placeholder="Designer, Founder, Investor"></label>
+        <label class="settings-form-field full"><span>Bio / Short pitch</span><textarea id="settingsBio" class="form-control" maxlength="220" rows="4" placeholder="Tell people what you do">${escapeHTML(user.bio || "")}</textarea></label>
+        <label class="settings-form-field"><span>City</span><input id="settingsCity" class="form-control" value="${escapeAttr(user.city || "")}" placeholder="Hyderabad"></label>
+        <label class="settings-form-field"><span>State</span><input id="settingsState" class="form-control" value="${escapeAttr(user.state || "")}" placeholder="Telangana"></label>
+        <label class="settings-form-field full"><span>Skills</span><input id="settingsSkills" class="form-control" value="${escapeAttr(skills)}" placeholder="Figma, React, Photography"></label>
+        <div class="settings-modal-actions full">
+          <button class="btn btn-secondary" type="button" onclick="AppUX.useSettingsLocation()"><i data-lucide="map-pin"></i>Use location</button>
+          <button class="btn btn-primary" type="submit"><i data-lucide="save"></i>Save profile</button>
+        </div>
+      </form>`);
+  }
+
+  function previewSettingsAvatar(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const preview = document.getElementById("settingsAvatarPreview");
+      if (preview) preview.innerHTML = `<img class="user-avatar" src="${reader.result}" alt="Profile preview">`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveSettingsProfile(event) {
+    event.preventDefault();
+    const input = document.getElementById("settingsAvatarInput");
+    const patch = {
+      name: document.getElementById("settingsName")?.value.trim(),
+      title: document.getElementById("settingsTitle")?.value.trim(),
+      bio: document.getElementById("settingsBio")?.value.trim().slice(0, 220),
+      city: document.getElementById("settingsCity")?.value.trim(),
+      state: document.getElementById("settingsState")?.value.trim(),
+      skills: document.getElementById("settingsSkills")?.value.split(",").map(item => item.trim()).filter(Boolean)
+    };
+    try {
+      const avatarPhoto = await fileToAvatar(input);
+      if (avatarPhoto) patch.avatarPhoto = avatarPhoto;
+      const data = await apiRequest("/api/users/profile", {
+        method: "PUT",
+        body: JSON.stringify(patch)
+      });
+      updateCurrentProfile(data.user || patch);
+      closeSettingsModal();
+      applyUserChrome();
+      showToast("Profile updated successfully");
+      const body = document.getElementById("body");
+      if (body && currentView === "settings") renderSettingsPage(body);
+    } catch (error) {
+      updateCurrentProfile(patch);
+      closeSettingsModal();
+      showToast(error.message || "Profile saved locally", error.message ? "error" : "success");
+    }
+  }
+
+  async function useSettingsLocation() {
+    try {
+      const location = await requestBrowserLocation();
+      const city = document.getElementById("settingsCity");
+      const state = document.getElementById("settingsState");
+      if (city && location.city) city.value = location.city;
+      if (state && location.state) state.value = location.state;
+      showToast("Location added");
+    } catch (error) {
+      showToast(error.message || "Could not detect location", "error");
+    }
+  }
+
+  function openManageContact() {
+    const user = getCurrentUser() || {};
+    openSettingsModal("Email & phone", `
+      <form class="settings-form-grid" onsubmit="AppUX.saveSettingsContact(event)">
+        <label class="settings-form-field full"><span>Sign-in email</span><input class="form-control" value="${escapeAttr(user.email || "")}" disabled><small>This email is used for login.</small></label>
+        <label class="settings-form-field full"><span>Public contact email</span><input id="settingsContactEmail" class="form-control" type="email" value="${escapeAttr(user.contactEmail || user.email || "")}" placeholder="you@example.com"></label>
+        <label class="settings-form-field"><span>Phone number</span><input id="settingsPhone" class="form-control" inputmode="tel" value="${escapeAttr(user.phone || "")}" placeholder="+91..."></label>
+        <label class="settings-form-field"><span>WhatsApp number</span><input id="settingsWhatsapp" class="form-control" inputmode="tel" value="${escapeAttr(user.whatsapp || "")}" placeholder="+91..."></label>
+        <div class="settings-modal-actions full">
+          <a class="btn btn-secondary" href="tel:6301394850"><i data-lucide="phone"></i>Call support</a>
+          <button class="btn btn-primary" type="submit"><i data-lucide="save"></i>Save contact</button>
+        </div>
+      </form>`);
+  }
+
+  async function saveSettingsContact(event) {
+    event.preventDefault();
+    const patch = {
+      contactEmail: document.getElementById("settingsContactEmail")?.value.trim(),
+      phone: document.getElementById("settingsPhone")?.value.trim(),
+      whatsapp: document.getElementById("settingsWhatsapp")?.value.trim()
+    };
+    try {
+      const data = await apiRequest("/api/users/profile", {
+        method: "PUT",
+        body: JSON.stringify(patch)
+      });
+      updateCurrentProfile(data.user || patch);
+      closeSettingsModal();
+      showToast("Contact details updated");
+      const body = document.getElementById("body");
+      if (body && currentView === "settings") renderSettingsPage(body);
+    } catch (error) {
+      updateCurrentProfile(patch);
+      closeSettingsModal();
+      showToast("Contact saved locally");
+    }
+  }
+
+  function openLinkedAccounts() {
+    const user = getCurrentUser() || {};
+    openSettingsModal("Linked accounts", `
+      <form class="settings-form-grid" onsubmit="AppUX.saveLinkedAccounts(event)">
+        <label class="settings-form-field full"><span>LinkedIn profile</span><input id="settingsLinkedIn" class="form-control" type="url" value="${escapeAttr(user.linkedinUrl || "")}" placeholder="https://linkedin.com/in/..."></label>
+        <label class="settings-form-field full"><span>Portfolio / website</span><input id="settingsPortfolio" class="form-control" type="url" value="${escapeAttr(user.portfolio || user.website || "")}" placeholder="https://yourportfolio.com"></label>
+        <label class="settings-form-field full"><span>GitHub / work profile</span><input id="settingsGithub" class="form-control" type="url" value="${escapeAttr(user.githubUrl || "")}" placeholder="https://github.com/..."></label>
+        <div class="settings-connect-list full">
+          <button class="settings-connect-row" type="button" onclick="AppUX.mockConnectAccount('Google')"><i data-lucide="circle-dot"></i><span><b>Google</b><small>Use Google only after OAuth is configured.</small></span></button>
+          <button class="settings-connect-row" type="button" onclick="AppUX.mockConnectAccount('LinkedIn')"><i data-lucide="briefcase"></i><span><b>LinkedIn</b><small>Paste profile link for now.</small></span></button>
+        </div>
+        <div class="settings-modal-actions full"><button class="btn btn-primary" type="submit"><i data-lucide="save"></i>Save links</button></div>
+      </form>`);
+  }
+
+  async function saveLinkedAccounts(event) {
+    event.preventDefault();
+    const patch = {
+      linkedinUrl: document.getElementById("settingsLinkedIn")?.value.trim(),
+      portfolio: document.getElementById("settingsPortfolio")?.value.trim(),
+      website: document.getElementById("settingsPortfolio")?.value.trim(),
+      githubUrl: document.getElementById("settingsGithub")?.value.trim()
+    };
+    try {
+      const data = await apiRequest("/api/users/profile", { method: "PUT", body: JSON.stringify(patch) });
+      updateCurrentProfile(data.user || patch);
+    } catch {
+      updateCurrentProfile(patch);
+    }
+    closeSettingsModal();
+    showToast("Linked accounts updated");
+  }
+
+  function mockConnectAccount(name) {
+    showToast(`${name} linking needs OAuth setup. Profile link fields work now.`);
+  }
+
+  function openChangePassword() {
+    const user = getCurrentUser() || {};
+    openSettingsModal("Change password", `
+      <form class="settings-form-grid" onsubmit="AppUX.submitSettingsNewPassword(event)">
+        <div class="settings-info-card full"><i data-lucide="shield-check"></i><span><b>Secure OTP check</b><small>We send an OTP to ${escapeHTML(user.email || "your login email")} before changing your passcode.</small></span></div>
+        <button class="btn btn-secondary full" type="button" onclick="AppUX.sendSettingsPasswordOtp()"><i data-lucide="mail"></i>Send OTP</button>
+        <div id="settingsOtpHint" class="settings-demo-otp full" aria-live="polite"></div>
+        <label class="settings-form-field"><span>Email OTP</span><input id="settingsPasswordOtp" class="form-control" inputmode="numeric" maxlength="6" placeholder="6 digit OTP" required></label>
+        <label class="settings-form-field"><span>New password</span><input id="settingsNewPassword" class="form-control" type="password" minlength="8" placeholder="At least 8 characters" required oninput="AppUX.updatePasswordStrength(this.value)"></label>
+        <div class="settings-password-meter full"><i id="settingsPasswordStrength"></i></div>
+        <button class="btn btn-primary full" type="submit"><i data-lucide="key-round"></i>Update password</button>
+      </form>`);
+  }
+
+  async function sendSettingsPasswordOtp() {
+    try {
+      const data = await apiRequest("/api/auth/send-otp", { method: "POST", body: JSON.stringify({}) });
+      const hint = document.getElementById("settingsOtpHint");
+      if (hint) {
+        hint.textContent = data.demoOtp ? `Demo OTP for this free deployment: ${data.demoOtp}` : "OTP sent to your email.";
+        hint.classList.add("active");
+      }
+      showToast(data.demoOtp ? "Demo OTP generated" : "OTP sent to email");
+    } catch (error) {
+      showToast(error.message || "Could not send OTP", "error");
+    }
+  }
+
+  function updatePasswordStrength(value) {
+    const meter = document.getElementById("settingsPasswordStrength");
+    if (!meter) return;
+    const text = String(value || "");
+    const score = Math.min(100, (text.length >= 8 ? 35 : text.length * 4) + (/[A-Z]/.test(text) ? 20 : 0) + (/[0-9]/.test(text) ? 20 : 0) + (/[^A-Za-z0-9]/.test(text) ? 25 : 0));
+    meter.style.width = `${score}%`;
+    meter.dataset.level = score > 74 ? "strong" : score > 44 ? "medium" : "weak";
+  }
+
+  async function submitSettingsNewPassword(event) {
+    event.preventDefault();
+    const otp = document.getElementById("settingsPasswordOtp")?.value.trim();
+    const newPassword = document.getElementById("settingsNewPassword")?.value;
+    try {
+      await apiRequest("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ otp, newPassword })
+      });
+      closeSettingsModal();
+      showToast("Password changed successfully");
+    } catch (error) {
+      showToast(error.message || "Password update failed", "error");
+    }
+  }
+
+  async function openActiveSessions() {
+    openSettingsModal("Active sessions", `<div class="settings-smart-loading"><span></span>Loading sessions...</div>`);
+    let sessions = [];
+    try {
+      const data = await apiRequest("/api/sessions");
+      sessions = data.sessions || [];
+    } catch {
+      sessions = [{ sessionId: "current", device: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Desktop browser", city: "Current device", lastActive: new Date().toISOString(), isCurrent: true }];
+    }
+    const modalBody = document.querySelector("#settingsModal .settings-modal-body");
+    if (!modalBody) return;
+    modalBody.innerHTML = `
+      <div class="settings-session-list">
+        ${sessions.map(session => `
+          <article class="settings-session-card">
+            <i data-lucide="${session.isCurrent || session.sessionId === "current" ? "monitor-dot" : "monitor-smartphone"}"></i>
+            <span><b>${escapeHTML(session.device || session.deviceType || "Browser session")}</b><small>${escapeHTML(session.city || session.location || session.ip || "Current network")} - ${escapeHTML(new Date(session.lastActive || Date.now()).toLocaleString("en-IN"))}</small></span>
+            <button class="btn btn-secondary" type="button" onclick="AppUX.revokeSettingsSession('${escapeAttr(session.sessionId || "current")}')" ${session.isCurrent || session.sessionId === "current" ? "disabled" : ""}>${session.isCurrent || session.sessionId === "current" ? "Current" : "Remove"}</button>
+          </article>`).join("")}
+      </div>
+      <button class="btn btn-secondary danger-soft full" type="button" onclick="AppUX.revokeOtherSettingsSessions()"><i data-lucide="log-out"></i>Remove other sessions</button>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  async function revokeSettingsSession(id) {
+    try {
+      await apiRequest(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+      showToast("Session removed");
+      openActiveSessions();
+    } catch (error) {
+      showToast(error.message || "Could not remove session", "error");
+    }
+  }
+
+  async function revokeOtherSettingsSessions() {
+    try {
+      await apiRequest("/api/sessions/all/others", { method: "DELETE" });
+      showToast("Other sessions removed");
+      openActiveSessions();
+    } catch (error) {
+      showToast(error.message || "Could not update sessions", "error");
+    }
+  }
+
+  function openBlockMutedUsers() {
+    const user = getCurrentUser() || {};
+    const blocked = Array.isArray(user.blockedUsers) ? user.blockedUsers : [];
+    const muted = Array.isArray(user.mutedUsers) ? user.mutedUsers : [];
+    openSettingsModal("Blocked & muted users", `
+      <div class="settings-form-grid">
+        <label class="settings-form-field full"><span>Block a user</span><input id="settingsBlockedInput" class="form-control" placeholder="Name or @username"></label>
+        <button class="btn btn-secondary full" type="button" onclick="AppUX.addSettingsListUser('blockedUsers', 'settingsBlockedInput')"><i data-lucide="ban"></i>Add to blocked</button>
+        <label class="settings-form-field full"><span>Mute a user</span><input id="settingsMutedInput" class="form-control" placeholder="Name or @username"></label>
+        <button class="btn btn-secondary full" type="button" onclick="AppUX.addSettingsListUser('mutedUsers', 'settingsMutedInput')"><i data-lucide="volume-x"></i>Add to muted</button>
+        <div class="settings-list-chips full">
+          <b>Blocked</b>
+          ${blocked.length ? blocked.map(name => `<button type="button" onclick="AppUX.removeSettingsListUser('blockedUsers','${escapeAttr(name)}')">${escapeHTML(name)} <i data-lucide="x"></i></button>`).join("") : "<small>No blocked users.</small>"}
+          <b>Muted</b>
+          ${muted.length ? muted.map(name => `<button type="button" onclick="AppUX.removeSettingsListUser('mutedUsers','${escapeAttr(name)}')">${escapeHTML(name)} <i data-lucide="x"></i></button>`).join("") : "<small>No muted users.</small>"}
+        </div>
+      </div>`);
+  }
+
+  async function addSettingsListUser(key, inputId) {
+    const input = document.getElementById(inputId);
+    const value = input?.value.trim().replace(/^@/, "");
+    if (!value) return showToast("Enter a user name", "error");
+    const current = getCurrentUser() || {};
+    const next = Array.from(new Set([...(current[key] || []), value])).slice(0, 50);
+    await persistSettingsPatch({ [key]: next }, key === "blockedUsers" ? "User blocked" : "User muted");
+    openBlockMutedUsers();
+  }
+
+  async function removeSettingsListUser(key, value) {
+    const current = getCurrentUser() || {};
+    const next = (current[key] || []).filter(item => item !== value);
+    await persistSettingsPatch({ [key]: next }, "List updated");
+    openBlockMutedUsers();
+  }
+
+  function openCurrentPlan() {
+    openSettingsModal("Current plan", `
+      <div class="settings-plan-card">
+        <i data-lucide="badge-indian-rupee"></i>
+        <h4>Free Plan</h4>
+        <p>ConnectHub is running with zero-budget hosting right now. You can use profiles, posts, messages, saved items, AI Hub previews, and settings.</p>
+      </div>`);
+  }
+
+  function openUpgradePro() {
+    openSettingsModal("Upgrade preview", `
+      <div class="settings-plan-grid">
+        <article><b>Pro Freelancer</b><span>Portfolio boost, profile analytics, priority discovery.</span></article>
+        <article><b>Startup Pro</b><span>Hiring board, applicant tracking, campaign analytics.</span></article>
+        <article><b>Investor Pro</b><span>Deal radar, watchlists, richer startup signals.</span></article>
+      </div>
+      <p class="settings-help-text">Payments will stay disabled until Razorpay keys are configured safely on Render.</p>`);
+  }
+
+  function openBillingHistory() {
+    openSettingsModal("Billing history", `<div class="settings-empty-state"><i data-lucide="receipt"></i><b>No invoices yet</b><span>Your current ConnectHub plan is free.</span></div>`);
+  }
+
+  function downloadUserData() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      user: getCurrentUser(),
+      savedPosts: getDB().savedPostsByUser || {},
+      notifications: (getDB().notifications || []).filter(note => note.to === getCurrentUser()?.name)
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "connecthub-data-export.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast("Data export downloaded");
+  }
+
+  function openActivityLog() {
+    const db = getDB();
+    const userName = getCurrentUser()?.name;
+    const actions = [
+      `${(db.profilePosts || []).filter(post => post.author === userName || post.name === userName).length} profile posts`,
+      `${(db.messages || []).filter(message => message.from === userName || message.to === userName).length} messages`,
+      `${(db.notifications || []).filter(note => note.to === userName).length} notifications`,
+      `${(db.savedProfiles || []).filter(item => item.user === userName || item.from === userName).length} saved profiles`
+    ];
+    openSettingsModal("Activity log", `<ul class="settings-activity-list">${actions.map(item => `<li><i data-lucide="activity"></i>${escapeHTML(item)}</li>`).join("")}</ul>`);
+  }
+
+  function openArchive() {
+    openSettingsModal("Archive", `<div class="settings-empty-state"><i data-lucide="archive"></i><b>Archive is empty</b><span>Hidden posts and muted opportunities will appear here.</span></div>`);
+  }
+
+  function openHelpCenter() {
+    openSettingsModal("Help Center", `
+      <div class="settings-help-grid">
+        <a class="settings-help-card" href="tel:6301394850"><i data-lucide="phone"></i><b>Call support</b><span>6301394850</span></a>
+        <a class="settings-help-card" href="mailto:support@connecthub.in"><i data-lucide="mail"></i><b>Email support</b><span>support@connecthub.in</span></a>
+        <button class="settings-help-card" type="button" onclick="AppUX.openReportProblem()"><i data-lucide="flag"></i><b>Report issue</b><span>Send feedback to admin</span></button>
+      </div>`);
+  }
+
+  function openReportProblem() {
+    openSettingsModal("Report a problem", `
+      <form class="settings-form-grid" onsubmit="AppUX.submitSettingsReport(event)">
+        <label class="settings-form-field full"><span>Issue type</span><select id="settingsReportType" class="form-control"><option>Login problem</option><option>Messages issue</option><option>Profile issue</option><option>Payment issue</option><option>Other</option></select></label>
+        <label class="settings-form-field full"><span>What happened?</span><textarea id="settingsReportDescription" class="form-control" rows="5" maxlength="1200" placeholder="Explain the issue clearly" required></textarea></label>
+        <button class="btn btn-primary full" type="submit"><i data-lucide="send"></i>Submit report</button>
+      </form>`);
+  }
+
+  async function submitSettingsReport(event) {
+    event.preventDefault();
+    const payload = {
+      type: document.getElementById("settingsReportType")?.value,
+      description: document.getElementById("settingsReportDescription")?.value.trim()
+    };
+    try {
+      await apiRequest("/api/support/report", { method: "POST", body: JSON.stringify(payload) });
+      closeSettingsModal();
+      showToast("Report submitted");
+    } catch (error) {
+      showToast(error.message || "Could not submit report", "error");
+    }
+  }
+
+  function openRateApp() {
+    openSettingsModal("Rate ConnectHub", `
+      <div class="settings-rating-row">
+        ${[1, 2, 3, 4, 5].map(score => `<button type="button" onclick="AppUX.submitSettingsRating(${score})"><i data-lucide="star"></i><span>${score}</span></button>`).join("")}
+      </div>
+      <p class="settings-help-text">Your rating is saved locally and helps improve the app experience.</p>`);
+  }
+
+  function submitSettingsRating(score) {
+    updateCurrentProfile({ appRating: score });
+    closeSettingsModal();
+    showToast(`Thanks for rating ${score}/5`);
+  }
+
+  function openTerms() {
+    openSettingsModal("Terms of Service", `
+      <div class="settings-legal-copy">
+        <p>ConnectHub India is a professional networking platform for startups, freelancers, and investors.</p>
+        <p>Use respectful communication, avoid spam, protect private data, and verify deals before payments.</p>
+        <p>Free-tier services can have limits, so some features may run in demo mode until production services are configured.</p>
+      </div>`);
+  }
+
+  function openAbout() {
+    openSettingsModal("About ConnectHub", `
+      <div class="settings-plan-card">
+        <i data-lucide="sparkles"></i>
+        <h4>ConnectHub India</h4>
+        <p>Version 1.0. Built for Indian startups, freelancers, and investors with marketplace, messaging, profiles, AI Hub, and PWA support.</p>
+        <small>Support: 6301394850</small>
+      </div>`);
+  }
+
+  function openDeactivateAccount() {
+    openSettingsModal("Deactivate account", `
+      <div class="settings-danger-panel">
+        <i data-lucide="pause-circle"></i>
+        <b>Temporarily hide your profile</b>
+        <p>You can sign in later and turn your account back on. Your data stays saved.</p>
+      </div>
+      <button class="btn btn-secondary danger-soft full" type="button" onclick="AppUX.confirmDeactivateAccount()">Deactivate for now</button>`);
+  }
+
+  async function confirmDeactivateAccount() {
+    await persistSettingsPatch({ deactivated: true }, "Account deactivated");
+    closeSettingsModal();
+  }
+
+  function openDeleteAccount() {
+    openSettingsModal("Delete account", `
+      <div class="settings-danger-panel danger">
+        <i data-lucide="trash-2"></i>
+        <b>This permanently deletes registered account data</b>
+        <p>Type DELETE to confirm. Demo users will be signed out and marked locally.</p>
+      </div>
+      <label class="settings-form-field full"><span>Confirmation</span><input id="settingsDeleteConfirm" class="form-control" placeholder="DELETE"></label>
+      <button class="btn btn-primary full danger" type="button" onclick="AppUX.confirmDeleteAccount()"><i data-lucide="trash-2"></i>Delete account</button>`);
+  }
+
+  async function confirmDeleteAccount() {
+    const value = document.getElementById("settingsDeleteConfirm")?.value.trim();
+    if (value !== "DELETE") return showToast("Type DELETE to confirm", "error");
+    try {
+      await apiRequest("/api/users/account", { method: "DELETE" });
+    } catch (error) {
+      console.warn("ConnectHub account delete API failed:", error.message);
+    }
+    localStorage.removeItem("connecthub_current_user");
+    localStorage.removeItem("connecthub_token");
+    closeSettingsModal();
+    showToast("Account deleted");
+    setTimeout(() => { window.location.href = "index.html"; }, 650);
   }
 
   function cycleLanguagePreference() {
@@ -3323,5 +3947,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();

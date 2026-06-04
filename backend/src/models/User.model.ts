@@ -31,7 +31,7 @@ export interface IUser extends Document {
   activeSessions: ActiveSession[];
   accountPrivacy: "public" | "private";
   messagingPrivacy: "everyone" | "network" | "none";
-  preferredLanguage: "en" | "hi" | "te" | "ta" | "kn" | "mr";
+  preferredLanguage: "en" | "hi" | "te" | "ur" | "ta" | "kn" | "mr";
   fontSizePreference: "small" | "medium" | "large" | "extra-large";
   createdAt: Date;
   updatedAt: Date;
@@ -80,7 +80,7 @@ const UserSchema = new Schema<IUser>(
     activeSessions: { type: [ActiveSessionSchema], default: [] },
     accountPrivacy: { type: String, enum: ["public", "private"], default: "public", index: true },
     messagingPrivacy: { type: String, enum: ["everyone", "network", "none"], default: "everyone", index: true },
-    preferredLanguage: { type: String, enum: ["en", "hi", "te", "ta", "kn", "mr"], default: "en" },
+    preferredLanguage: { type: String, enum: ["en", "hi", "te", "ur", "ta", "kn", "mr"], default: "en" },
     fontSizePreference: { type: String, enum: ["small", "medium", "large", "extra-large"], default: "medium" }
   },
   { timestamps: true }
