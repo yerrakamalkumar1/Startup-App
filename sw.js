@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v46-no-blur-dark-fix";
+const CACHE_NAME = "connecthub-v47-responsive-adaptive";
 const APP_SHELL = [
   "index.html",
   "index.css",

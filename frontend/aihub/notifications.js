@@ -3,11 +3,16 @@
   let items = [];
   let panel;
   let bellCount;
+  let startY = null;
 
   function init() {
     panel = document.getElementById("aihubNotificationPanel");
     bellCount = document.getElementById("aihubBellCount");
-    document.getElementById("aihubBell")?.addEventListener("click", toggle);
+    document.getElementById("aihubBell")?.addEventListener("click", event => {
+      event.stopPropagation();
+      toggle();
+    });
+    setupDismissListeners();
     load();
   }
 
@@ -33,7 +38,45 @@
   }
 
   function toggle() {
-    panel.classList.toggle("open");
+    if (!panel) return;
+    panel.classList.contains("open") ? close() : open();
+  }
+
+  function open() {
+    if (!panel) return;
+    panel.classList.remove("closing");
+    panel.classList.add("open");
+    panel.setAttribute("aria-hidden", "false");
+  }
+
+  function close() {
+    if (!panel || !panel.classList.contains("open")) return;
+    panel.classList.add("closing");
+    window.setTimeout(() => {
+      panel?.classList.remove("open", "closing");
+      panel?.setAttribute("aria-hidden", "true");
+    }, 180);
+  }
+
+  function setupDismissListeners() {
+    document.addEventListener("click", event => {
+      if (!panel?.classList.contains("open")) return;
+      const bell = document.getElementById("aihubBell");
+      if (panel.contains(event.target) || bell?.contains(event.target)) return;
+      close();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") close();
+    });
+    window.addEventListener("scroll", close, { passive: true });
+    panel?.addEventListener("touchstart", event => {
+      startY = event.touches?.[0]?.clientY ?? null;
+    }, { passive: true });
+    panel?.addEventListener("touchmove", event => {
+      if (startY === null) return;
+      const y = event.touches?.[0]?.clientY ?? startY;
+      if (startY - y > 42) close();
+    }, { passive: true });
   }
 
   function render() {
@@ -72,5 +115,5 @@
     return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   }
 
-  window.ConnectHubAINotifications = { init, push, load };
+  window.ConnectHubAINotifications = { init, push, load, open, close };
 })();

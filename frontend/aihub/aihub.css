@@ -20,6 +20,12 @@ body.dark,
   --aihub-primary-soft: #113b37;
 }
 
+:root[data-theme="dark"] body,
+body.dark {
+  background: var(--aihub-bg);
+  color: var(--aihub-text);
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -45,7 +51,8 @@ body,
 }
 
 .aihub-shell {
-  max-width: 1180px;
+  width: min(100% - 24px, 1480px);
+  max-width: 1480px;
   margin: 0 auto;
   padding: 18px;
   padding-bottom: 110px;
@@ -170,8 +177,9 @@ body,
 
 .aihub-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.35fr);
-  gap: 16px;
+  grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.28fr);
+  gap: 22px;
+  align-items: start;
 }
 
 .aihub-panel {
@@ -192,7 +200,8 @@ body,
 }
 
 .aihub-search-form {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
 }
 
@@ -303,7 +312,7 @@ body,
 }
 
 .enhanced-map {
-  height: 420px;
+  height: clamp(280px, 36vw, 390px);
   border: 1px solid var(--aihub-border);
   overflow: hidden;
 }
@@ -334,26 +343,45 @@ body,
 
 .nearby-sort {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   margin: 12px 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .nearby-sort button {
+  flex: 0 0 auto;
   background: var(--aihub-primary-soft);
   color: var(--aihub-primary);
   border: 1px solid rgba(15,118,110,0.18);
+}
+
+.nearby-sort button.active {
+  background: var(--aihub-primary);
+  color: #fff;
+  border-color: var(--aihub-primary);
+}
+
+.nearby-scroll-label {
+  color: var(--aihub-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin: 2px 0 8px;
 }
 
 .nearby-card-row {
   display: flex;
   overflow-x: auto;
   gap: 12px;
-  padding-bottom: 8px;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
 }
 
 .nearby-business-card {
-  flex: 0 0 300px;
+  flex: 0 0 min(285px, 76vw);
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 12px;
@@ -363,6 +391,7 @@ body,
   padding: 14px;
   box-shadow: var(--aihub-shadow);
   transition: all 0.25s ease;
+  scroll-snap-align: start;
 }
 
 .nearby-business-card:hover {
@@ -384,6 +413,23 @@ body,
 .nearby-business-card h3 {
   margin: 0 0 4px;
   color: var(--aihub-text);
+  overflow-wrap: anywhere;
+}
+
+.nearby-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.nearby-card-head b {
+  border-radius: 999px;
+  background: var(--aihub-primary-soft);
+  color: var(--aihub-primary);
+  font-size: 0.68rem;
+  padding: 4px 7px;
+  white-space: nowrap;
 }
 
 .nearby-business-card p {
@@ -544,6 +590,12 @@ body,
   }
 }
 
+@media (max-width: 1120px) {
+  .aihub-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .aihub-search-form button,
 .aihub-text-btn,
 .aihub-modal-actions button,
@@ -575,10 +627,12 @@ body,
   gap: 9px;
   overflow-x: auto;
   padding: 10px 0;
+  scrollbar-width: none;
 }
 
 .aihub-filter-row button,
 .aihub-tabs button {
+  flex: 0 0 auto;
   white-space: nowrap;
   border: 1px solid var(--aihub-border);
   border-radius: 999px;
@@ -648,6 +702,10 @@ body,
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid var(--aihub-border);
+}
+
+.aihub-map.enhanced-map {
+  height: clamp(280px, 36vw, 390px);
 }
 
 .chart-box {
@@ -786,11 +844,20 @@ body,
   max-height: min(420px, calc(100dvh - 112px));
   overflow-y: auto;
   transform-origin: top right;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 .aihub-notification-panel.open {
   display: block;
-  animation: fadeUp 0.18s ease both;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.aihub-notification-panel.closing {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
 }
 
 .aihub-notification-panel strong {
@@ -850,11 +917,14 @@ body,
 }
 
 @media (max-width: 768px) {
-  .aihub-shell { padding: 12px 12px 100px; }
+  .aihub-shell {
+    width: 100%;
+    padding: 12px 12px 100px;
+  }
   .aihub-grid { grid-template-columns: 1fr; }
   .aihub-header { border-radius: 18px; }
   .aihub-map { height: 300px; }
-  .aihub-search-form { flex-direction: column; }
+  .aihub-search-form { grid-template-columns: 1fr; }
   .aihub-role-pill { display: none; }
   .aihub-notification-panel {
     top: 92px;

@@ -18,45 +18,53 @@
   }
 
   async function nearby(target, state) {
-    if (!state.location || state.location.source === "default") {
-      target.innerHTML = `
-        <section class="nearby-access-card">
-          <div class="nearby-pin">📍</div>
-          <h2>Discover What's Around You</h2>
-          <p>Find startups, freelancers, investors, and businesses near your current location.</p>
-          <button class="aihub-card-btn" onclick="document.getElementById('aihubEnableLocation')?.click()">Allow Location Access</button>
-          <div class="manual-city"><input id="manualNearbyCity" placeholder="Or enter your city"><button onclick="window.ConnectHubFreelancerHub.useManualCity()">Search city</button></div>
-        </section>`;
-      return;
-    }
+    const location = normalizeLocation(state.location);
     const radius = Number(localStorage.getItem("ch_nearby_radius") || 10);
+    const activeRole = localStorage.getItem("ch_nearby_role") || "all";
     let data = { results: [] };
+
     try {
-      const response = await fetch(`/api/aihub/nearby-opportunities?lat=${state.location.lat}&lng=${state.location.lng}&city=${encodeURIComponent(state.location.city || "Hyderabad")}&radius_km=${radius}`);
+      const response = await fetch(`/api/aihub/nearby-opportunities?lat=${location.lat}&lng=${location.lng}&city=${encodeURIComponent(location.city || "Hyderabad")}&radius_km=${radius}`);
       data = await response.json();
-    } catch (error) {
+    } catch {
       let fallback = { businesses: [] };
       try {
-        fallback = await fetch(`/api/nearby?lat=${state.location.lat || 17.385}&lng=${state.location.lng || 78.4867}&city=${encodeURIComponent(state.location.city || "Hyderabad")}&radius=${radius}`).then(res => res.json());
+        fallback = await fetch(`/api/nearby?lat=${location.lat || 17.385}&lng=${location.lng || 78.4867}&city=${encodeURIComponent(location.city || "Hyderabad")}&radius=${radius}`).then(res => res.json());
       } catch {
-        fallback = { businesses: localNearbyRows(state.location) };
+        fallback = { businesses: localNearbyRows(location) };
       }
-      data = { results: fallback.businesses || localNearbyRows(state.location) };
+      data = { results: fallback.businesses || localNearbyRows(location) };
     }
-    const rows = (data.results || []).filter(row => Number(row.distanceKm || 0) <= radius);
-    window.ConnectHubNearbyRows = data.results || [];
-    window.ConnectHubNearbyLocation = state.location;
+
+    const allRows = (data.results && data.results.length ? data.results : localNearbyRows(location)).map(enrichNearbyRow);
+    const rows = filterNearbyRows(allRows.filter(row => Number(row.distanceKm || 0) <= radius), activeRole);
+    window.ConnectHubNearbyRows = allRows;
+    window.ConnectHubNearbyLocation = location;
+
     target.innerHTML = `
       <div class="nearby-toolbar">
-        <div><h3>Nearby Startups & Businesses</h3><p>Showing <strong>${rows.length}</strong> businesses within <strong>${radius} km</strong></p></div>
+        <div>
+          <h3>Nearby Startups & Businesses</h3>
+          <p><span id="nearbyCount">${rows.length}</span> useful leads within <strong>${radius} km</strong> of ${escapeHtml(location.city || "your city")}</p>
+        </div>
         <label>Radius <input type="range" min="1" max="25" step="1" value="${radius}" oninput="window.ConnectHubFreelancerHub.setRadius(this.value)"><span>${radius} km</span></label>
       </div>
       <div id="freelancerMap" class="aihub-map enhanced-map"></div>
-      <div class="nearby-sort"><button onclick="window.ConnectHubFreelancerHub.sortNearby('distance')">By distance</button><button onclick="window.ConnectHubFreelancerHub.sortNearby('sector')">By sector</button><button onclick="window.ConnectHubFreelancerHub.sortNearby('stage')">By stage</button></div>
+      <div class="nearby-sort">
+        ${["all", "startup", "freelancer", "investor"].map(role => `<button class="${role === activeRole ? "active" : ""}" onclick="window.ConnectHubFreelancerHub.setNearbyRole('${role}')">${role === "all" ? "All" : role[0].toUpperCase() + role.slice(1)}s</button>`).join("")}
+        <button onclick="window.ConnectHubFreelancerHub.sortNearby('distance')">By distance</button>
+        <button onclick="window.ConnectHubFreelancerHub.sortNearby('sector')">By sector</button>
+      </div>
+      <div class="nearby-scroll-label">Swipe cards to view more nearby profiles</div>
       <div id="nearbyCards" class="nearby-card-row">${rows.map(nearbyCard).join("")}</div>
       <div id="nearbyProfileModal" class="nearby-modal"></div>
       <div id="nearbyContactModal" class="nearby-modal"></div>`;
-    drawMap("freelancerMap", rows, state.location);
+    drawMap("freelancerMap", rows, location);
+  }
+
+  function normalizeLocation(location = {}) {
+    if (location && location.source !== "default" && location.lat && location.lng) return location;
+    return { lat: 17.385, lng: 78.4867, city: "Hyderabad", region: "Telangana", source: "india-fallback" };
   }
 
   async function skillDemand(target) {
@@ -74,7 +82,7 @@
   async function suggestions(target) {
     const response = await fetch("/api/aihub/feed");
     const data = await response.json();
-    target.innerHTML = `<div class="aihub-list">${(data.items || []).map(item => `<article class="aihub-insight-card"><h3>${item.title}</h3><p>${item.body}</p><button class="aihub-card-btn">Save</button></article>`).join("")}</div>`;
+    target.innerHTML = `<div class="aihub-list">${(data.items || []).map(item => `<article class="aihub-insight-card"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><button class="aihub-card-btn">Save</button></article>`).join("")}</div>`;
   }
 
   function localRadar(target) {
@@ -101,38 +109,52 @@
       const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
       const response = await fetch("/api/aihub/rate-estimate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json();
-      document.getElementById("aiRateResult").innerHTML = `<article class="aihub-insight-card"><h3>Rs ${data.recommendedLow} - Rs ${data.recommendedHigh} / hour</h3><p>${data.reason}</p></article>`;
+      document.getElementById("aiRateResult").innerHTML = `<article class="aihub-insight-card"><h3>Rs ${data.recommendedLow} - Rs ${data.recommendedHigh} / hour</h3><p>${escapeHtml(data.reason)}</p></article>`;
     });
-  }
-
-  function card(row) {
-    return `<article class="aihub-result-card"><div class="aihub-result-top"><span class="source-badge">${row.source || "ConnectHub"}</span><span class="match-badge">${row.matchPercent || 70}%</span></div><h3>${row.title}</h3><p>${row.description || ""}</p><p class="muted">${row.distanceKm ? `${row.distanceKm} km away` : ""}</p></article>`;
   }
 
   function nearbyCard(row) {
     return `<article class="nearby-business-card" style="--sector:${sectorColor(row.sector)}">
-      <div class="nearby-sector-icon">${(row.sector || "CH").slice(0, 2).toUpperCase()}</div>
+      <div class="nearby-sector-icon">${escapeHtml((row.sector || "CH").slice(0, 2).toUpperCase())}</div>
       <div>
-        <h3>${escapeHtml(row.title)}</h3>
+        <div class="nearby-card-head"><h3>${escapeHtml(row.title)}</h3><b>${escapeHtml(row.roleLabel || "Lead")}</b></div>
         <p><span>${escapeHtml(row.sector || "Startup")}</span> <span>${escapeHtml(row.stage || "Local")}</span></p>
         <strong>${row.distanceKm} km from you</strong>
         <small>${escapeHtml(row.description || "")}</small>
-        <div><button onclick="window.ConnectHubFreelancerHub.openProfile('${row.id}')">View Profile</button><button onclick="window.ConnectHubFreelancerHub.openContact('${row.id}')">Contact</button><button title="Save">🔖</button></div>
+        <div><button onclick="window.ConnectHubFreelancerHub.openProfile('${row.id}')">View Profile</button><button onclick="window.ConnectHubFreelancerHub.openContact('${row.id}')">Contact</button><button title="Save">Save</button></div>
       </div>
     </article>`;
+  }
+
+  function enrichNearbyRow(row = {}) {
+    const sector = String(row.sector || "");
+    const title = String(row.title || row.name || "ConnectHub lead");
+    const role = /invest|angel|fund/i.test(sector + title) ? "investor" : /freelance|designer|developer|creator|editor|photo/i.test(sector + title) ? "freelancer" : "startup";
+    return {
+      ...row,
+      id: row.id || title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      title,
+      role,
+      roleLabel: role === "investor" ? "Investor" : role === "freelancer" ? "Freelancer" : "Startup"
+    };
+  }
+
+  function filterNearbyRows(rows, role) {
+    if (role === "all") return rows;
+    return rows.filter(row => row.role === role);
   }
 
   function localNearbyRows(location = {}) {
     const city = String(location.city || "Hyderabad");
     const base = [
-      ["Zomato Partner Kitchen", "FoodTech", "Cloud kitchen, hiring delivery ops", 0.8],
-      ["UrbanCompany Hyderabad", "Consumer Services", "Home services platform, expanding", 0.5],
-      ["T-Hub Startup", "SaaS", "Gov-backed startup hub, 300+ startups", 1.9],
-      ["PayU India", "FinTech", "Fintech payments, Series B", 2.1],
-      ["HealthKart Hub", "HealthTech", "Health supplements, hiring marketing", 1.7],
-      ["Swiggy Dark Store", "Logistics", "Quick commerce hub, hiring", 3.0],
-      ["GITAM Innovation Center", "EdTech", "EdTech incubator, looking for mentors", 2.4],
-      ["Dhruva Space", "Manufacturing", "Space tech startup, Seed stage", 3.5]
+      ["T-Hub Startup Desk", "SaaS & Technology", "Startup teams hiring product, design, and marketing support", 1.9],
+      ["Urban Growth Studio", "Consumer Services", "Local services platform expanding operations", 0.8],
+      ["PayLink India", "Finance & Legal", "Payments startup seeking freelance launch support", 2.1],
+      ["HealthFirst Labs", "Health & Wellness", "Health startup building local partner network", 1.7],
+      ["SwiftKart Logistics", "Logistics & Mobility", "Mobility and commerce team hiring creators", 3.0],
+      ["EduNext Learning", "Education & Training", "EdTech team looking for media and design work", 2.4],
+      ["PropBridge Ventures", "Property & Infrastructure", "Property-tech startup onboarding freelancers", 3.5],
+      ["Angel Connect Circle", "Investor Network", "Local investors reviewing early startup profiles", 4.1]
     ];
     const lat = Number(location.lat || 17.385);
     const lng = Number(location.lng || 78.4867);
@@ -158,7 +180,7 @@
     L.circleMarker([center.lat || 17.385, center.lng || 78.4867], { radius: 9, color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.75 }).addTo(map).bindPopup("You are here");
     rows.filter(row => row.lat && row.lng).forEach(row => {
       const marker = L.marker([row.lat, row.lng], { icon: pinIcon(row.sector) }).addTo(map);
-      marker.bindTooltip(`${row.title} - ${row.distanceKm} km`, { direction: "top" });
+      marker.bindTooltip(`${escapeHtml(row.title)} - ${row.distanceKm} km`, { direction: "top" });
       marker.bindPopup(`<div class="map-popup"><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.sector || "")}</span><p>${row.distanceKm} km away</p><p>${escapeHtml(row.description || "")}</p><button onclick="window.ConnectHubFreelancerHub.openProfile('${row.id}')">View Profile</button><button onclick="window.ConnectHubFreelancerHub.openContact('${row.id}')">Contact</button></div>`);
     });
   }
@@ -208,7 +230,7 @@
     modal.innerHTML = `<button class="nearby-modal-scrim" onclick="window.ConnectHubFreelancerHub.closeModals()"></button><article class="nearby-modal-card contact">
       <button class="nearby-close" onclick="window.ConnectHubFreelancerHub.closeModals()">x</button>
       <h2>Contact ${escapeHtml(row.title)}</h2>
-      <textarea>Hi, I found your company on ConnectHub nearby. I'd love to connect!</textarea>
+      <textarea>Hi, I found your profile on ConnectHub nearby. I'd love to connect.</textarea>
       <div class="nearby-modal-actions"><button onclick="window.ConnectHubFreelancerHub.sendContact()">Send Message</button><button onclick="window.ConnectHubFreelancerHub.closeModals()">Cancel</button><a href="https://wa.me/916301394850" target="_blank">WhatsApp</a></div>
     </article>`;
     modal.classList.add("active");
@@ -230,11 +252,23 @@
 
   function sortNearby(type) {
     const holder = document.getElementById("nearbyCards");
-    let rows = [...(window.ConnectHubNearbyRows || [])];
+    const activeRole = localStorage.getItem("ch_nearby_role") || "all";
+    let rows = filterNearbyRows([...(window.ConnectHubNearbyRows || [])], activeRole);
     if (type === "sector") rows.sort((a, b) => String(a.sector).localeCompare(String(b.sector)));
     else if (type === "stage") rows.sort((a, b) => String(a.stage).localeCompare(String(b.stage)));
     else rows.sort((a, b) => Number(a.distanceKm) - Number(b.distanceKm));
     if (holder) holder.innerHTML = rows.map(nearbyCard).join("");
+    const count = document.getElementById("nearbyCount");
+    if (count) count.textContent = String(rows.length);
+  }
+
+  function setNearbyRole(role) {
+    localStorage.setItem("ch_nearby_role", role);
+    document.querySelectorAll(".nearby-sort button").forEach(button => {
+      const text = button.textContent.toLowerCase();
+      button.classList.toggle("active", text.startsWith(role === "all" ? "all" : role));
+    });
+    sortNearby("distance");
   }
 
   function useManualCity() {
@@ -242,5 +276,5 @@
     window.location.search = `?role=freelancer&city=${encodeURIComponent(city)}`;
   }
 
-  window.ConnectHubFreelancerHub = { render, openProfile, openContact, closeModals, sendContact, setRadius, sortNearby, useManualCity };
+  window.ConnectHubFreelancerHub = { render, openProfile, openContact, closeModals, sendContact, setRadius, sortNearby, setNearbyRole, useManualCity };
 })();

@@ -10,6 +10,7 @@
   document.addEventListener("DOMContentLoaded", init);
 
   function init() {
+    applyStoredTheme();
     applyManualCityFromUrl();
     document.querySelector(".aihub-shell").dataset.role = state.role;
     document.getElementById("aihubRolePill").textContent = labelRole(state.role);
@@ -21,6 +22,14 @@
     window.ConnectHubAIChatbot?.init({ role: state.role, getLocation: () => state.location });
     window.ConnectHubAINotifications?.init();
     renderActiveTab();
+  }
+
+  function applyStoredTheme() {
+    const saved = localStorage.getItem("connecthub_theme") || "light";
+    const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    const theme = saved === "system" ? (systemDark ? "dark" : "light") : saved;
+    document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+    document.body.classList.toggle("dark", theme === "dark");
   }
 
   function applyManualCityFromUrl() {
