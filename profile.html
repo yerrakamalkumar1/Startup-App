@@ -311,11 +311,12 @@
           </form>
         </section>` : ""}
 
-        <nav class="profile-tabs">
-          <a href="#feed">All</a>
-          <a href="#media">Reels</a>
-          <a href="#media">Photos</a>
-          <a href="#reviews">Reviews</a>
+        <nav class="profile-tabs" aria-label="Profile sections">
+          <span class="profile-tab-slider" aria-hidden="true"></span>
+          <button class="active" type="button" data-profile-tab="all" data-target="feed">All</button>
+          <button type="button" data-profile-tab="reels" data-target="media">Reels</button>
+          <button type="button" data-profile-tab="photos" data-target="media">Photos</button>
+          <button type="button" data-profile-tab="reviews" data-target="reviews">Reviews</button>
         </nav>
 
         <section class="profile-info-card">
@@ -343,7 +344,34 @@
           </div>
         </section>
       `;
+      installProfileMotion();
       if (window.lucide) window.lucide.createIcons();
+    }
+
+    function installProfileMotion() {
+      document.documentElement.classList.add("profile-scroll-unlocked");
+      document.body.classList.add("profile-motion-ready");
+      const tabs = document.querySelector(".profile-tabs");
+      const slider = tabs?.querySelector(".profile-tab-slider");
+      const buttons = [...(tabs?.querySelectorAll("button[data-profile-tab]") || [])];
+      const moveSlider = button => {
+        if (!tabs || !slider || !button) return;
+        const navRect = tabs.getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        slider.style.width = `${buttonRect.width}px`;
+        slider.style.transform = `translate3d(${buttonRect.left - navRect.left + tabs.scrollLeft}px, 0, 0)`;
+      };
+      buttons.forEach(button => {
+        button.addEventListener("click", () => {
+          buttons.forEach(item => item.classList.remove("active"));
+          button.classList.add("active");
+          moveSlider(button);
+          document.getElementById(button.dataset.target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+      requestAnimationFrame(() => moveSlider(buttons.find(button => button.classList.contains("active")) || buttons[0]));
+      window.addEventListener("resize", () => moveSlider(buttons.find(button => button.classList.contains("active")) || buttons[0]), { passive: true });
+      tabs?.addEventListener("scroll", () => moveSlider(buttons.find(button => button.classList.contains("active")) || buttons[0]), { passive: true });
     }
 
     async function submitProfilePost(event, profileKey) {

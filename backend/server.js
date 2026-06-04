@@ -198,6 +198,21 @@ const INITIAL_DB = {
   reviews: []
 };
 
+const SETTINGS_FEATURE_MAP = [
+  { key: "change-password", keywordTokens: ["password", "passcode", "security", "credentials", "otp", "login", "reset"], displayName: "Change Password", category: "Security", deepLinkRoute: "/settings/security/update", description: "Send OTP and update your ConnectHub passcode securely.", icon: "key-round", priority: 100 },
+  { key: "privacy-visibility", keywordTokens: ["privacy", "visibility", "public", "private", "profile", "hide"], displayName: "Profile Visibility", category: "Privacy", deepLinkRoute: "/settings/privacy/visibility", description: "Control who can view your profile, connections, and work activity.", icon: "eye", priority: 95 },
+  { key: "edit-profile", keywordTokens: ["edit", "profile", "bio", "avatar", "photo", "city", "location", "skills"], displayName: "Edit Profile", category: "Account", deepLinkRoute: "/settings/account/profile", description: "Update name, bio, avatar, city, state, skills, and public profile details.", icon: "user-pen", priority: 90 },
+  { key: "notification-preferences", keywordTokens: ["notification", "bell", "sound", "email", "messages", "alerts", "push"], displayName: "Notification Preferences", category: "Notifications", deepLinkRoute: "/settings/notifications", description: "Manage alerts for messages, connection requests, post activity, and platform updates.", icon: "bell", priority: 85 },
+  { key: "saved-posts", keywordTokens: ["saved", "bookmark", "folder", "posts", "gigs", "collection"], displayName: "Saved Posts & Gigs", category: "Data & Activity", deepLinkRoute: "/settings/activity/saved", description: "Open your saved posts, opportunities, and service ads.", icon: "bookmark", priority: 82 },
+  { key: "email-phone", keywordTokens: ["email", "phone", "whatsapp", "contact", "mobile", "number"], displayName: "Manage Email & Phone", category: "Account", deepLinkRoute: "/settings/account/contact", description: "Update your email address, WhatsApp number, and contact details.", icon: "mail", priority: 78 },
+  { key: "dark-mode", keywordTokens: ["dark", "light", "theme", "appearance", "mode", "color"], displayName: "Theme", category: "Appearance", deepLinkRoute: "/settings/appearance/theme", description: "Switch between light, dark, and system theme modes.", icon: "palette", priority: 75 },
+  { key: "blocked-users", keywordTokens: ["block", "blocked", "mute", "muted", "report", "spam"], displayName: "Block / Muted Users", category: "Privacy", deepLinkRoute: "/settings/privacy/blocked", description: "Manage people you blocked or muted on ConnectHub.", icon: "ban", priority: 70 },
+  { key: "ai-hub-settings", keywordTokens: ["ai", "hub", "matches", "recommendations", "location", "intelligence"], displayName: "AI Hub", category: "AI & Recommendations", deepLinkRoute: "/settings/ai-hub", description: "Configure role-specific AI matching, location discovery, and smart suggestions.", icon: "sparkles", priority: 68 },
+  { key: "download-data", keywordTokens: ["download", "export", "data", "activity", "backup"], displayName: "Download Your Data", category: "Data & Activity", deepLinkRoute: "/settings/activity/export", description: "Prepare a copy of your profile, posts, and activity records.", icon: "download", priority: 62 },
+  { key: "help-support", keywordTokens: ["help", "support", "call", "problem", "bug", "feedback"], displayName: "Help Center", category: "Support", deepLinkRoute: "/settings/support/help", description: "Call support, report a problem, or send feedback to ConnectHub.", icon: "help-circle", priority: 58 },
+  { key: "logout", keywordTokens: ["logout", "log out", "sign out", "exit", "session"], displayName: "Log Out", category: "Account Actions", deepLinkRoute: "/settings/account/logout", description: "Sign out from this device safely.", icon: "log-out", priority: 52 }
+];
+
 function ensureDataFiles() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DB_FILE)) writeJson(DB_FILE, INITIAL_DB);
@@ -565,6 +580,55 @@ function sanitizePostQuery(value) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 120);
+}
+
+function inferSettingsIntent(query) {
+  const text = normalizeSearchText(query);
+  if (/password|passcode|otp|login|security|credential/.test(text)) return "security";
+  if (/privacy|visibility|block|hide|public|private/.test(text)) return "privacy";
+  if (/notification|bell|sound|alert|email/.test(text)) return "notifications";
+  if (/saved|bookmark|folder/.test(text)) return "saved_content";
+  if (/dark|light|theme|appearance/.test(text)) return "appearance";
+  if (/ai|match|recommend|location/.test(text)) return "ai_preferences";
+  return text ? "settings_navigation" : "popular_settings";
+}
+
+function searchSettingsFeatures(query) {
+  const q = sanitizePostQuery(query);
+  const terms = normalizeSearchText(q).split(/\s+/).filter(Boolean);
+  const scored = SETTINGS_FEATURE_MAP.map(feature => {
+    const display = normalizeSearchText(feature.displayName);
+    const category = normalizeSearchText(feature.category);
+    const description = normalizeSearchText(feature.description);
+    const tokens = (feature.keywordTokens || []).map(normalizeSearchText);
+    const matchedTokens = tokens.filter(token => terms.some(term => token.includes(term) || term.includes(token)));
+    let score = feature.priority || 0;
+    if (!q) score += feature.priority || 0;
+    if (display === normalizeSearchText(q)) score += 100;
+    if (display.includes(normalizeSearchText(q))) score += 60;
+    if (category.includes(normalizeSearchText(q))) score += 30;
+    score += matchedTokens.length * 24;
+    terms.forEach(term => {
+      if (display.includes(term)) score += 18;
+      if (description.includes(term)) score += 8;
+    });
+    return {
+      ...feature,
+      score,
+      matchedTokens,
+      suggestion: `Open ${feature.displayName} in ${feature.category}`
+    };
+  })
+    .filter(result => !q || result.score > (result.priority || 0))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+  return {
+    success: true,
+    q,
+    intent: inferSettingsIntent(q),
+    suggestions: scored.slice(0, 4).map(item => item.suggestion),
+    results: scored
+  };
 }
 
 function normalizeSearchText(value) {
@@ -967,6 +1031,9 @@ async function handleApi(req, res) {
       limit: url.searchParams.get("limit") || 20
     });
     return sendJson(res, 200, { success: true, ...data });
+  }
+  if ((route === "/api/v1/settings/search" || route === "/api/settings/search") && req.method === "GET") {
+    return sendJson(res, 200, searchSettingsFeatures(url.searchParams.get("q") || ""));
   }
   if ((route === "/api/v1/users/saved" || route === "/api/users/saved") && req.method === "GET") {
     if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });

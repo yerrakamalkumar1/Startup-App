@@ -19,6 +19,7 @@ const AppUX = (() => {
   let deferredInstallPrompt = null;
   let networkSearchTimer = null;
   let networkRoleFilter = "";
+  let settingsSearchTimer = null;
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -93,6 +94,18 @@ const AppUX = (() => {
     { id: "post-greeneats", name: "GreenEats", role: "Startup", title: "FoodTech", city: "Mumbai", initials: "GE", time: "2d", likes: 178, comments: 33, shares: 16, text: "We've reduced food waste by 32 percent in our pilot kitchens using AI demand forecasting. This is what sustainable food tech looks like. #foodtech #sustainability #startup", tags: ["foodtech", "sustainability", "startup"], accent: "#10b981" },
     { id: "post-karthik", name: "Karthik Raj", role: "Freelancer", title: "Android Developer", city: "Chennai", initials: "KR", time: "3d", likes: 67, comments: 9, shares: 4, text: "Available for Android projects starting June 10th. 5 years experience, 30+ apps delivered, Rs 950/hr. Let's build something great! #android #freelance #mobile", tags: ["android", "freelance", "mobile"], accent: "#3b82f6" },
     { id: "post-dev", name: "Dev Malhotra", role: "Investor", title: "Sequoia Scout", city: "Mumbai", initials: "DM", time: "4d", likes: 312, comments: 61, shares: 45, text: "Spent the last week visiting startups in Tier 2 cities: Nagpur, Indore, Surat. The energy is incredible. Ecosystem is growing fast. #india #startups #tier2", tags: ["india", "startups", "tier2"], accent: "#ec4899" }
+  ];
+
+  const LOCAL_SETTINGS_FEATURE_MAP = [
+    { key: "change-password", keywordTokens: ["password", "passcode", "security", "otp", "login"], displayName: "Change Password", category: "Security", deepLinkRoute: "/settings/security/update", description: "Send OTP and update your passcode.", icon: "key-round", priority: 100 },
+    { key: "privacy-visibility", keywordTokens: ["privacy", "visibility", "public", "private", "profile"], displayName: "Profile Visibility", category: "Privacy", deepLinkRoute: "/settings/privacy/visibility", description: "Control who can view your profile.", icon: "eye", priority: 95 },
+    { key: "edit-profile", keywordTokens: ["edit", "profile", "bio", "avatar", "photo", "location", "skills"], displayName: "Edit Profile", category: "Account", deepLinkRoute: "/settings/account/profile", description: "Update name, bio, avatar, location and skills.", icon: "user-pen", priority: 90 },
+    { key: "notification-preferences", keywordTokens: ["notification", "bell", "sound", "email", "messages", "alerts"], displayName: "Notification Preferences", category: "Notifications", deepLinkRoute: "/settings/notifications", description: "Manage alerts and notification sounds.", icon: "bell", priority: 85 },
+    { key: "saved-posts", keywordTokens: ["saved", "bookmark", "folder", "posts", "gigs"], displayName: "Saved Posts & Gigs", category: "Data & Activity", deepLinkRoute: "/settings/activity/saved", description: "Open saved posts and opportunities.", icon: "bookmark", priority: 82 },
+    { key: "dark-mode", keywordTokens: ["dark", "light", "theme", "appearance", "mode"], displayName: "Theme", category: "Appearance", deepLinkRoute: "/settings/appearance/theme", description: "Switch light, dark, or system theme.", icon: "palette", priority: 75 },
+    { key: "ai-hub-settings", keywordTokens: ["ai", "hub", "matches", "recommendations", "location"], displayName: "AI Hub", category: "AI & Recommendations", deepLinkRoute: "/settings/ai-hub", description: "Configure AI recommendations and location features.", icon: "sparkles", priority: 68 },
+    { key: "help-support", keywordTokens: ["help", "support", "call", "problem", "feedback"], displayName: "Help Center", category: "Support", deepLinkRoute: "/settings/support/help", description: "Contact support or report a problem.", icon: "help-circle", priority: 58 },
+    { key: "logout", keywordTokens: ["logout", "sign out", "exit", "session"], displayName: "Log Out", category: "Account Actions", deepLinkRoute: "/settings/account/logout", description: "Sign out from this device.", icon: "log-out", priority: 52 }
   ];
 
   function installPremiumInteractions() {
@@ -2737,8 +2750,9 @@ const AppUX = (() => {
         </div>
         <div class="settings-search">
           <i data-lucide="search"></i>
-          <input type="search" placeholder="Search settings...">
+          <input id="settingsSmartSearch" type="search" placeholder="Search settings..." oninput="AppUX.handleSettingsSearchInput(this.value)" autocomplete="off">
         </div>
+        <div id="settingsSmartResults" class="settings-smart-results" aria-live="polite"></div>
         <div class="settings-account-card">
           ${avatarMarkup(user, "user-avatar")}
           <div>
@@ -2830,6 +2844,136 @@ const AppUX = (() => {
           return `<button class="settings-row" type="button" onclick="${action || "AppUX.showToast('Saved locally')"}"><span><i data-lucide="${icon}"></i><b>${escapeHTML(title)}</b></span><em>${detail || ""}</em><i data-lucide="chevron-right"></i></button>`;
         }).join("")}
       </div>`;
+  }
+
+  function localSettingsSearch(query) {
+    const q = String(query || "").trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+    const results = LOCAL_SETTINGS_FEATURE_MAP.map(item => {
+      const haystack = [item.displayName, item.category, item.description, ...(item.keywordTokens || [])].join(" ").toLowerCase();
+      const matchedTokens = (item.keywordTokens || []).filter(token => terms.some(term => token.includes(term) || term.includes(token)));
+      let score = item.priority || 0;
+      if (!q) score += item.priority || 0;
+      if (item.displayName.toLowerCase().includes(q)) score += 60;
+      score += matchedTokens.length * 24;
+      terms.forEach(term => {
+        if (haystack.includes(term)) score += 10;
+      });
+      return { ...item, score, matchedTokens, suggestion: `Open ${item.displayName} in ${item.category}` };
+    })
+      .filter(item => !q || item.score > item.priority)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+    return { success: true, q, intent: q ? "settings_navigation" : "popular_settings", suggestions: results.map(item => item.suggestion), results };
+  }
+
+  async function runSettingsSearch(query) {
+    const panel = document.getElementById("settingsSmartResults");
+    if (!panel) return;
+    const q = String(query || "").trim();
+    if (!q) {
+      panel.innerHTML = "";
+      panel.classList.remove("active");
+      return;
+    }
+    panel.classList.add("active");
+    panel.innerHTML = `<div class="settings-smart-loading"><span></span>Searching settings...</div>`;
+    let data = null;
+    try {
+      data = await apiRequest(`/api/v1/settings/search?q=${encodeURIComponent(q)}`);
+    } catch {
+      data = localSettingsSearch(q);
+    }
+    renderSettingsSearchResults(data);
+  }
+
+  function renderSettingsSearchResults(data) {
+    const panel = document.getElementById("settingsSmartResults");
+    if (!panel) return;
+    const results = data?.results || [];
+    if (!results.length) {
+      panel.innerHTML = `<div class="settings-smart-empty">No settings found. Try password, privacy, notifications, saved, or theme.</div>`;
+      return;
+    }
+    panel.innerHTML = `
+      <div class="settings-smart-head">
+        <span>Intent: ${escapeHTML(data.intent || "settings")}</span>
+        <small>${results.length} action${results.length === 1 ? "" : "s"}</small>
+      </div>
+      ${results.map(item => `<button class="settings-smart-item" type="button" onclick="AppUX.openSettingAction('${escapeAttr(item.deepLinkRoute)}', '${escapeAttr(item.key)}')">
+        <i data-lucide="${escapeAttr(item.icon || "settings")}"></i>
+        <span><b>${escapeHTML(item.displayName)}</b><small>${escapeHTML(item.category)} - ${escapeHTML(item.description || item.suggestion || "")}</small></span>
+        <em>${Math.max(1, Math.min(99, Math.round(item.score || 1)))}%</em>
+      </button>`).join("")}`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function handleSettingsSearchInput(query) {
+    clearTimeout(settingsSearchTimer);
+    settingsSearchTimer = setTimeout(() => runSettingsSearch(query), 170);
+  }
+
+  function openSettingAction(route, key = "") {
+    const panel = document.getElementById("settingsSmartResults");
+    if (panel) panel.classList.remove("active");
+    const input = document.getElementById("settingsSmartSearch");
+    if (input) input.blur();
+    const targetKey = String(key || route || "").toLowerCase();
+    if (targetKey.includes("password") || route.includes("/security/update")) {
+      document.getElementById("settingsPasscode")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById("settingsPasscode")?.focus();
+      showToast("Password update opened");
+      return;
+    }
+    if (targetKey.includes("edit-profile") || route.includes("/account/profile")) {
+      if (window.go) window.go("profile");
+      return;
+    }
+    if (targetKey.includes("notification") || route.includes("/notifications")) {
+      openSettingsNotifications();
+      return;
+    }
+    if (targetKey.includes("saved") || route.includes("/activity/saved")) {
+      openSettingsSavedPosts();
+      return;
+    }
+    if (targetKey.includes("dark-mode") || route.includes("/appearance/theme")) {
+      document.querySelector(".settings-segment")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      showToast("Theme controls opened");
+      return;
+    }
+    if (targetKey.includes("ai-hub")) {
+      window.location.href = `/dashboard/aihub?role=${getCurrentUser()?.role || "freelancer"}`;
+      return;
+    }
+    if (targetKey.includes("help")) {
+      window.location.href = "tel:6301394850";
+      return;
+    }
+    if (targetKey.includes("logout")) {
+      handleLogout();
+      return;
+    }
+    showToast("Setting opened");
+  }
+
+  async function openSettingsSavedPosts() {
+    let saved = [];
+    try {
+      const data = await apiRequest("/api/v1/users/saved");
+      saved = data.savedPosts || [];
+    } catch {
+      saved = (getDB().savedPostsByUser?.[getCurrentUser()?.email || getCurrentUser()?.name] || []);
+    }
+    const list = saved.length
+      ? saved.map(item => `<li>${escapeHTML(item.post?.title || item.title || item.postId || "Saved item")}</li>`).join("")
+      : "<li>No saved posts yet. Tap bookmark on posts or gigs to save them.</li>";
+    showToast(`Saved folder: ${saved.length} item${saved.length === 1 ? "" : "s"}`);
+    const panel = document.getElementById("settingsSmartResults");
+    if (panel) {
+      panel.classList.add("active");
+      panel.innerHTML = `<div class="settings-saved-preview"><strong>Saved Posts & Gigs</strong><ul>${list}</ul></div>`;
+    }
   }
 
   function renderAdvancedSettings(role) {
@@ -3044,5 +3188,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();
