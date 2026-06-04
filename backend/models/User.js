@@ -11,6 +11,14 @@ const SavedPostSchema = new mongoose.Schema({
   savedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
+const ActiveSessionSchema = new mongoose.Schema({
+  sessionId: { type: String, required: true, index: true },
+  deviceType: { type: String, default: "Unknown device" },
+  ipAddress: { type: String, default: "" },
+  location: { type: String, default: "Unknown location" },
+  lastActive: { type: Date, default: Date.now }
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -48,6 +56,13 @@ const UserSchema = new mongoose.Schema({
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   savedPosts: [SavedPostSchema],
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  mutedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  activeSessions: { type: [ActiveSessionSchema], default: [] },
+  accountPrivacy: { type: String, enum: ["public", "private"], default: "public" },
+  messagingPrivacy: { type: String, enum: ["everyone", "network", "none"], default: "everyone" },
+  preferredLanguage: { type: String, enum: ["en", "hi", "te", "ta", "kn", "mr"], default: "en" },
+  fontSizePreference: { type: String, enum: ["small", "medium", "large", "extra-large"], default: "medium" },
   profileViews: { type: Number, default: 0 },
   joinedAt: { type: Date, default: Date.now },
   lastActive: Date,

@@ -64,6 +64,7 @@ const AppUX = (() => {
     installButtonSounds();
     installRefreshBar();
     installDarkMode();
+    installAccessibilityPreferences();
     installNotificationBell();
     installRealtime();
     installMessageDock();
@@ -103,9 +104,27 @@ const AppUX = (() => {
     { key: "notification-preferences", keywordTokens: ["notification", "bell", "sound", "email", "messages", "alerts"], displayName: "Notification Preferences", category: "Notifications", deepLinkRoute: "/settings/notifications", description: "Manage alerts and notification sounds.", icon: "bell", priority: 85 },
     { key: "saved-posts", keywordTokens: ["saved", "bookmark", "folder", "posts", "gigs"], displayName: "Saved Posts & Gigs", category: "Data & Activity", deepLinkRoute: "/settings/activity/saved", description: "Open saved posts and opportunities.", icon: "bookmark", priority: 82 },
     { key: "dark-mode", keywordTokens: ["dark", "light", "theme", "appearance", "mode"], displayName: "Theme", category: "Appearance", deepLinkRoute: "/settings/appearance/theme", description: "Switch light, dark, or system theme.", icon: "palette", priority: 75 },
+    { key: "language-preference", keywordTokens: ["language", "languages", "hindi", "telugu", "english", "locale"], displayName: "Language", category: "Language & Region", deepLinkRoute: "/settings/language", description: "Switch app labels to supported Indian languages.", icon: "languages", priority: 74 },
+    { key: "font-size", keywordTokens: ["font", "size", "text", "accessibility", "large", "small"], displayName: "Font Size", category: "Accessibility", deepLinkRoute: "/settings/accessibility/font-size", description: "Adjust text scale across the app.", icon: "type", priority: 73 },
     { key: "ai-hub-settings", keywordTokens: ["ai", "hub", "matches", "recommendations", "location"], displayName: "AI Hub", category: "AI & Recommendations", deepLinkRoute: "/settings/ai-hub", description: "Configure AI recommendations and location features.", icon: "sparkles", priority: 68 },
     { key: "help-support", keywordTokens: ["help", "support", "call", "problem", "feedback"], displayName: "Help Center", category: "Support", deepLinkRoute: "/settings/support/help", description: "Contact support or report a problem.", icon: "help-circle", priority: 58 },
     { key: "logout", keywordTokens: ["logout", "sign out", "exit", "session"], displayName: "Log Out", category: "Account Actions", deepLinkRoute: "/settings/account/logout", description: "Sign out from this device.", icon: "log-out", priority: 52 }
+  ];
+
+  const LANGUAGE_OPTIONS = [
+    { value: "en", label: "English" },
+    { value: "hi", label: "Hindi" },
+    { value: "te", label: "Telugu" },
+    { value: "ta", label: "Tamil" },
+    { value: "kn", label: "Kannada" },
+    { value: "mr", label: "Marathi" }
+  ];
+
+  const FONT_SIZE_OPTIONS = [
+    { value: "small", label: "Small" },
+    { value: "medium", label: "Medium" },
+    { value: "large", label: "Large" },
+    { value: "extra-large", label: "Extra large" }
   ];
 
   function installPremiumInteractions() {
@@ -2741,6 +2760,10 @@ const AppUX = (() => {
     const aiHubUrl = options.aiHubUrl || `/dashboard/aihub?role=${role.includes("startup") ? "startup" : role.includes("investor") ? "investor" : "freelancer"}`;
     const theme = localStorage.getItem("connecthub_theme") || document.documentElement.dataset.theme || "light";
     const roleLabel = role.includes("startup") ? "Startup Owner" : role.includes("investor") ? "Investor" : "Freelancer";
+    const language = user.preferredLanguage || localStorage.getItem("connecthub_language") || "en";
+    const fontSize = user.fontSizePreference || localStorage.getItem("connecthub_font_size") || "medium";
+    const languageLabel = LANGUAGE_OPTIONS.find(item => item.value === language)?.label || "English";
+    const fontSizeLabel = FONT_SIZE_OPTIONS.find(item => item.value === fontSize)?.label || "Medium";
     container.innerHTML = `
       <section class="settings-shell settings-list-page">
         <div class="settings-list-header">
@@ -2777,12 +2800,12 @@ const AppUX = (() => {
           <button class="btn btn-primary" type="button" onclick="AppUX.updateSettingsPasscode()"><i data-lucide="key-round"></i>Update passcode</button>
         </div>
         ${renderSettingsGroup("Privacy & Security", [
-          ["eye", "Profile Visibility", "Public", "AppUX.showToast('Visibility saved locally')"],
-          ["message-circle", "Who can message me", "Everyone", "AppUX.showToast('Messaging preference saved')"],
+          ["eye", "Profile Visibility", user.accountPrivacy === "private" ? "Private" : "Public", "AppUX.toggleAccountPrivacy()"],
+          ["message-circle", "Who can message me", user.messagingPrivacy === "network" ? "Network only" : user.messagingPrivacy === "none" ? "No one" : "Everyone", "AppUX.cycleMessagingPrivacy()"],
           ["users", "Who can see my connections", "Enabled", "", true],
           ["shield-check", "Two-Factor Authentication", "Disabled", "", false],
-          ["monitor-smartphone", "Active Sessions", "This device", "AppUX.showToast('Only current session is active')"],
-          ["ban", "Block / Muted Users", "Manage list", "AppUX.showToast('No blocked users yet')"]
+          ["monitor-smartphone", "Active Sessions", "This device", "AppUX.openSecurityHub()"],
+          ["ban", "Block / Muted Users", "Manage list", "AppUX.openSecurityHub()"]
         ])}
         ${renderSettingsGroup("Notifications", [
           ["user-plus", "Connection requests", "On", "", true],
@@ -2803,8 +2826,8 @@ const AppUX = (() => {
               <button type="button" class="${theme === "system" ? "active" : ""}" onclick="AppUX.setThemeMode('system')"><i data-lucide="monitor"></i>System</button>
             </div>
           </div>
-          <button class="settings-row" type="button" onclick="AppUX.showToast('Language saved locally')"><span><i data-lucide="languages"></i><b>Language</b></span><em>English</em><i data-lucide="chevron-right"></i></button>
-          <button class="settings-row" type="button" onclick="AppUX.showToast('Font size saved locally')"><span><i data-lucide="type"></i><b>Font size</b></span><em>Medium</em><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row" type="button" onclick="AppUX.cycleLanguagePreference()"><span><i data-lucide="languages"></i><b>Language</b></span><em>${escapeHTML(languageLabel)}</em><i data-lucide="chevron-right"></i></button>
+          <button class="settings-row" type="button" onclick="AppUX.cycleFontSizePreference()"><span><i data-lucide="type"></i><b>Font size</b></span><em>${escapeHTML(fontSizeLabel)}</em><i data-lucide="chevron-right"></i></button>
         </div>
         ${renderSettingsGroup("Subscription & Billing", [
           ["badge-indian-rupee", "Current Plan", "Free", "AppUX.showToast('You are on Free plan')"],
@@ -2942,6 +2965,18 @@ const AppUX = (() => {
       showToast("Theme controls opened");
       return;
     }
+    if (targetKey.includes("language") || route.includes("/settings/language")) {
+      cycleLanguagePreference();
+      return;
+    }
+    if (targetKey.includes("font") || route.includes("/accessibility/font-size")) {
+      cycleFontSizePreference();
+      return;
+    }
+    if (targetKey.includes("privacy") || route.includes("/privacy/visibility")) {
+      openSecurityHub();
+      return;
+    }
     if (targetKey.includes("ai-hub")) {
       window.location.href = `/dashboard/aihub?role=${getCurrentUser()?.role || "freelancer"}`;
       return;
@@ -3042,6 +3077,106 @@ const AppUX = (() => {
     playSound("nav");
     const body = document.getElementById("body");
     if (body && currentView === "settings") renderSettingsPage(body);
+  }
+
+  function installAccessibilityPreferences() {
+    const user = getCurrentUser?.() || {};
+    applyAccessibilityPreferences({
+      preferredLanguage: user.preferredLanguage || localStorage.getItem("connecthub_language") || "en",
+      fontSizePreference: user.fontSizePreference || localStorage.getItem("connecthub_font_size") || "medium"
+    });
+  }
+
+  function applyAccessibilityPreferences(preferences = {}) {
+    const language = LANGUAGE_OPTIONS.some(item => item.value === preferences.preferredLanguage) ? preferences.preferredLanguage : "en";
+    const fontSize = FONT_SIZE_OPTIONS.some(item => item.value === preferences.fontSizePreference) ? preferences.fontSizePreference : "medium";
+    document.documentElement.dataset.language = language;
+    document.documentElement.dataset.fontScale = fontSize;
+    localStorage.setItem("connecthub_language", language);
+    localStorage.setItem("connecthub_font_size", fontSize);
+  }
+
+  async function persistSettingsPreferences(patch) {
+    const cleaned = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined && value !== null));
+    updateCurrentProfile(cleaned);
+    applyAccessibilityPreferences({
+      preferredLanguage: cleaned.preferredLanguage || getCurrentUser()?.preferredLanguage || localStorage.getItem("connecthub_language") || "en",
+      fontSizePreference: cleaned.fontSizePreference || getCurrentUser()?.fontSizePreference || localStorage.getItem("connecthub_font_size") || "medium"
+    });
+    try {
+      await apiRequest("/api/v1/settings/preferences", {
+        method: "PATCH",
+        body: JSON.stringify(cleaned)
+      });
+    } catch (error) {
+      console.warn("ConnectHub settings preference sync failed:", error.message);
+    }
+    const body = document.getElementById("body");
+    if (body && currentView === "settings") renderSettingsPage(body);
+  }
+
+  function cycleLanguagePreference() {
+    const current = getCurrentUser()?.preferredLanguage || localStorage.getItem("connecthub_language") || "en";
+    const index = LANGUAGE_OPTIONS.findIndex(item => item.value === current);
+    const next = LANGUAGE_OPTIONS[(index + 1 + LANGUAGE_OPTIONS.length) % LANGUAGE_OPTIONS.length];
+    persistSettingsPreferences({ preferredLanguage: next.value });
+    showToast(`Language set to ${next.label}`);
+  }
+
+  function cycleFontSizePreference() {
+    const current = getCurrentUser()?.fontSizePreference || localStorage.getItem("connecthub_font_size") || "medium";
+    const index = FONT_SIZE_OPTIONS.findIndex(item => item.value === current);
+    const next = FONT_SIZE_OPTIONS[(index + 1 + FONT_SIZE_OPTIONS.length) % FONT_SIZE_OPTIONS.length];
+    persistSettingsPreferences({ fontSizePreference: next.value });
+    showToast(`Font size set to ${next.label}`);
+  }
+
+  function toggleAccountPrivacy() {
+    const current = getCurrentUser()?.accountPrivacy || "public";
+    const next = current === "private" ? "public" : "private";
+    persistSettingsPreferences({ accountPrivacy: next });
+    showToast(`Profile is now ${next}`);
+  }
+
+  function cycleMessagingPrivacy() {
+    const options = ["everyone", "network", "none"];
+    const current = getCurrentUser()?.messagingPrivacy || "everyone";
+    const next = options[(options.indexOf(current) + 1 + options.length) % options.length];
+    persistSettingsPreferences({ messagingPrivacy: next });
+    showToast(next === "network" ? "Messages limited to network" : next === "none" ? "Messages disabled" : "Everyone can message you");
+  }
+
+  async function openSecurityHub() {
+    const panel = document.getElementById("settingsSmartResults");
+    if (!panel) return;
+    panel.classList.add("active");
+    panel.innerHTML = `<div class="settings-smart-loading"><span></span>Loading security settings...</div>`;
+    let data = null;
+    try {
+      data = await apiRequest("/api/v1/settings/security");
+      data = data.security || data;
+    } catch {
+      const user = getCurrentUser() || {};
+      data = {
+        accountPrivacy: user.accountPrivacy || "public",
+        messagingPrivacy: user.messagingPrivacy || "everyone",
+        activeSessions: user.activeSessions || [{ sessionId: "current", device: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Desktop browser", lastSeenAt: new Date().toISOString(), current: true }],
+        blockedUsers: user.blockedUsers || [],
+        mutedUsers: user.mutedUsers || []
+      };
+    }
+    const sessions = data.activeSessions?.length
+      ? data.activeSessions.map(session => `<li><b>${escapeHTML(session.device || session.deviceType || "Browser session")}</b><span>${escapeHTML(session.ipAddress || "Current network")} - ${escapeHTML(new Date(session.lastSeenAt || session.lastActive || Date.now()).toLocaleString("en-IN"))}</span></li>`).join("")
+      : "<li><b>This device</b><span>Only current session is active</span></li>";
+    panel.innerHTML = `<div class="settings-security-preview">
+      <strong>Privacy & Security</strong>
+      <p>Profile: ${escapeHTML(data.accountPrivacy || "public")} - Messages: ${escapeHTML(data.messagingPrivacy || "everyone")}</p>
+      <ul>${sessions}</ul>
+      <div class="settings-actions">
+        <button class="btn btn-secondary" type="button" onclick="AppUX.toggleAccountPrivacy()">Toggle privacy</button>
+        <button class="btn btn-secondary danger-soft" type="button" onclick="AppUX.showToast('Session controls are ready for backend logout')">Manage sessions</button>
+      </div>
+    </div>`;
   }
 
   async function sendSettingsOtp() {
@@ -3188,5 +3323,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();

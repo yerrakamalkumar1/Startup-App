@@ -1,6 +1,7 @@
 import express from "express";
 import { env } from "./config/env";
 import { errorHandler, notFound } from "./middleware/error.middleware";
+import { authRouter } from "./routes/auth.routes";
 import { savedPostsRouter } from "./routes/savedPosts.routes";
 import { searchRouter } from "./routes/search.routes";
 import { settingsRouter } from "./routes/settings.routes";
@@ -22,6 +23,7 @@ export function createApp() {
   app.get("/api/v1/health", (_req, res) => res.json({ success: true, status: "ok" }));
   app.use("/api/v1/search", searchRouter);
   app.use("/api/v1/settings", settingsRouter);
+  app.use("/api/v1/auth", authRouter);
   app.use("/api/v1", savedPostsRouter);
   app.use("/api/v1", uploadRouter);
 

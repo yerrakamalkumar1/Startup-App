@@ -21,6 +21,8 @@
     const savedTheme = localStorage.getItem("connecthub_theme") || "light";
     document.documentElement.dataset.theme = savedTheme;
     document.body.classList.toggle("dark", savedTheme === "dark");
+    let activeProfileCache = null;
+    let activeProfilePosts = [];
 
     function playProfileBell() {
       try {
@@ -96,6 +98,10 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHTML(value).replace(/`/g, "&#096;");
     }
 
     function jsArg(value) {
@@ -206,7 +212,7 @@
       const interactions = getDB().postInteractions || [];
       return {
         likes: interactions.filter(item => item.postId === postId && item.type === "like").length,
-        comments: interactions.filter(item => item.postId === postId && item.type === "comment").length,
+        comments: interactions.filter(item => item.postId === postId && (item.type === "comment" || item.type === "reply")).length,
         shares: interactions.filter(item => item.postId === postId && item.type === "share").length,
         liked: interactions.some(item => item.postId === postId && item.type === "like" && item.from === getCurrentUser()?.name)
       };
@@ -229,7 +235,7 @@
         <div class="profile-tag-row">${(post.tags || []).filter(Boolean).slice(0, 5).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
         <div class="profile-social-actions">
           <button class="${stats.liked ? "active" : ""}" type="button" onclick="likeProfilePost('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="thumbs-up"></i><span>${stats.likes || "Like"}</span></button>
-          <button type="button" onclick="commentProfilePost('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="message-circle"></i><span>${stats.comments || "Comment"}</span></button>
+          <button type="button" onclick="openProfileCommentDrawer('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="message-circle"></i><span>${stats.comments || "Comment"}</span></button>
           <button type="button" onclick="shareProfilePost('${jsArg(post.id)}', '${jsArg(post.owner)}')"><i data-lucide="send"></i><span>${stats.shares || "Share"}</span></button>
         </div>
       </article>`;
@@ -244,6 +250,8 @@
       const startup = profile.startupId ? (db.startups || []).find(item => item.id === profile.startupId) : null;
       const reviews = (db.reviews || []).filter(review => review.to === profile.name);
       const posts = collectProfilePosts(profile, startup);
+      activeProfileCache = profile;
+      activeProfilePosts = posts;
       const avg = reviews.length ? (reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / reviews.length).toFixed(1) : "New";
       const connections = (db.connections || []).filter(item => item.from === profile.name || item.to === profile.name).length;
       const location = [profile.city || startup?.city, profile.state || startup?.state].filter(Boolean).join(", ") || "India";
@@ -486,10 +494,225 @@
       addInteraction(postId, ownerName, "like");
     }
 
-    function commentProfilePost(postId, ownerName) {
-      const text = prompt("Write a comment");
+    function profileByName(name) {
+      const normalized = normalizeProfileLookupId(name);
+      return getPublicProfiles().find(profile =>
+        normalizeProfileLookupId(profile.name) === normalized ||
+        normalizeProfileLookupId(profile.email) === normalized
+      ) || { name, avatarInitials: initialsForName(name), role: "freelancer" };
+    }
+
+    function initialsForName(name) {
+      return String(name || "CH")
+        .trim()
+        .split(/\s+/)
+        .map(part => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "CH";
+    }
+
+    function commentAvatar(name) {
+      const profile = profileByName(name);
+      return avatarMarkup(profile, "comment-avatar");
+    }
+
+    function getPostForComments(postId) {
+      return activeProfilePosts.find(post => post.id === postId) || { title: "Profile post", text: "", owner: activeProfileCache?.name || "" };
+    }
+
+    function getCommentThreads(postId) {
+      const interactions = getDB().postInteractions || [];
+      return interactions
+        .filter(item => item.postId === postId && item.type === "comment" && !item.parentId)
+        .map(comment => ({
+          ...comment,
+          likes: interactions.filter(item => item.type === "comment_like" && item.commentId === comment.id).length,
+          liked: interactions.some(item => item.type === "comment_like" && item.commentId === comment.id && item.from === getCurrentUser()?.name),
+          replies: interactions.filter(item => item.postId === postId && item.type === "reply" && item.parentId === comment.id)
+        }))
+        .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    }
+
+    function timeAgo(value) {
+      const date = new Date(value || Date.now());
+      const seconds = Math.max(1, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (seconds < 60) return "now";
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h`;
+      const days = Math.floor(hours / 24);
+      return `${days}d`;
+    }
+
+    function renderReplyItem(reply) {
+      return `<article class="comment-row comment-row-reply">
+        ${commentAvatar(reply.from)}
+        <div>
+          <div class="comment-bubble">
+            <strong>${escapeHTML(reply.from || "ConnectHub user")}</strong>
+            <p>${escapeHTML(reply.text || "")}</p>
+          </div>
+          <div class="comment-actions"><span>${escapeHTML(timeAgo(reply.createdAt))}</span></div>
+        </div>
+      </article>`;
+    }
+
+    function renderCommentThread(thread, postId, ownerName) {
+      return `<article class="comment-thread">
+        <div class="comment-row">
+          ${commentAvatar(thread.from)}
+          <div>
+            <div class="comment-bubble">
+              <strong>${escapeHTML(thread.from || "ConnectHub user")}</strong>
+              <p>${escapeHTML(thread.text || "")}</p>
+            </div>
+            <div class="comment-actions">
+              <button type="button" class="${thread.liked ? "active" : ""}" onclick="likeProfileComment('${jsArg(thread.id)}', '${jsArg(postId)}', '${jsArg(ownerName)}')">${thread.likes ? `${thread.likes} Like` : "Like"}</button>
+              <button type="button" onclick="toggleReplyComposer('${jsArg(thread.id)}')">Reply</button>
+              <span>${escapeHTML(timeAgo(thread.createdAt))}</span>
+            </div>
+            <div class="comment-replies">${thread.replies.map(renderReplyItem).join("")}</div>
+            <div id="replyComposer-${escapeAttr(thread.id)}" class="comment-reply-composer">
+              ${commentAvatar(getCurrentUser()?.name || "You")}
+              <input id="replyInput-${escapeAttr(thread.id)}" type="text" maxlength="240" placeholder="Reply to ${escapeAttr(thread.from || "comment")}..." onkeydown="if(event.key === 'Enter') submitProfileComment('${jsArg(postId)}', '${jsArg(ownerName)}', '${jsArg(thread.id)}')">
+              <button type="button" onclick="submitProfileComment('${jsArg(postId)}', '${jsArg(ownerName)}', '${jsArg(thread.id)}')"><i data-lucide="send"></i></button>
+            </div>
+          </div>
+        </div>
+      </article>`;
+    }
+
+    function renderProfileCommentList(postId, ownerName) {
+      const list = document.getElementById("profileCommentList");
+      if (!list) return;
+      const threads = getCommentThreads(postId);
+      list.innerHTML = threads.length
+        ? threads.map(thread => renderCommentThread(thread, postId, ownerName)).join("")
+        : `<div class="comment-empty"><i data-lucide="message-circle"></i><strong>No comments yet</strong><p>Start the conversation with a useful note or question.</p></div>`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function openProfileCommentDrawer(postId, ownerName) {
+      const post = getPostForComments(postId);
+      let drawer = document.getElementById("profileCommentDrawer");
+      if (!drawer) {
+        drawer = document.createElement("section");
+        drawer.id = "profileCommentDrawer";
+        drawer.className = "profile-comment-overlay";
+        document.body.appendChild(drawer);
+      }
+      drawer.innerHTML = `
+        <button class="profile-comment-scrim" type="button" onclick="closeProfileCommentDrawer()" aria-label="Close comments"></button>
+        <div class="profile-comment-panel" role="dialog" aria-modal="true" aria-label="Comments">
+          <header class="profile-comment-header">
+            <div>
+              <span>Comments</span>
+              <strong>${escapeHTML(post.title || "Profile post")}</strong>
+            </div>
+            <button type="button" onclick="closeProfileCommentDrawer()" aria-label="Close"><i data-lucide="x"></i></button>
+          </header>
+          <div class="profile-comment-post-preview">
+            ${commentAvatar(post.owner || ownerName)}
+            <p>${escapeHTML((post.text || "Profile update").slice(0, 150))}</p>
+          </div>
+          <div id="profileCommentList" class="profile-comment-list"></div>
+          <div id="profileCommentTyping" class="comment-typing"><span></span><span></span><span></span><em>${escapeHTML(getCurrentUser()?.name || "You")} is typing</em></div>
+          <footer class="profile-comment-composer">
+            ${commentAvatar(getCurrentUser()?.name || "You")}
+            <textarea id="profileCommentInput" rows="1" maxlength="240" placeholder="Write a comment..." oninput="handleCommentTyping()" onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); submitProfileComment('${jsArg(postId)}', '${jsArg(ownerName)}'); }"></textarea>
+            <button type="button" onclick="submitProfileComment('${jsArg(postId)}', '${jsArg(ownerName)}')" aria-label="Send comment"><i data-lucide="send"></i></button>
+          </footer>
+        </div>`;
+      drawer.classList.add("active");
+      renderProfileCommentList(postId, ownerName);
+      requestAnimationFrame(() => document.getElementById("profileCommentInput")?.focus());
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeProfileCommentDrawer() {
+      document.getElementById("profileCommentDrawer")?.classList.remove("active");
+    }
+
+    function handleCommentTyping() {
+      const typing = document.getElementById("profileCommentTyping");
+      if (!typing) return;
+      typing.classList.add("active");
+      clearTimeout(window.__profileCommentTypingTimer);
+      window.__profileCommentTypingTimer = setTimeout(() => typing.classList.remove("active"), 1200);
+    }
+
+    function toggleReplyComposer(commentId) {
+      document.querySelectorAll(".comment-reply-composer.active").forEach(node => {
+        if (node.id !== `replyComposer-${commentId}`) node.classList.remove("active");
+      });
+      const composer = document.getElementById(`replyComposer-${commentId}`);
+      composer?.classList.toggle("active");
+      composer?.querySelector("input")?.focus();
+    }
+
+    function submitProfileComment(postId, ownerName, parentId = "") {
+      const user = getCurrentUser();
+      if (!user) return alert("Please login to comment.");
+      const input = parentId ? document.getElementById(`replyInput-${parentId}`) : document.getElementById("profileCommentInput");
+      const text = String(input?.value || "").trim().slice(0, 240);
       if (!text) return;
-      addInteraction(postId, ownerName, "comment", text.slice(0, 240));
+      const db = getDB();
+      db.postInteractions = db.postInteractions || [];
+      const parent = parentId ? db.postInteractions.find(item => item.id === parentId) : null;
+      const targetName = parent?.from || ownerName;
+      db.postInteractions.push({
+        id: `int-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        postId,
+        type: parentId ? "reply" : "comment",
+        parentId: parentId || "",
+        from: user.name,
+        to: targetName,
+        text,
+        createdAt: new Date().toISOString()
+      });
+      if (targetName && targetName !== user.name) {
+        db.notifications = db.notifications || [];
+        db.notifications.push({
+          id: "not-" + Date.now(),
+          to: targetName,
+          type: parentId ? "post_reply" : "post_comment",
+          from: user.name,
+          text: `${user.name} ${parentId ? "replied to your comment" : "commented on your post"}.`,
+          targetUrl: location.pathname + location.search + "#feed",
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+      saveDB(db);
+      if (input) input.value = "";
+      if (parentId) document.getElementById(`replyComposer-${parentId}`)?.classList.remove("active");
+      playProfileBell();
+      renderProfileCommentList(postId, ownerName);
+    }
+
+    function likeProfileComment(commentId, postId, ownerName) {
+      const user = getCurrentUser();
+      if (!user) return alert("Please login to like comments.");
+      const db = getDB();
+      db.postInteractions = db.postInteractions || [];
+      const existing = db.postInteractions.find(item => item.type === "comment_like" && item.commentId === commentId && item.from === user.name);
+      if (existing) db.postInteractions = db.postInteractions.filter(item => item !== existing);
+      else {
+        const comment = db.postInteractions.find(item => item.id === commentId);
+        db.postInteractions.push({
+          id: `int-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          type: "comment_like",
+          commentId,
+          postId,
+          from: user.name,
+          to: comment?.from || ownerName,
+          createdAt: new Date().toISOString()
+        });
+      }
+      saveDB(db);
+      renderProfileCommentList(postId, ownerName);
     }
 
     function shareProfilePost(postId, ownerName) {

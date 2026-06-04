@@ -8,11 +8,49 @@ export interface IPost extends Document {
   body: string;
   mediaUrls: string[];
   tags: string[];
+  likes: Types.ObjectId[];
+  comments: PostComment[];
   likeCount: number;
   commentCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface CommentReply {
+  author: Types.ObjectId;
+  body: string;
+  likes: Types.ObjectId[];
+  createdAt: Date;
+}
+
+export interface PostComment {
+  author: Types.ObjectId;
+  body: string;
+  likes: Types.ObjectId[];
+  replies: CommentReply[];
+  createdAt: Date;
+}
+
+const CommentReplySchema = new Schema<CommentReply>(
+  {
+    author: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    body: { type: String, required: true, trim: true, maxlength: 1200 },
+    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: true }
+);
+
+const PostCommentSchema = new Schema<PostComment>(
+  {
+    author: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    body: { type: String, required: true, trim: true, maxlength: 1600 },
+    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    replies: { type: [CommentReplySchema], default: [] },
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: true }
+);
 
 const PostSchema = new Schema<IPost>(
   {
@@ -22,6 +60,8 @@ const PostSchema = new Schema<IPost>(
     body: { type: String, required: true, trim: true },
     mediaUrls: [{ type: String }],
     tags: [{ type: String, trim: true, lowercase: true, index: true }],
+    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    comments: { type: [PostCommentSchema], default: [] },
     likeCount: { type: Number, default: 0, min: 0 },
     commentCount: { type: Number, default: 0, min: 0 }
   },

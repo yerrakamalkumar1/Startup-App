@@ -81,6 +81,26 @@ export const SETTINGS_FEATURE_MAP: SettingsFeature[] = [
     priority: 75
   },
   {
+    key: "language-preference",
+    keywordTokens: ["language", "languages", "hindi", "telugu", "english", "translation", "locale"],
+    displayName: "Language",
+    category: "Language & Region",
+    deepLinkRoute: "/settings/language",
+    description: "Switch ConnectHub labels and helper text between supported Indian languages.",
+    icon: "languages",
+    priority: 74
+  },
+  {
+    key: "font-size",
+    keywordTokens: ["font", "size", "text", "accessibility", "large", "small", "readable"],
+    displayName: "Font Size",
+    category: "Accessibility",
+    deepLinkRoute: "/settings/accessibility/font-size",
+    description: "Adjust the app font scale for comfortable reading on mobile and desktop.",
+    icon: "type",
+    priority: 73
+  },
+  {
     key: "blocked-users",
     keywordTokens: ["block", "blocked", "mute", "muted", "report", "spam"],
     displayName: "Block / Muted Users",

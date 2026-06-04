@@ -206,6 +206,8 @@ const SETTINGS_FEATURE_MAP = [
   { key: "saved-posts", keywordTokens: ["saved", "bookmark", "folder", "posts", "gigs", "collection"], displayName: "Saved Posts & Gigs", category: "Data & Activity", deepLinkRoute: "/settings/activity/saved", description: "Open your saved posts, opportunities, and service ads.", icon: "bookmark", priority: 82 },
   { key: "email-phone", keywordTokens: ["email", "phone", "whatsapp", "contact", "mobile", "number"], displayName: "Manage Email & Phone", category: "Account", deepLinkRoute: "/settings/account/contact", description: "Update your email address, WhatsApp number, and contact details.", icon: "mail", priority: 78 },
   { key: "dark-mode", keywordTokens: ["dark", "light", "theme", "appearance", "mode", "color"], displayName: "Theme", category: "Appearance", deepLinkRoute: "/settings/appearance/theme", description: "Switch between light, dark, and system theme modes.", icon: "palette", priority: 75 },
+  { key: "language-preference", keywordTokens: ["language", "languages", "hindi", "telugu", "english", "translation", "locale"], displayName: "Language", category: "Language & Region", deepLinkRoute: "/settings/language", description: "Switch ConnectHub labels and helper text between supported Indian languages.", icon: "languages", priority: 74 },
+  { key: "font-size", keywordTokens: ["font", "size", "text", "accessibility", "large", "small", "readable"], displayName: "Font Size", category: "Accessibility", deepLinkRoute: "/settings/accessibility/font-size", description: "Adjust the app font scale for comfortable reading on mobile and desktop.", icon: "type", priority: 73 },
   { key: "blocked-users", keywordTokens: ["block", "blocked", "mute", "muted", "report", "spam"], displayName: "Block / Muted Users", category: "Privacy", deepLinkRoute: "/settings/privacy/blocked", description: "Manage people you blocked or muted on ConnectHub.", icon: "ban", priority: 70 },
   { key: "ai-hub-settings", keywordTokens: ["ai", "hub", "matches", "recommendations", "location", "intelligence"], displayName: "AI Hub", category: "AI & Recommendations", deepLinkRoute: "/settings/ai-hub", description: "Configure role-specific AI matching, location discovery, and smart suggestions.", icon: "sparkles", priority: 68 },
   { key: "download-data", keywordTokens: ["download", "export", "data", "activity", "backup"], displayName: "Download Your Data", category: "Data & Activity", deepLinkRoute: "/settings/activity/export", description: "Prepare a copy of your profile, posts, and activity records.", icon: "download", priority: 62 },
@@ -1169,6 +1171,70 @@ async function handleApi(req, res) {
     (db.notifications || []).forEach(note => { note.read = true; });
     writeJson(DB_FILE, db);
     return sendJson(res, 200, { success: true, db: publicDB() });
+  }
+  if (route === "/api/v1/settings/preferences" && (req.method === "PATCH" || req.method === "PUT")) {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const allowed = {
+      preferredLanguage: ["en", "hi", "te", "ta", "kn", "mr"],
+      fontSizePreference: ["small", "medium", "large", "extra-large"],
+      accountPrivacy: ["public", "private"],
+      messagingPrivacy: ["everyone", "network", "none"]
+    };
+    const patch = {};
+    Object.entries(allowed).forEach(([key, values]) => {
+      if (body[key] && values.includes(body[key])) patch[key] = body[key];
+    });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const key = authUserKey(auth);
+    db.userSettingsByUser = db.userSettingsByUser || {};
+    db.userSettingsByUser[key] = { ...(db.userSettingsByUser[key] || {}), ...patch };
+    const email = normalizeEmail(auth.email);
+    if (email && users[email]?.profile) users[email].profile = { ...users[email].profile, ...patch };
+    writeJson(DB_FILE, db);
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, preferences: db.userSettingsByUser[key] });
+  }
+  if (route === "/api/v1/settings/security" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const key = authUserKey(auth);
+    const profile = normalizeEmail(auth.email) ? users[normalizeEmail(auth.email)]?.profile : {};
+    const prefs = { ...(db.userSettingsByUser?.[key] || {}), ...(profile || {}) };
+    return sendJson(res, 200, {
+      success: true,
+      security: {
+        accountPrivacy: prefs.accountPrivacy || "public",
+        messagingPrivacy: prefs.messagingPrivacy || "everyone",
+        blockedUsers: prefs.blockedUsers || [],
+        mutedUsers: prefs.mutedUsers || [],
+        activeSessions: prefs.activeSessions || [{
+          sessionId: "current",
+          deviceType: req.headers["user-agent"]?.includes("Mobile") ? "Mobile browser" : "Desktop browser",
+          ipAddress: req.socket.remoteAddress || "",
+          location: "Current device",
+          lastActive: new Date().toISOString()
+        }]
+      }
+    });
+  }
+  if (route.startsWith("/api/v1/auth/sessions/") && req.method === "DELETE") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const sessionId = decodeURIComponent(route.replace("/api/v1/auth/sessions/", ""));
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const key = authUserKey(auth);
+    const email = normalizeEmail(auth.email);
+    const currentSettings = db.userSettingsByUser?.[key] || {};
+    const nextSessions = sessionId === "all" ? [] : (currentSettings.activeSessions || []).filter(item => item.sessionId !== sessionId);
+    db.userSettingsByUser = db.userSettingsByUser || {};
+    db.userSettingsByUser[key] = { ...currentSettings, activeSessions: nextSessions };
+    if (email && users[email]?.profile) users[email].profile.activeSessions = nextSessions;
+    writeJson(DB_FILE, db);
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, removedSessionId: sessionId, activeSessions: nextSessions });
   }
   if (route === "/api/settings" && req.method === "GET") {
     const db = readJson(DB_FILE, INITIAL_DB);
