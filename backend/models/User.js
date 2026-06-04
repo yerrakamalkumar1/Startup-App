@@ -6,6 +6,11 @@ const MatchScoreSchema = new mongoose.Schema({
   reasons: [String]
 }, { _id: false });
 
+const SavedPostSchema = new mongoose.Schema({
+  post: { type: mongoose.Schema.Types.ObjectId, ref: "Post", required: true },
+  savedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -42,6 +47,7 @@ const UserSchema = new mongoose.Schema({
   connections: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  savedPosts: [SavedPostSchema],
   profileViews: { type: Number, default: 0 },
   joinedAt: { type: Date, default: Date.now },
   lastActive: Date,

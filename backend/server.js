@@ -270,6 +270,7 @@ function publicDB() {
   if (!Array.isArray(db.investorInterests)) db.investorInterests = [];
   if (!Array.isArray(db.reviews)) db.reviews = [];
   if (!Array.isArray(db.savedProfiles)) db.savedProfiles = [];
+  if (!db.savedPostsByUser || typeof db.savedPostsByUser !== "object") db.savedPostsByUser = {};
   return db;
 }
 
@@ -302,7 +303,8 @@ function mergeDBState(existingDB, incomingDB) {
     notifications: mergeById(existing.notifications, incoming.notifications),
     registeredProfiles: mergeById(existing.registeredProfiles, incoming.registeredProfiles),
     investorInterests: mergeById(existing.investorInterests, incoming.investorInterests),
-    reviews: mergeById(existing.reviews, incoming.reviews)
+    reviews: mergeById(existing.reviews, incoming.reviews),
+    savedPostsByUser: { ...(existing.savedPostsByUser || {}), ...(incoming.savedPostsByUser || {}) }
   };
   return merged;
 }
@@ -557,6 +559,157 @@ function expandPeopleSearchTerms(query) {
   ])].filter(term => term.length > 1);
 }
 
+function sanitizePostQuery(value) {
+  return String(value || "")
+    .replace(/[^\p{L}\p{N}\s@#&.+-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
+function normalizeSearchText(value) {
+  return String(value || "").toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, " ").trim();
+}
+
+function editDistance(a, b) {
+  const left = normalizeSearchText(a);
+  const right = normalizeSearchText(b);
+  if (!left || !right) return Math.max(left.length, right.length);
+  const dp = Array.from({ length: left.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= right.length; j += 1) dp[0][j] = j;
+  for (let i = 1; i <= left.length; i += 1) {
+    for (let j = 1; j <= right.length; j += 1) {
+      dp[i][j] = left[i - 1] === right[j - 1]
+        ? dp[i - 1][j - 1]
+        : Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
+    }
+  }
+  return dp[left.length][right.length];
+}
+
+function postAuthorFor(db, post) {
+  if (post.author || post.authorName || post.freelancerName || post.startupName) {
+    return post.author || post.authorName || post.freelancerName || post.startupName;
+  }
+  const startup = (db.startups || []).find(item => item.id === post.startupId);
+  return startup?.name || "ConnectHub member";
+}
+
+function canonicalPost(db, post, type) {
+  const startup = (db.startups || []).find(item => item.id === post.startupId);
+  const title = post.title || post.caption || post.category || "ConnectHub post";
+  const content = post.content || post.description || post.caption || "";
+  const tags = [
+    ...(post.tags || []),
+    ...(post.hashtags || []),
+    post.category,
+    startup?.sector,
+    type
+  ].filter(Boolean).map(String);
+  const id = String(post.id || `${type}-${crypto.createHash("sha1").update(`${title}-${content}`).digest("hex").slice(0, 12)}`);
+  return {
+    id,
+    postId: id,
+    type,
+    title,
+    content,
+    mediaUrls: [...(post.mediaUrls || []), ...(post.images || []), post.media].filter(Boolean),
+    author: postAuthorFor(db, post),
+    authorName: postAuthorFor(db, post),
+    authorInitials: initialsFor(postAuthorFor(db, post) || "CH"),
+    companyName: post.companyName || startup?.name || post.startupName || "",
+    location: [post.city || startup?.city, post.state || startup?.state].filter(Boolean).join(", "),
+    tags: [...new Set(tags)],
+    createdAt: post.createdAt || post.appliedDate || post.date || new Date(0).toISOString(),
+    raw: post
+  };
+}
+
+function allSearchablePosts(db) {
+  return [
+    ...(db.profilePosts || []).map(post => canonicalPost(db, post, "profile_post")),
+    ...(db.reels || []).map(post => canonicalPost(db, post, "reel")),
+    ...(db.jobs || []).map(post => canonicalPost(db, post, "gig")),
+    ...(db.freelancerAds || []).map(post => canonicalPost(db, post, "service_ad")),
+    ...(db.startupPromotions || []).map(post => canonicalPost(db, post, "startup_post"))
+  ];
+}
+
+function scorePostSearch(post, query) {
+  const q = normalizeSearchText(query);
+  if (!q) return 1;
+  const terms = q.split(/\s+/).filter(Boolean);
+  const title = normalizeSearchText(post.title);
+  const content = normalizeSearchText(post.content);
+  const tags = normalizeSearchText((post.tags || []).join(" "));
+  const author = normalizeSearchText([post.authorName, post.companyName, post.location].join(" "));
+  const haystack = [title, content, tags, author].join(" ");
+  let score = 0;
+
+  if (title === q) score += 120;
+  if (title.startsWith(q)) score += 95;
+  if (title.includes(q)) score += 75;
+  if (tags.includes(q)) score += 65;
+  if (author.includes(q)) score += 45;
+  if (content.includes(q)) score += 35;
+
+  terms.forEach(term => {
+    if (title.split(/\s+/).some(word => word === term)) score += 24;
+    if (title.split(/\s+/).some(word => word.startsWith(term) || term.startsWith(word))) score += 18;
+    if (tags.includes(term)) score += 16;
+    if (author.includes(term)) score += 10;
+    if (content.includes(term)) score += 8;
+    if (!haystack.includes(term)) {
+      const close = haystack.split(/\s+/).some(word => word.length > 3 && editDistance(word, term) <= 2);
+      if (close) score += 6;
+    }
+  });
+
+  return score;
+}
+
+function searchPostsInDB(db, { query = "", page = 1, limit = 20 } = {}) {
+  const q = sanitizePostQuery(query);
+  const safeLimit = Math.max(1, Math.min(50, Number(limit || 20)));
+  const safePage = Math.max(1, Number(page || 1));
+  const posts = allSearchablePosts(db)
+    .map(post => ({ ...post, score: scorePostSearch(post, q) }))
+    .filter(post => !q || post.score > 0)
+    .sort((a, b) => b.score - a.score || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const start = (safePage - 1) * safeLimit;
+  return {
+    q,
+    page: safePage,
+    limit: safeLimit,
+    total: posts.length,
+    results: posts.slice(start, start + safeLimit)
+  };
+}
+
+function authUserKey(auth) {
+  return normalizeEmail(auth?.email) || String(auth?.name || auth?.id || "").trim().toLowerCase();
+}
+
+function savedPostsFor(db, users, auth) {
+  const key = authUserKey(auth);
+  const profileSaved = normalizeEmail(auth?.email) && users[normalizeEmail(auth.email)]?.profile?.savedPosts;
+  return [
+    ...(db.savedPostsByUser?.[key] || []),
+    ...(Array.isArray(profileSaved) ? profileSaved : [])
+  ]
+    .filter(item => item && item.postId)
+    .sort((a, b) => new Date(b.savedAt || 0) - new Date(a.savedAt || 0))
+    .filter((item, index, arr) => arr.findIndex(other => other.postId === item.postId) === index);
+}
+
+function persistSavedPosts(db, users, auth, savedPosts) {
+  const key = authUserKey(auth);
+  db.savedPostsByUser = db.savedPostsByUser || {};
+  db.savedPostsByUser[key] = savedPosts;
+  const email = normalizeEmail(auth?.email);
+  if (email && users[email]?.profile) users[email].profile.savedPosts = savedPosts;
+}
+
 function notificationMatchesTab(note, tab) {
   const type = String(note.type || "").toLowerCase();
   if (tab === "messages") return ["message", "new_message", "direct_message"].includes(type);
@@ -806,6 +959,56 @@ async function handleApi(req, res) {
     }, req);
     return sendJson(res, 200, { success: true, results: results.slice(0, 30) });
   }
+  if ((route === "/api/v1/posts/search" || route === "/api/posts/search") && req.method === "GET") {
+    const db = publicDB();
+    const data = searchPostsInDB(db, {
+      query: url.searchParams.get("q") || "",
+      page: url.searchParams.get("page") || 1,
+      limit: url.searchParams.get("limit") || 20
+    });
+    return sendJson(res, 200, { success: true, ...data });
+  }
+  if ((route === "/api/v1/users/saved" || route === "/api/users/saved") && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const postsById = new Map(allSearchablePosts(db).map(post => [post.id, post]));
+    const saved = savedPostsFor(db, users, auth);
+    const populated = saved
+      .map(item => ({ ...item, post: postsById.get(item.postId) }))
+      .filter(item => item.post);
+    if (populated.length !== saved.length) {
+      persistSavedPosts(db, users, auth, populated.map(({ post, ...item }) => item));
+      writeJson(DB_FILE, db);
+      writeJson(USERS_FILE, users);
+    }
+    return sendJson(res, 200, { success: true, savedPosts: populated });
+  }
+  if ((route.startsWith("/api/v1/users/saved/") || route.startsWith("/api/users/saved/")) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const postId = decodeURIComponent(route.replace(/^\/api(?:\/v1)?\/users\/saved\//, ""));
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const postsById = new Map(allSearchablePosts(db).map(post => [post.id, post]));
+    if (!postsById.has(postId)) return sendJson(res, 404, { success: false, message: "Post not found." });
+
+    const existing = savedPostsFor(db, users, auth);
+    const wasSaved = existing.some(item => item.postId === postId);
+    const nextSaved = wasSaved
+      ? existing.filter(item => item.postId !== postId)
+      : [{ postId, savedAt: new Date().toISOString() }, ...existing];
+
+    persistSavedPosts(db, users, auth, nextSaved);
+    writeJson(DB_FILE, db);
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, {
+      success: true,
+      saved: !wasSaved,
+      postId,
+      savedCount: nextSaved.length,
+      savedPosts: nextSaved.map(item => ({ ...item, post: postsById.get(item.postId) })).filter(item => item.post)
+    });
+  }
   if (route.startsWith("/api/users/") && req.method === "GET") {
     const id = decodeURIComponent(route.replace("/api/users/", ""));
     const profile = allPeople(publicDB()).find(item => item.handle === id || item.id === id || String(item.name || "").toLowerCase() === id.toLowerCase());
@@ -900,8 +1103,29 @@ async function handleApi(req, res) {
     writeJson(DB_FILE, db);
     return sendJson(res, 200, { success: true, db: publicDB() });
   }
-  if (route === "/api/settings" && req.method === "GET") return sendJson(res, 200, { success: true, settings: {} });
-  if (route === "/api/settings" && req.method === "PUT") return sendJson(res, 200, { success: true, settings: await readBody(req) });
+  if (route === "/api/settings" && req.method === "GET") {
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const email = normalizeEmail(auth?.email);
+    const profile = email ? users[email]?.profile : null;
+    const saved = auth ? savedPostsFor(db, users, auth) : [];
+    const postsById = new Map(allSearchablePosts(db).map(post => [post.id, post]));
+    return sendJson(res, 200, {
+      success: true,
+      settings: profile?.settings || {},
+      savedPosts: saved.map(item => ({ ...item, post: postsById.get(item.postId) })).filter(item => item.post)
+    });
+  }
+  if (route === "/api/settings" && req.method === "PUT") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const users = readJson(USERS_FILE, {});
+    const email = normalizeEmail(auth?.email);
+    if (!email || !users[email]?.profile) return sendJson(res, 404, { success: false, message: "Profile account not found." });
+    users[email].profile.settings = { ...(users[email].profile.settings || {}), ...body };
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, { success: true, settings: users[email].profile.settings });
+  }
 
   if (route === "/api/state" && req.method === "GET") {
     return sendJson(res, 200, { db: publicDB() });
