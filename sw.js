@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v47-responsive-adaptive";
+const CACHE_NAME = "connecthub-v48-feed-gig-settings-fix";
 const APP_SHELL = [
   "index.html",
   "index.css",

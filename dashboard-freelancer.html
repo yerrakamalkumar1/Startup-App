@@ -145,9 +145,12 @@
     AppUX.onView(view);
   }
 
-  function renderGigs(b) {
+  function renderGigs(b, filter = 'all') {
     const db = getDB();
-    const activeJobs = db.jobs.filter(j => j.status === 'Active');
+    const normalizedFilter = String(filter || 'all').toLowerCase();
+    const activeJobs = db.jobs
+      .filter(j => j.status === 'Active')
+      .filter(job => normalizedFilter === 'all' || gigMatchesFilter(job, normalizedFilter, db));
     const suggested = getSuggestedGigs(user, 4);
     const cards = activeJobs.map(job => {
       const st = db.startups.find(s => s.id === job.startupId) || {};
@@ -163,16 +166,16 @@
             <span class="gig-match-badge">${match.score || 72}% Match</span>
           </div>
           ${renderMedia(job.media, job.mediaType)}
-          <h3>${job.title}</h3>
-          <p>${job.description}</p>
+          <h3>${decodePostContent(job.title)}</h3>
+          <p>${decodePostContent(job.description)}</p>
           <div class="gig-board-meta">
             <span><strong>Budget:</strong> Rs ${job.hourlyRate}/hr</span>
             <span><strong>Duration:</strong> ${job.duration || 'Flexible'}</span>
             <span><strong>Sector:</strong> ${st.sector || 'Business'}</span>
           </div>
-          <div class="gig-skill-row">${job.tags.map(t => `<span>${t}</span>`).join('')}</div>
+          <div class="gig-skill-row">${(job.tags || []).map(t => `<span>${decodePostContent(t)}</span>`).join('')}</div>
           <div class="gig-board-actions">
-            <button class="btn btn-secondary" type="button" onclick="AppUX.showToast('Gig saved')"><i data-lucide="bookmark"></i>Save Gig</button>
+            <button class="btn btn-secondary" type="button" onclick="saveGig('${job.id}', this)"><i data-lucide="bookmark"></i>Save Gig</button>
             <button class="btn btn-primary" type="button" onclick="openApply('${job.id}','${job.title.replace(/'/g, "\\'")}',${job.hourlyRate})">Apply Now <i data-lucide="arrow-right"></i></button>
           </div>
         </article>`;
@@ -188,10 +191,42 @@
         <button class="btn btn-primary" onclick="go('mads')"><i data-lucide="megaphone"></i>Post Service Ad</button>
       </div>
       <div class="gig-filter-row">
-        ${['All','Design','Dev','Marketing','Sales','Remote'].map((label, index) => `<button class="${index === 0 ? 'active' : ''}" type="button">${label}</button>`).join('')}
+        ${['All','Design','Dev','Marketing','Sales','Remote'].map(label => {
+          const value = label.toLowerCase();
+          return `<button class="gig-filter-btn ${normalizedFilter === value ? 'active' : ''}" data-filter="${value}" type="button" onclick="renderGigs(document.getElementById('body'), '${value}')">${label}</button>`;
+        }).join('')}
       </div>
       ${renderMatchedGigs(suggested, db)}
       <div class="gig-board-list">${cards || emptyState('No gigs posted yet. Publish a service ad so startups can find you directly.')}</div>`;
+    lucide.createIcons();
+  }
+
+  function decodePostContent(text = '') {
+    return String(text)
+      .replace(/&#039;|&apos;/g, "'")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+  }
+
+  function gigMatchesFilter(job, filter, db) {
+    const st = db.startups.find(s => s.id === job.startupId) || {};
+    const text = [job.title, job.description, job.category, job.type, job.location, st.sector, st.name, ...(job.tags || [])].filter(Boolean).join(' ').toLowerCase();
+    if (filter === 'dev') return /\b(dev|developer|software|web|app|frontend|backend|fullstack|react|node)\b/.test(text);
+    if (filter === 'remote') return /\b(remote|online|work from home|wfh)\b/.test(text) || !job.location;
+    return text.includes(filter);
+  }
+
+  function saveGig(id, button) {
+    const saved = JSON.parse(localStorage.getItem('connecthub_saved_gigs') || '[]');
+    const exists = saved.includes(id);
+    const next = exists ? saved.filter(item => item !== id) : [...saved, id];
+    localStorage.setItem('connecthub_saved_gigs', JSON.stringify(next));
+    button.classList.toggle('active', !exists);
+    button.innerHTML = `<i data-lucide="${exists ? 'bookmark' : 'bookmark-check'}"></i>${exists ? 'Save Gig' : 'Saved'}`;
+    AppUX.showToast(exists ? 'Removed from saved gigs' : 'Gig saved');
+    lucide.createIcons();
   }
 
   function renderMatchedGigs(jobs, db) {

@@ -5422,11 +5422,45 @@ body.dark .ch-post-card header p {
   margin-top: 0.7rem;
   padding: 0.75rem;
   border-radius: 16px;
-  background: rgba(15,118,110,0.08);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  animation: mountFadeUp 0.18s ease both;
 }
 
 .ch-comments p {
   margin: 0.25rem 0;
+}
+
+.ch-comment-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.ch-comment-input input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 0.65rem 0.85rem;
+  outline: none;
+}
+
+.ch-comment-input button {
+  border: 0;
+  border-radius: 999px;
+  background: #0F766E;
+  color: #fff;
+  font-weight: 900;
+  padding: 0.55rem 0.85rem;
+}
+
+.ch-comment-list {
+  display: grid;
+  gap: 0.35rem;
 }
 
 .ch-burst {
@@ -5823,6 +5857,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  min-width: 0;
   padding: 1rem;
   margin-bottom: 1rem;
   background: #FFFFFF;
@@ -5837,6 +5872,8 @@ body {
   color: #0F172A;
   font-size: clamp(1.15rem, 4vw, 1.45rem);
   line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .gig-board-hero p {
@@ -5850,21 +5887,29 @@ body {
   gap: 0.5rem;
   overflow-x: auto;
   padding: 0 0 0.85rem;
+  max-width: 100%;
+  scrollbar-width: none;
 }
 
-.gig-filter-row button {
+.gig-filter-row button,
+.gig-filter-btn {
   flex: 0 0 auto;
-  border: 0;
+  border: 1px solid var(--border-color, #E2E8F0);
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
-  background: #F1F5F9;
-  color: #475569;
+  background: var(--input-bg, #F1F5F9);
+  color: var(--text-primary, #0F172A) !important;
   font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.gig-filter-row button.active {
-  background: #0F766E;
-  color: #FFFFFF;
+.gig-filter-row button.active,
+.gig-filter-btn.active {
+  background: #0F766E !important;
+  color: #FFFFFF !important;
+  border-color: #0F766E !important;
 }
 
 .gig-board-list {
@@ -5876,6 +5921,7 @@ body {
 .gig-board-card {
   border-radius: 1rem;
   padding: 1rem;
+  min-width: 0;
 }
 
 .gig-board-head {
@@ -5905,6 +5951,7 @@ body {
   margin: 0.85rem 0 0.35rem;
   color: #0F172A;
   font-size: 1.05rem;
+  overflow-wrap: anywhere;
 }
 
 .gig-match-badge {
@@ -6416,6 +6463,53 @@ body.dark .settings-segment button.active {
   background: rgba(20, 184, 166, 0.18);
   border-color: #5EEAD4;
   color: #99F6E4;
+}
+
+:root[data-theme="dark"] .gig-board-hero,
+body.dark .gig-board-hero,
+:root[data-theme="dark"] .smart-panel,
+body.dark .smart-panel {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .gig-board-hero h2,
+:root[data-theme="dark"] .gig-board-card h3,
+:root[data-theme="dark"] .smart-panel h3,
+body.dark .gig-board-hero h2,
+body.dark .gig-board-card h3,
+body.dark .smart-panel h3 {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .gig-board-hero p,
+:root[data-theme="dark"] .gig-board-card p,
+:root[data-theme="dark"] .gig-board-meta,
+:root[data-theme="dark"] .smart-panel p,
+body.dark .gig-board-hero p,
+body.dark .gig-board-card p,
+body.dark .gig-board-meta,
+body.dark .smart-panel p {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme="dark"] .gig-filter-btn,
+:root[data-theme="dark"] .gig-filter-row button,
+body.dark .gig-filter-btn,
+body.dark .gig-filter-row button {
+  background: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme="dark"] .gig-filter-btn.active,
+:root[data-theme="dark"] .gig-filter-row button.active,
+body.dark .gig-filter-btn.active,
+body.dark .gig-filter-row button.active {
+  background: #0F766E !important;
+  border-color: #0F766E !important;
+  color: #FFFFFF !important;
 }
 
 /* Visibility bug fixes: no persistent feed blur, consistent light/dark tokens */

@@ -2414,6 +2414,7 @@ const AppUX = (() => {
 
   function renderPostCard(post, index) {
     const safeName = post.name.replace(/'/g, "\\'");
+    const state = getPostState(post.id, post);
     return `<article class="ch-post-card" style="--accent:${post.accent};--delay:${index * 70}ms" data-post-id="${post.id}">
       <header>
         <button class="ch-avatar-button" type="button" onclick="AppUX.openProfileFromPost('${safeName}')">${escapeHTML(post.initials)}</button>
@@ -2423,20 +2424,71 @@ const AppUX = (() => {
         </div>
         <button class="ch-follow-btn" type="button" onclick="AppUX.toggleFollow(this)">Follow</button>
       </header>
-      <p class="ch-post-text">${linkPostTags(post.text)}</p>
+      <p class="ch-post-text">${linkPostTags(decodePostContent(post.text))}</p>
       <div class="ch-post-visual"><div><i data-lucide="image"></i><strong>${escapeHTML(post.title)}</strong><span>${escapeHTML(post.role)} update</span></div></div>
       <div class="ch-post-tags">${post.tags.map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${escapeHTML(tag)}</button>`).join("")}</div>
       <footer>
-        <button type="button" onclick="AppUX.likePost(this, '${post.id}')"><i data-lucide="thumbs-up"></i><span>Like</span><b>${post.likes}</b></button>
-        <button type="button" onclick="AppUX.togglePostComments('${post.id}')"><i data-lucide="message-circle"></i><span>Comment</span><b>${post.comments}</b></button>
-        <button type="button" onclick="AppUX.sharePost('${post.id}')"><i data-lucide="send"></i><span>Share</span><b>${post.shares}</b></button>
-        <button type="button" onclick="AppUX.savePost(this)"><i data-lucide="bookmark"></i><span>Save</span></button>
+        <button type="button" class="${state.liked ? "active" : ""}" onclick="AppUX.likePost(this, '${post.id}')"><i data-lucide="thumbs-up"></i><span>Like</span><b class="like-count">${state.likes}</b></button>
+        <button type="button" onclick="AppUX.togglePostComments('${post.id}')"><i data-lucide="message-circle"></i><span>Comment</span><b class="comment-count">${state.comments}</b></button>
+        <button type="button" onclick="AppUX.sharePost('${post.id}')"><i data-lucide="send"></i><span>Share</span><b class="share-count">${state.shares}</b></button>
+        <button type="button" class="${state.saved ? "active" : ""}" onclick="AppUX.savePost(this, '${post.id}')"><i data-lucide="${state.saved ? "bookmark-check" : "bookmark"}"></i><span>${state.saved ? "Saved" : "Save"}</span></button>
       </footer>
       <div id="comments-${post.id}" class="ch-comments" hidden>
-        <p><strong>Kamal:</strong> Great signal for Indian startups.</p>
-        <p><strong>ConnectHub:</strong> Message them directly from Explore.</p>
+        <div class="ch-comment-input">
+          <input id="comment-input-${post.id}" type="text" placeholder="Write a comment..." onkeydown="if(event.key==='Enter') AppUX.postComment('${post.id}')">
+          <button type="button" onclick="AppUX.postComment('${post.id}')">Post</button>
+        </div>
+        <div id="comments-list-${post.id}" class="ch-comment-list">${renderComments(post.id)}</div>
       </div>
     </article>`;
+  }
+
+  function decodePostContent(text = "") {
+    return String(text)
+      .replace(/&#039;|&apos;/g, "'")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+  }
+
+  function postStateStore() {
+    try {
+      return JSON.parse(localStorage.getItem("connecthub_post_state") || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function savePostStateStore(state) {
+    localStorage.setItem("connecthub_post_state", JSON.stringify(state));
+  }
+
+  function getPostState(id, post = {}) {
+    const state = postStateStore();
+    const saved = state[id] || {};
+    return {
+      liked: Boolean(saved.liked),
+      saved: Boolean(saved.saved),
+      likes: Number.isFinite(saved.likes) ? saved.likes : Number(post.likes || 0),
+      comments: Number.isFinite(saved.comments) ? saved.comments : Number(post.comments || 0),
+      shares: Number.isFinite(saved.shares) ? saved.shares : Number(post.shares || 0),
+      commentRows: Array.isArray(saved.commentRows) ? saved.commentRows : [
+        { author: "Kamal", text: "Great signal for Indian startups." },
+        { author: "ConnectHub", text: "Message them directly from Explore." }
+      ]
+    };
+  }
+
+  function updatePostState(id, patch) {
+    const state = postStateStore();
+    state[id] = { ...getPostState(id), ...patch };
+    savePostStateStore(state);
+    return state[id];
+  }
+
+  function renderComments(id) {
+    return getPostState(id).commentRows.map(row => `<p><strong>${escapeHTML(row.author)}:</strong> ${escapeHTML(row.text)}</p>`).join("");
   }
 
   function linkPostTags(text = "") {
@@ -2516,25 +2568,48 @@ const AppUX = (() => {
     playSound("done");
   }
 
-  function likePost(button) {
-    button.classList.toggle("active");
+  function likePost(button, id) {
+    const active = button.classList.toggle("active");
     const count = button.querySelector("b");
-    if (count && !button.dataset.liked) {
-      count.textContent = String(Number(count.textContent || 0) + 1);
-      button.dataset.liked = "true";
-    }
+    const next = Math.max(0, Number(count?.textContent || 0) + (active ? 1 : -1));
+    if (count) count.textContent = String(next);
+    if (id) updatePostState(id, { liked: active, likes: next });
     burst(button, "heart");
-    showToast("Post liked. The creator will be notified.");
+    showToast(active ? "Post liked. The creator will be notified." : "Like removed");
   }
 
-  function savePost(button) {
-    button.classList.toggle("active");
-    showToast(button.classList.contains("active") ? "Saved for later" : "Removed from saved");
+  function savePost(button, id) {
+    const active = button.classList.toggle("active");
+    const label = button.querySelector("span");
+    const icon = button.querySelector("svg");
+    if (label) label.textContent = active ? "Saved" : "Save";
+    if (icon) icon.setAttribute("data-lucide", active ? "bookmark-check" : "bookmark");
+    if (id) updatePostState(id, { saved: active });
+    showToast(active ? "Saved for later" : "Removed from saved");
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function togglePostComments(id) {
     const section = document.getElementById(`comments-${id}`);
-    if (section) section.hidden = !section.hidden;
+    if (!section) return;
+    section.hidden = !section.hidden;
+    section.classList.toggle("open", !section.hidden);
+  }
+
+  function postComment(id) {
+    const input = document.getElementById(`comment-input-${id}`);
+    const text = input?.value.trim();
+    if (!text) return;
+    const user = getCurrentUser?.() || {};
+    const state = getPostState(id);
+    const commentRows = [...state.commentRows, { author: user.name || "You", text }];
+    updatePostState(id, { commentRows, comments: commentRows.length });
+    const list = document.getElementById(`comments-list-${id}`);
+    if (list) list.innerHTML = renderComments(id);
+    const count = document.querySelector(`[data-post-id="${id}"] .comment-count`);
+    if (count) count.textContent = String(commentRows.length);
+    input.value = "";
+    showToast("Comment posted");
   }
 
   function toggleFollow(button) {
@@ -2543,8 +2618,17 @@ const AppUX = (() => {
     showToast(following ? "Connection signal sent" : "Follow removed");
   }
 
-  function sharePost(id) {
-    navigator.clipboard?.writeText(`${location.origin}${location.pathname}#${id}`);
+  async function sharePost(id) {
+    const url = `${location.origin}${location.pathname}#${id}`;
+    if (navigator.share) {
+      await navigator.share({ title: "ConnectHub Post", text: "Check this out on ConnectHub", url }).catch(() => {});
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    }
+    const count = document.querySelector(`[data-post-id="${id}"] .share-count`);
+    const next = Number(count?.textContent || 0) + 1;
+    if (count) count.textContent = String(next);
+    updatePostState(id, { shares: next });
     showToast("Post link copied");
   }
 
@@ -2960,5 +3044,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, sendSettingsOtp, updateSettingsPasscode, openSettingsNotifications, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();
