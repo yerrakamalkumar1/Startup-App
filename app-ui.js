@@ -829,29 +829,145 @@ const AppUX = (() => {
     const user = getCurrentUser?.();
     if (!user || window.__connectHubSocketStarted) return;
     window.__connectHubSocketStarted = true;
-    const script = document.createElement("script");
-    script.src = "https://cdn.socket.io/4.7.5/socket.io.min.js";
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
+    const loadSocketScript = sources => {
+      if (window.io) return startSocket();
+      const [src, ...rest] = sources;
+      if (!src) return;
+      const script = document.createElement("script");
+      script.src = src;
+      script.crossOrigin = "anonymous";
+      script.onload = startSocket;
+      script.onerror = () => loadSocketScript(rest);
+      document.head.appendChild(script);
+    };
+    const startSocket = () => {
       if (!window.io) return;
-      const socket = window.io();
+      const token = localStorage.getItem("connecthub_token") || localStorage.getItem("token") || "";
+      const socketUrl = location.protocol === "file:" ? undefined : window.location.origin;
+      const socket = window.io(socketUrl, {
+        auth: { token, userId: user.name, role: user.role },
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionDelay: 700,
+        reconnectionDelayMax: 4000
+      });
       window.ConnectHubSocket = socket;
-      socket.emit("user:online", user.name);
+      const currentNames = () => [getCurrentUser?.()?.name, getCurrentUser?.()?.companyName].filter(Boolean);
+      const joinUserRooms = () => currentNames().forEach(name => socket.emit("user:online", name));
+      socket.on("connect", () => {
+        joinUserRooms();
+        updateConnectivityStatus(true);
+        document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: true } }));
+      });
+      socket.on("disconnect", () => {
+        updateConnectivityStatus(navigator.onLine);
+        document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: false } }));
+      });
       socket.on("presence:update", names => {
         window.ConnectHubOnlineUsers = names || [];
         document.dispatchEvent(new CustomEvent("connecthub:presence"));
+        if (document.body.classList.contains("messages-open")) {
+          const target = document.getElementById("msgTo")?.value;
+          if (target) openChat(target);
+          else renderInbox(document.getElementById("messageSearch")?.value || "");
+        }
       });
       socket.on("message:new", message => {
         const db = getDB();
         db.messages = db.messages || [];
-        if (!db.messages.some(m => m.id === message.id)) db.messages.push(message);
-        saveDB(db);
+        const names = currentNames();
+        if (!names.includes(message.from) && !names.includes(message.to)) return;
+        if (!db.messages.some(m => m.id === message.id)) {
+          db.messages.push(message);
+          saveDB(db, { localOnly: true });
+        }
+        document.dispatchEvent(new CustomEvent("connecthub:message", { detail: message }));
+        const activeTarget = document.getElementById("msgTo")?.value;
+        if (document.body.classList.contains("messages-open")) {
+          if (activeTarget && [message.from, message.to].includes(activeTarget)) {
+            document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(activeTarget);
+            markVisibleMessagesRead();
+          } else {
+            renderInbox(document.getElementById("messageSearch")?.value || "");
+          }
+        }
         updateUnreadBadge();
         playSound("bell");
+        if (!document.body.classList.contains("messages-open") && message.from) {
+          showToast(`New message from ${message.from}`);
+        }
+        if (window.lucide) window.lucide.createIcons();
+      });
+      const handleRealtimeNotification = note => {
+        const db = getDB();
+        db.notifications = db.notifications || [];
+        const names = currentNames();
+        if (note?.to && names.length && !names.includes(note.to)) return;
+        const normalized = {
+          id: note?.id || `not-${Date.now()}`,
+          type: note?.type || "activity",
+          text: note?.text || "New notification",
+          from: note?.from || "",
+          to: note?.to || names[0],
+          targetUrl: note?.targetUrl || "",
+          read: Boolean(note?.read),
+          createdAt: note?.createdAt || new Date().toISOString()
+        };
+        if (!db.notifications.some(item => item.id === normalized.id)) {
+          db.notifications.push(normalized);
+          saveDB(db, { localOnly: true });
+        }
+        document.dispatchEvent(new CustomEvent("connecthub:notification", { detail: normalized }));
+        updateUnreadBadge();
+        renderNotificationPanel();
+        showNotificationPop();
+      };
+      socket.on("notification:new", handleRealtimeNotification);
+      socket.on("notifications:update", payload => {
+        if (payload?.notification) handleRealtimeNotification(payload.notification);
+        renderNotificationPanel();
+      });
+      socket.on("feed:newPost", post => {
+        document.dispatchEvent(new CustomEvent("connecthub:feed-post", { detail: post }));
+        showToast("New post added to the feed");
+      });
+      socket.on("post:updated", payload => {
+        document.dispatchEvent(new CustomEvent("connecthub:post-updated", { detail: payload }));
+      });
+      socket.on("story:new", story => {
+        document.dispatchEvent(new CustomEvent("connecthub:story", { detail: story }));
+        showToast("New story is live");
+      });
+      socket.on("message:typing", payload => {
+        const activeTarget = document.getElementById("msgTo")?.value;
+        if (activeTarget && payload?.from === activeTarget) {
+          let indicator = document.getElementById("typingIndicator");
+          if (!indicator) {
+            indicator = document.createElement("small");
+            indicator.id = "typingIndicator";
+            indicator.className = "typing-indicator";
+            document.querySelector(".chat-full-header")?.appendChild(indicator);
+          }
+          indicator.textContent = `${activeTarget.split(" ")[0]} is typing...`;
+          clearTimeout(window.__connectHubTypingTimer);
+          window.__connectHubTypingTimer = setTimeout(() => indicator.remove(), 1800);
+        }
+      });
+      document.addEventListener("input", event => {
+        if (event.target?.id !== "msgText") return;
+        const to = document.getElementById("msgTo")?.value;
+        if (!to) return;
+        clearTimeout(window.__connectHubTypingEmitTimer);
+        socket.emit("message:typing", {
+          to,
+          recipientId: to,
+          conversationId: currentNames().concat(to).sort().join("__"),
+          at: Date.now()
+        });
+        window.__connectHubTypingEmitTimer = setTimeout(() => {}, 900);
       });
     };
-    script.onerror = () => {};
-    document.head.appendChild(script);
+    loadSocketScript(["/socket.io/socket.io.js", "https://cdn.socket.io/4.7.5/socket.io.min.js"]);
     if (!window.__connectHubNotificationPoll) {
       window.__connectHubNotificationPoll = setInterval(() => {
         syncFromBackend?.().then(() => {
@@ -4081,3 +4197,4 @@ const AppUX = (() => {
 
   return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();
+window.AppUX = AppUX;

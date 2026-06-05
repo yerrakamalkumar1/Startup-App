@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectHub India Auth Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    :root {
+      --saffron: #ff6b00;
+      --green: #138808;
+      --teal: #0f766e;
+      --teal-2: #0d9488;
+      --navy: #1a2340;
+      --bg: #f4f5f8;
+      --card: #ffffff;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --shadow: 0 24px 64px rgba(26, 35, 64, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      color: var(--navy);
+      background:
+        radial-gradient(circle at 10% 12%, rgba(255, 107, 0, 0.18), transparent 26%),
+        radial-gradient(circle at 90% 8%, rgba(19, 136, 8, 0.16), transparent 28%),
+        linear-gradient(135deg, #fff, var(--bg));
+    }
+
+    button, input, select { font: inherit; }
+    button { border: 0; cursor: pointer; }
+
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .auth-card {
+      width: min(1120px, 100%);
+      min-height: 720px;
+      display: grid;
+      grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: 34px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand-panel {
+      position: relative;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 42px;
+      color: #fff;
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.94), rgba(26, 35, 64, 0.95)),
+        radial-gradient(circle at 20% 10%, rgba(255, 107, 0, 0.65), transparent 30%);
+    }
+
+    .brand-panel::after {
+      content: "";
+      position: absolute;
+      inset: auto -90px -120px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .mark {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.16);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+    }
+
+    .brand-logo h1, .hero-copy h2 {
+      margin: 0;
+      font-family: "Sora", sans-serif;
+    }
+
+    .brand-logo p { margin: 3px 0 0; color: rgba(255, 255, 255, 0.78); }
+    .hero-copy { position: relative; z-index: 1; }
+    .hero-copy h2 { font-size: clamp(34px, 4vw, 52px); line-height: 1.03; }
+    .hero-copy p { max-width: 430px; color: rgba(255, 255, 255, 0.78); line-height: 1.7; }
+
+    .trust-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .trust-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .trust-card b { display: block; font-size: 20px; }
+    .trust-card span { color: rgba(255, 255, 255, 0.74); font-size: 12px; }
+
+    .form-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(24px, 4vw, 54px);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 6px;
+      margin-bottom: 24px;
+      border-radius: 999px;
+      background: #edf2f7;
+    }
+
+    .tabs button {
+      padding: 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 800;
+      transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+    }
+
+    .tabs button.active {
+      color: #fff;
+      background: var(--teal);
+      box-shadow: 0 10px 28px rgba(15, 118, 110, 0.24);
+    }
+
+    .form-title h2 {
+      margin: 0;
+      font-family: "Sora", sans-serif;
+      font-size: clamp(26px, 4vw, 36px);
+    }
+
+    .form-title p { margin: 8px 0 22px; color: var(--muted); }
+    .form { display: none; animation: rise 0.24s ease both; }
+    .form.active { display: block; }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+    label { color: #334155; font-weight: 800; font-size: 13px; }
+
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: #f8fafc;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .control:focus-within {
+      border-color: var(--teal-2);
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.12);
+    }
+
+    .control input, .control select {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      color: var(--navy);
+      background: transparent;
+    }
+
+    .muted-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 12px 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .link-btn {
+      padding: 0;
+      color: var(--teal);
+      background: transparent;
+      font-weight: 800;
+    }
+
+    .primary-btn, .secondary-btn {
+      width: 100%;
+      min-height: 52px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border-radius: 17px;
+      font-weight: 900;
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .primary-btn { color: #fff; background: linear-gradient(135deg, var(--teal), var(--green)); }
+    .secondary-btn { color: var(--navy); background: #fff; border: 1px solid var(--line); }
+    .primary-btn:hover, .secondary-btn:hover { transform: translateY(-1px) scale(1.01); }
+    .primary-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .social-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .drawer {
+      display: none;
+      padding: 14px;
+      margin: 12px 0;
+      border: 1px solid #bbf7d0;
+      border-radius: 18px;
+      background: #f0fdf4;
+    }
+
+    .drawer.active { display: block; }
+
+    .stepper {
+      display: flex;
+      gap: 8px;
+      margin: 2px 0 20px;
+    }
+
+    .stepper span {
+      flex: 1;
+      height: 6px;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+
+    .stepper span.active { background: var(--teal); }
+    .step { display: none; }
+    .step.active { display: block; animation: rise 0.22s ease both; }
+
+    .strength {
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e2e8f0;
+    }
+
+    .strength span {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: var(--danger);
+      transition: width 0.2s ease, background 0.2s ease;
+    }
+
+    .toast-stack {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 20;
+      display: grid;
+      gap: 10px;
+    }
+
+    .toast {
+      min-width: min(340px, calc(100vw - 36px));
+      padding: 14px 16px;
+      border-radius: 16px;
+      color: #fff;
+      background: var(--navy);
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
+      animation: rise 0.22s ease both;
+    }
+
+    .toast.success { background: var(--teal); }
+    .toast.error { background: var(--danger); }
+
+    .success-screen {
+      display: none;
+      text-align: center;
+      padding: 24px;
+      border-radius: 24px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+    }
+
+    .success-screen.active { display: block; }
+    .success-screen i { color: var(--success); font-size: 52px; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 860px) {
+      .auth-shell { padding: 0; }
+      .auth-card {
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        border-radius: 0;
+      }
+      .brand-panel { min-height: 320px; padding: 28px; }
+      .trust-grid { grid-template-columns: 1fr 1fr 1fr; }
+      .form-panel { padding: 24px; }
+    }
+
+    @media (max-width: 560px) {
+      .field-grid, .social-row { grid-template-columns: 1fr; }
+      .muted-row { align-items: flex-start; flex-direction: column; }
+      .trust-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card" aria-label="ConnectHub authentication">
+      <aside class="brand-panel">
+        <div class="brand-logo">
+          <div class="mark"><i class="ti ti-briefcase-2"></i></div>
+          <div>
+            <h1>ConnectHub India</h1>
+            <p>Startup · Freelancer · Investor network</p>
+          </div>
+        </div>
+        <div class="hero-copy">
+          <h2>Build your Indian startup network with confidence.</h2>
+          <p>Sign in or create your role-based account to discover gigs, talent, sponsors, posts, and messages in one clean app.</p>
+        </div>
+        <div class="trust-grid">
+          <div class="trust-card"><b>3</b><span>Role portals</span></div>
+          <div class="trust-card"><b>OTP</b><span>Mock secure flow</span></div>
+          <div class="trust-card"><b>Free</b><span>Local demo backend</span></div>
+        </div>
+      </aside>
+
+      <section class="form-panel">
+        <div class="tabs" role="tablist">
+          <button id="loginTab" type="button" class="active" data-auth-tab="login">Sign In</button>
+          <button id="registerTab" type="button" data-auth-tab="register">Register</button>
+        </div>
+
+        <form id="loginForm" class="form active" novalidate>
+          <div class="form-title">
+            <h2>Welcome back</h2>
+            <p>Use email/mobile and passcode to continue.</p>
+          </div>
+          <div class="field">
+            <label for="loginIdentifier">Email or mobile</label>
+            <div class="control"><i class="ti ti-user"></i><input id="loginIdentifier" type="text" placeholder="name@email.com or 9876543210" autocomplete="username"></div>
+          </div>
+          <div class="field">
+            <label for="loginPassword">Passcode</label>
+            <div class="control"><i class="ti ti-lock"></i><input id="loginPassword" type="password" placeholder="Enter passcode" autocomplete="current-password"></div>
+          </div>
+          <div class="muted-row">
+            <label style="display:flex;align-items:center;gap:8px;"><input id="rememberMe" type="checkbox"> Remember me</label>
+            <button class="link-btn" type="button" id="forgotToggle">Forgot password?</button>
+          </div>
+          <div id="forgotDrawer" class="drawer">
+            <div class="field">
+              <label for="resetIdentifier">Reset email/mobile</label>
+              <div class="control"><i class="ti ti-mail"></i><input id="resetIdentifier" type="text" placeholder="Enter your registered email or mobile"></div>
+            </div>
+            <button class="secondary-btn" type="button" id="sendResetOtp"><i class="ti ti-send"></i> Send mock OTP</button>
+          </div>
+          <button id="loginSubmit" class="primary-btn" type="submit"><i class="ti ti-login-2"></i> Sign in</button>
+          <div class="social-row">
+            <button class="secondary-btn" type="button" data-social="Google"><i class="ti ti-brand-google"></i> Google</button>
+            <button class="secondary-btn" type="button" data-social="LinkedIn"><i class="ti ti-brand-linkedin"></i> LinkedIn</button>
+          </div>
+        </form>
+
+        <form id="registerForm" class="form" novalidate>
+          <div class="form-title">
+            <h2>Create account</h2>
+            <p>Register once and continue into your correct role portal.</p>
+          </div>
+          <div class="stepper" aria-hidden="true"><span></span><span></span><span></span></div>
+
+          <section class="step active" data-step="1">
+            <div class="field-grid">
+              <div class="field"><label for="regName">Full name</label><div class="control"><i class="ti ti-id"></i><input id="regName" type="text" placeholder="Kamal Kumar"></div></div>
+              <div class="field"><label for="regIdentifier">Email/mobile</label><div class="control"><i class="ti ti-mail"></i><input id="regIdentifier" type="text" placeholder="name@email.com"></div></div>
+              <div class="field"><label for="regPassword">Passcode</label><div class="control"><i class="ti ti-key"></i><input id="regPassword" type="password" placeholder="Create strong passcode"></div><div class="strength"><span id="strengthBar"></span></div></div>
+              <div class="field"><label for="regOtp">OTP</label><div class="control"><i class="ti ti-shield-check"></i><input id="regOtp" type="text" placeholder="6 digit mock OTP"></div></div>
+            </div>
+            <button class="secondary-btn" type="button" id="sendRegisterOtp"><i class="ti ti-message-2"></i> Send OTP</button>
+          </section>
+
+          <section class="step" data-step="2">
+            <div class="field-grid">
+              <div class="field"><label for="regRole">Portal role</label><div class="control"><i class="ti ti-users"></i><select id="regRole"><option value="freelancer">Freelancer</option><option value="startup_admin">Startup Owner</option><option value="investor">Investor/Sponsor</option></select></div></div>
+              <div class="field"><label for="regTitle">Skill / title</label><div class="control"><i class="ti ti-briefcase"></i><input id="regTitle" type="text" placeholder="Photographer, Founder, Angel Investor"></div></div>
+              <div class="field"><label for="regCity">City</label><div class="control"><i class="ti ti-map-pin"></i><input id="regCity" type="text" placeholder="Hyderabad"></div></div>
+              <div class="field"><label for="regState">State</label><div class="control"><i class="ti ti-map"></i><input id="regState" type="text" placeholder="Telangana"></div></div>
+            </div>
+          </section>
+
+          <section class="step" data-step="3">
+            <div class="field-grid">
+              <div class="field"><label for="regCompany">Business / firm</label><div class="control"><i class="ti ti-building"></i><input id="regCompany" type="text" placeholder="Optional company name"></div></div>
+              <div class="field"><label for="regSector">Sector</label><div class="control"><i class="ti ti-category"></i><select id="regSector"><option>SaaS & Technology</option><option>Commerce & Retail</option><option>Food & Hospitality</option><option>Property & Infrastructure</option><option>Education & Training</option><option>Media & Entertainment</option></select></div></div>
+              <div class="field full"><label for="regBio">Short pitch</label><div class="control"><i class="ti ti-notes"></i><input id="regBio" type="text" placeholder="One line about you or your startup"></div></div>
+            </div>
+          </section>
+
+          <div class="muted-row">
+            <button class="secondary-btn" type="button" id="prevStep">Back</button>
+            <button class="primary-btn" type="button" id="nextStep">Next</button>
+          </div>
+        </form>
+
+        <div id="successScreen" class="success-screen">
+          <i class="ti ti-circle-check"></i>
+          <h2>Account ready</h2>
+          <p>Your ConnectHub profile was created in local demo storage.</p>
+          <button class="primary-btn" type="button" id="openDashboard"><i class="ti ti-arrow-right"></i> Open dashboard</button>
+        </div>
+      </section>
+    </section>
+  </main>
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+
+  <script>
+    const authState = {
+      activeTab: "login",
+      registerStep: 1,
+      generatedOtp: "",
+      failedAttempts: Number(localStorage.getItem("ch_auth_failed_attempts") || "0"),
+      lockUntil: Number(localStorage.getItem("ch_auth_lock_until") || "0"),
+      lastUser: null
+    };
+    window.authState = authState;
+
+    const selectors = {
+      loginTab: document.getElementById("loginTab"),
+      registerTab: document.getElementById("registerTab"),
+      loginForm: document.getElementById("loginForm"),
+      registerForm: document.getElementById("registerForm"),
+      forgotDrawer: document.getElementById("forgotDrawer"),
+      strengthBar: document.getElementById("strengthBar"),
+      successScreen: document.getElementById("successScreen")
+    };
+
+    function getUsers() {
+      return JSON.parse(localStorage.getItem("ch_auth_users") || "{}");
+    }
+
+    function saveUsers(users) {
+      localStorage.setItem("ch_auth_users", JSON.stringify(users));
+    }
+
+    function setActiveTab(tab) {
+      authState.activeTab = tab;
+      selectors.loginTab.classList.toggle("active", tab === "login");
+      selectors.registerTab.classList.toggle("active", tab === "register");
+      selectors.loginForm.classList.toggle("active", tab === "login");
+      selectors.registerForm.classList.toggle("active", tab === "register");
+      selectors.successScreen.classList.remove("active");
+    }
+
+    function setRegisterStep(step) {
+      authState.registerStep = Math.max(1, Math.min(3, step));
+      document.querySelectorAll(".step").forEach(panel => panel.classList.toggle("active", Number(panel.dataset.step) === authState.registerStep));
+      document.querySelectorAll(".stepper span").forEach((bar, index) => bar.classList.toggle("active", index < authState.registerStep));
+      document.getElementById("prevStep").style.visibility = authState.registerStep === 1 ? "hidden" : "visible";
+      document.getElementById("nextStep").textContent = authState.registerStep === 3 ? "Create account" : "Next";
+    }
+
+    function normalizeId(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function isValidIdentifier(value) {
+      const v = normalizeId(value);
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || /^[6-9]\d{9}$/.test(v);
+    }
+
+    function generateOtp() {
+      authState.generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
+      return authState.generatedOtp;
+    }
+
+    function scorePassword(password) {
+      let score = 0;
+      if (password.length >= 8) score += 35;
+      if (/[A-Z]/.test(password)) score += 20;
+      if (/[0-9]/.test(password)) score += 20;
+      if (/[^A-Za-z0-9]/.test(password)) score += 25;
+      return Math.min(score, 100);
+    }
+
+    function updateStrength() {
+      const score = scorePassword(document.getElementById("regPassword").value);
+      selectors.strengthBar.style.width = `${score}%`;
+      selectors.strengthBar.style.background = score > 75 ? "var(--success)" : score > 45 ? "var(--saffron)" : "var(--danger)";
+    }
+
+    function toast(message, type = "success") {
+      const item = document.createElement("div");
+      item.className = `toast ${type}`;
+      item.textContent = message;
+      document.getElementById("toastStack").appendChild(item);
+      setTimeout(() => item.remove(), 3200);
+    }
+
+    function isLocked() {
+      if (Date.now() < authState.lockUntil) return true;
+      authState.lockUntil = 0;
+      localStorage.removeItem("ch_auth_lock_until");
+      return false;
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      if (isLocked()) {
+        toast("Too many attempts. Try again in a minute.", "error");
+        return;
+      }
+      const identifier = normalizeId(document.getElementById("loginIdentifier").value);
+      const password = document.getElementById("loginPassword").value;
+      if (!isValidIdentifier(identifier) || !password) {
+        toast("Enter a valid email/mobile and passcode.", "error");
+        return;
+      }
+      const user = getUsers()[identifier];
+      if (!user || user.password !== password) {
+        authState.failedAttempts += 1;
+        localStorage.setItem("ch_auth_failed_attempts", String(authState.failedAttempts));
+        if (authState.failedAttempts >= 5) {
+          authState.lockUntil = Date.now() + 60000;
+          localStorage.setItem("ch_auth_lock_until", String(authState.lockUntil));
+        }
+        toast("Invalid login details.", "error");
+        return;
+      }
+      authState.failedAttempts = 0;
+      localStorage.removeItem("ch_auth_failed_attempts");
+      localStorage.setItem("connecthub_user", JSON.stringify(user.profile));
+      if (document.getElementById("rememberMe").checked) localStorage.setItem("ch_auth_remember", identifier);
+      toast("Signed in successfully");
+      setTimeout(() => window.location.href = getDashboardUrl(user.profile.role), 650);
+    }
+
+    function validateStepOne() {
+      const identifier = normalizeId(document.getElementById("regIdentifier").value);
+      const name = document.getElementById("regName").value.trim();
+      const password = document.getElementById("regPassword").value;
+      const otp = document.getElementById("regOtp").value.trim();
+      if (!name || !isValidIdentifier(identifier)) return toast("Add your name and valid email/mobile.", "error"), false;
+      if (scorePassword(password) < 45) return toast("Use a stronger passcode.", "error"), false;
+      if (!authState.generatedOtp || otp !== authState.generatedOtp) return toast("Enter the mock OTP shown in the toast.", "error"), false;
+      if (getUsers()[identifier]) return toast("This account already exists.", "error"), false;
+      return true;
+    }
+
+    function validateStepTwo() {
+      if (!document.getElementById("regTitle").value.trim()) {
+        toast("Add your skill or professional title.", "error");
+        return false;
+      }
+      return true;
+    }
+
+    function createAccount() {
+      const identifier = normalizeId(document.getElementById("regIdentifier").value);
+      const role = document.getElementById("regRole").value;
+      const name = document.getElementById("regName").value.trim();
+      const profile = {
+        name,
+        email: identifier.includes("@") ? identifier : "",
+        phone: /^\d{10}$/.test(identifier) ? identifier : "",
+        role,
+        title: document.getElementById("regTitle").value.trim(),
+        city: document.getElementById("regCity").value.trim(),
+        state: document.getElementById("regState").value.trim(),
+        companyName: document.getElementById("regCompany").value.trim(),
+        sector: document.getElementById("regSector").value,
+        bio: document.getElementById("regBio").value.trim(),
+        avatarInitials: name.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase()
+      };
+      const users = getUsers();
+      users[identifier] = { password: document.getElementById("regPassword").value, profile };
+      saveUsers(users);
+      localStorage.setItem("connecthub_user", JSON.stringify(profile));
+      authState.lastUser = profile;
+      selectors.registerForm.classList.remove("active");
+      selectors.successScreen.classList.add("active");
+      toast("Registration complete");
+    }
+
+    function getDashboardUrl(role) {
+      if (role === "startup_admin") return "dashboard-startup.html";
+      if (role === "investor") return "dashboard-investor.html";
+      return "dashboard-freelancer.html";
+    }
+
+    document.querySelectorAll("[data-auth-tab]").forEach(button => {
+      button.addEventListener("click", () => setActiveTab(button.dataset.authTab));
+    });
+    document.getElementById("forgotToggle").addEventListener("click", () => selectors.forgotDrawer.classList.toggle("active"));
+    document.getElementById("sendResetOtp").addEventListener("click", () => {
+      const value = document.getElementById("resetIdentifier").value;
+      if (!isValidIdentifier(value)) return toast("Enter a valid reset email/mobile.", "error");
+      toast(`Mock reset OTP: ${generateOtp()}`);
+    });
+    document.querySelectorAll("[data-social]").forEach(button => {
+      button.addEventListener("click", () => toast(`${button.dataset.social} sign-in needs provider keys. Email login works now.`));
+    });
+    selectors.loginForm.addEventListener("submit", handleLogin);
+    document.getElementById("sendRegisterOtp").addEventListener("click", () => {
+      if (!isValidIdentifier(document.getElementById("regIdentifier").value)) return toast("Enter valid email/mobile before OTP.", "error");
+      toast(`Mock register OTP: ${generateOtp()}`);
+    });
+    document.getElementById("regPassword").addEventListener("input", updateStrength);
+    document.getElementById("prevStep").addEventListener("click", () => setRegisterStep(authState.registerStep - 1));
+    document.getElementById("nextStep").addEventListener("click", () => {
+      if (authState.registerStep === 1 && !validateStepOne()) return;
+      if (authState.registerStep === 2 && !validateStepTwo()) return;
+      if (authState.registerStep === 3) return createAccount();
+      setRegisterStep(authState.registerStep + 1);
+    });
+    document.getElementById("openDashboard").addEventListener("click", () => {
+      window.location.href = getDashboardUrl(authState.lastUser?.role || "freelancer");
+    });
+
+    const remembered = localStorage.getItem("ch_auth_remember");
+    if (remembered) {
+      document.getElementById("loginIdentifier").value = remembered;
+      document.getElementById("rememberMe").checked = true;
+    }
+    setRegisterStep(1);
+  </script>
+</body>
+</html>

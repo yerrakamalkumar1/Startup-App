@@ -1180,6 +1180,10 @@ function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
   const requestedPath = urlPath === "/"
     ? "/index.html"
+    : /^\/chat\/?$/.test(urlPath)
+      ? "/chat.html"
+    : /^\/auth-portal\/?$/.test(urlPath)
+      ? "/auth-portal.html"
     : /^\/feed\/?$/.test(urlPath)
       ? "/dashboard-freelancer.html"
     : /^\/settings\/?$/.test(urlPath)
