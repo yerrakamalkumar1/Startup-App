@@ -1120,6 +1120,436 @@
       .message-bubble { max-width: 82%; }
       .stat-row { grid-template-columns: repeat(2, 1fr); }
     }
+
+    /* Unified comments, saved items, and additive responsive overrides */
+    .comments {
+      display: block;
+      max-height: 0;
+      margin-top: 12px;
+      padding: 0;
+      overflow: hidden;
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+      background: transparent;
+      transition: max-height 400ms var(--ease-out), opacity 200ms var(--ease-out);
+      opacity: 0;
+    }
+    .comments.active { max-height: 1200px; opacity: 1; }
+    .comment-section {
+      border-top: 1px solid var(--slate-200);
+      padding: 12px 16px 16px;
+      background: var(--slate-50);
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    }
+    body.dark .comment-section { background: var(--surface-2); border-color: var(--line); }
+    .comment-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .comment-count-label { font-size: 13px; font-weight: 700; color: var(--slate-700); }
+    .comment-sort-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 3px;
+      border-radius: var(--radius-full);
+      background: var(--slate-200);
+    }
+    .sort-tab {
+      min-height: 28px;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      color: var(--slate-500);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .sort-tab.active { color: var(--navy); background: var(--card); box-shadow: var(--shadow-xs); }
+    body.dark .sort-tab.active { color: #fff; background: var(--surface-4); }
+    .comments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 12px;
+      animation: fadeIn 200ms var(--ease-out) both;
+    }
+    .comment-item, .reply-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      animation: fadeInUp 200ms var(--ease-out) both;
+    }
+    .reply-item { gap: 8px; margin-top: 8px; }
+    .comment-avatar, .comment-author-avatar, .reply-avatar, .reply-author-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      color: #fff;
+      font-family: "Sora", sans-serif;
+      font-weight: 800;
+    }
+    .comment-avatar, .comment-author-avatar { width: 32px; height: 32px; min-width: 32px; font-size: 11px; }
+    .reply-avatar, .reply-author-avatar { width: 26px; height: 26px; min-width: 26px; font-size: 10px; }
+    .comment-body { flex: 1; min-width: 0; }
+    .comment-bubble {
+      padding: 10px 14px;
+      border: 1px solid var(--slate-200);
+      border-radius: 0 var(--radius-lg) var(--radius-lg) var(--radius-lg);
+      background: var(--card);
+      box-shadow: var(--shadow-xs);
+    }
+    .comment-bubble.small { padding: 8px 12px; }
+    .comment-author-name {
+      margin-bottom: 3px;
+      color: var(--navy);
+      font-family: "Sora", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    body.dark .comment-author-name { color: #fff; }
+    .comment-text {
+      color: var(--slate-700);
+      font-size: 13.5px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .comment-actions-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 5px;
+      padding-left: 4px;
+    }
+    .comment-like-btn, .comment-reply-btn, .comment-delete-btn, .reply-like-btn, .reply-delete-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 24px;
+      padding: 0;
+      color: var(--slate-400);
+      background: none;
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 12px;
+    }
+    .comment-like-btn:hover, .reply-like-btn:hover, .comment-like-btn.liked, .reply-like-btn.liked, .comment-like-btn.active, .reply-like-btn.active { color: var(--saffron); }
+    .comment-like-btn.liked i, .reply-like-btn.liked i, .comment-like-btn.active i, .reply-like-btn.active i { animation: heartbeat 400ms var(--ease-out); }
+    .comment-reply-btn { color: var(--slate-500); font-weight: 700; }
+    .comment-reply-btn:hover { color: var(--navy); }
+    body.dark .comment-reply-btn:hover { color: #fff; }
+    .comment-delete-btn:hover, .reply-delete-btn:hover { color: var(--danger); }
+    .comment-timestamp {
+      color: var(--slate-400);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+    }
+    .load-more-comments {
+      width: 100%;
+      min-height: 38px;
+      margin-bottom: 12px;
+      padding: 8px;
+      border: 1px dashed var(--slate-300);
+      border-radius: var(--radius-md);
+      color: var(--slate-500);
+      background: transparent;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .load-more-comments:hover { border-color: var(--saffron); color: var(--saffron); background: var(--saffron-light); }
+    .new-comment-input-row, .reply-input-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .reply-input-row { display: none; margin-top: 8px; gap: 8px; animation: slideDown 200ms var(--ease-out) both; }
+    .reply-input-row.active { display: flex; }
+    .reply-input-row.hidden { display: none; }
+    .comment-input-shell,
+    .comment-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      flex: 1;
+      gap: 6px;
+      padding: 8px 10px;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      transition: border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+    }
+    .comment-input-shell:focus-within,
+    .comment-input-wrapper:focus-within { border-color: var(--saffron); box-shadow: 0 0 0 3px var(--saffron-glow); }
+    .comment-input-wrapper.small { padding: 6px 10px; }
+    .comment-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      color: var(--slate-400);
+      font-size: 11px;
+    }
+    .comment-author {
+      padding: 0;
+      min-height: auto;
+      color: var(--navy);
+      background: none;
+      font-family: "Sora", sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    body.dark .comment-author { color: #fff; }
+    .comment-bubble p { margin: 0; color: var(--slate-700); line-height: 1.55; word-break: break-word; }
+    body.dark .comment-bubble p { color: var(--slate-200); }
+    .comment-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 5px; padding-left: 4px; }
+    .reply-list { margin-top: 8px; padding-left: 8px; border-left: 2px solid var(--slate-200); }
+    .comment-empty { margin: 8px 0; color: var(--slate-500); text-align: center; }
+    .comment-input {
+      flex: 1;
+      min-height: 22px;
+      max-height: 100px;
+      overflow-y: auto;
+      outline: none;
+      color: var(--slate-800);
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 13.5px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    body.dark .comment-input { color: #fff; }
+    .comment-input:empty::before { content: attr(data-placeholder); color: var(--slate-400); pointer-events: none; }
+    .comment-input.small { font-size: 13px; }
+    .comment-input-actions { display: flex; align-items: center; gap: 4px; }
+    .comment-emoji-btn {
+      min-width: 30px;
+      min-height: 30px;
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      color: var(--slate-400);
+      background: none;
+      font-size: 16px;
+    }
+    .comment-emoji-btn:hover { color: var(--saffron); background: var(--saffron-light); }
+    .comment-submit-btn, .reply-submit-btn {
+      min-width: 44px;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      background: var(--saffron);
+      font-weight: 850;
+      opacity: 0.4;
+    }
+    .comment-submit-btn:not(:disabled), .reply-submit-btn:not(:disabled) { opacity: 1; }
+    .comment-submit-btn:not(:disabled):hover, .reply-submit-btn:not(:disabled):hover { transform: scale(1.08); box-shadow: var(--shadow-saffron); }
+    .replies-list { margin-top: 8px; padding-left: 8px; border-left: 2px solid var(--slate-200); }
+    .mention-tag { color: var(--info); font-weight: 700; cursor: pointer; }
+    .mention-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 90;
+      min-width: 200px;
+      max-height: 210px;
+      overflow-y: auto;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      box-shadow: var(--shadow-xl);
+      animation: scaleIn 150ms var(--ease-spring);
+    }
+    .mention-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: var(--radius-md);
+      color: var(--slate-900);
+      background: transparent;
+      font-size: 13px;
+      text-align: left;
+    }
+    .mention-item:hover { background: var(--slate-50); }
+    .delete-popover {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--card);
+      box-shadow: var(--shadow-md);
+      animation: scaleIn 150ms var(--ease-spring);
+    }
+    .delete-popover button { min-height: 28px; padding: 0 8px; border-radius: var(--radius-sm); font-size: 12px; }
+    .delete-popover .danger { color: #fff; background: var(--danger); }
+
+    .save-toggle.saved { color: var(--saffron) !important; animation: pillPop 200ms var(--ease-spring); }
+    .save-toggle.saved i { color: var(--saffron); }
+    .saved-toggle-pulse { animation: pillPop 220ms var(--ease-spring); }
+    .saved-focus { animation: savedFocus 1100ms var(--ease-out); }
+    @keyframes savedFocus {
+      0%, 100% { box-shadow: var(--shadow-xs); }
+      25%, 70% { box-shadow: 0 0 0 4px rgba(15, 118, 110, .16), var(--shadow-lg); transform: translateY(-2px); }
+    }
+    .settings-shell { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .settings-tabs { display: grid; gap: 8px; }
+    .settings-tabs button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; min-height: 44px; padding: 0 12px; color: var(--slate-600); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); font-weight: 850; }
+    .settings-tabs button.active { color: #fff; background: var(--teal); border-color: var(--teal); }
+    .settings-tabs small { margin-left: auto; min-width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-full); color: var(--teal); background: var(--teal-light); }
+    .settings-card { padding: 18px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); color: var(--slate-700); font-weight: 800; }
+    .toggle-row input { width: 44px; height: 24px; accent-color: var(--teal); }
+    .saved-items-page { max-width: 900px; margin: 0 auto; }
+    .saved-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .saved-header h3 { margin: 0; font-family: "Sora", sans-serif; font-size: 22px; }
+    .saved-count-pill { flex: 0 0 auto; padding: 8px 12px; border-radius: var(--radius-full); color: #fff; background: var(--saffron); font-weight: 900; }
+    .saved-tabs {
+      display: flex;
+      gap: 8px;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+      overflow-x: auto;
+    }
+    .saved-tabs button {
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-full);
+      color: var(--slate-600);
+      background: var(--card);
+      font-weight: 900;
+    }
+    .saved-tabs button.active { color: #fff; background: var(--teal); border-color: var(--teal); }
+    .saved-list { display: grid; gap: 12px; }
+    .saved-item-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: var(--card);
+      box-shadow: var(--shadow-xs);
+      transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
+      animation: fadeInUp 240ms var(--ease-out) both;
+    }
+    .saved-item-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .saved-item-main { min-width: 0; }
+    .saved-item-main h4 { margin: 0 0 4px; font-family: "Sora", sans-serif; color: var(--slate-900); }
+    .saved-item-main p { margin: 0 0 8px; color: var(--slate-600); }
+    .saved-item-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+    .saved-item-actions button { min-height: 38px; padding: 0 12px; border-radius: var(--radius-full); font-weight: 850; color: var(--slate-600); background: var(--slate-100); }
+    .saved-preview {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      color: var(--slate-700);
+      line-height: 1.55;
+    }
+    .saved-meta-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--slate-500); font-size: 13px; }
+    .saved-person-card, .saved-event-card { display: flex; align-items: center; gap: 12px; }
+    .saved-date-badge {
+      min-width: 58px;
+      padding: 8px 10px;
+      border-radius: var(--radius-lg);
+      color: var(--saffron);
+      background: var(--saffron-light);
+      text-align: center;
+      font-family: "Sora", sans-serif;
+      font-weight: 900;
+    }
+    .saved-date-badge span { display: block; color: var(--slate-500); font-size: 11px; text-transform: uppercase; }
+    .saved-empty {
+      display: grid;
+      place-items: center;
+      gap: 8px;
+      padding: 34px 18px;
+      text-align: center;
+      border: 1px dashed var(--slate-300);
+      border-radius: var(--radius-xl);
+      color: var(--slate-500);
+      background: var(--card);
+    }
+    .saved-empty i { font-size: 48px; color: var(--slate-300); }
+    .saved-missing { padding: 10px 12px; border-radius: var(--radius-lg); color: var(--warning); background: var(--warning-light); font-weight: 800; }
+
+    @media (max-width: 1023px) {
+      body { overflow-x: hidden; touch-action: pan-y; overscroll-behavior-y: none; }
+      .layout { padding: calc(var(--header-h) + 14px) 12px calc(80px + env(safe-area-inset-bottom)); }
+      .left-sidebar { display: none; }
+      .right-sidebar { display: none; }
+      .bottom-nav {
+        display: grid;
+        bottom: 0;
+        width: 100%;
+        max-width: none;
+        border-radius: 22px 22px 0 0;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom));
+      }
+      .content { width: 100%; min-width: 0; }
+      .section { -webkit-overflow-scrolling: touch; }
+      .settings-shell { grid-template-columns: 1fr; }
+      .settings-tabs, .ai-category-list, .tabs-row, .filter-row, .saved-tabs {
+        display: flex;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      .settings-tabs::-webkit-scrollbar, .ai-category-list::-webkit-scrollbar, .tabs-row::-webkit-scrollbar, .filter-row::-webkit-scrollbar, .saved-tabs::-webkit-scrollbar { display: none; }
+      .settings-tabs button, .ai-category-list button { flex: 0 0 auto; white-space: nowrap; }
+      .modal-backdrop { align-items: end; padding: 0; }
+      .modal-card {
+        width: 100%;
+        max-height: 92vh;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        animation: drawerSlideUp 350ms var(--ease-out) both;
+      }
+    }
+    @media (max-width: 639px) {
+      .layout { padding-inline: 10px; }
+      .section-title h2 { font-size: 18px; }
+      .post-card, .person-card, .gig-card, .event-card { padding: 14px; border-radius: var(--radius-lg); }
+      .post-actions, .card-actions { flex-wrap: wrap; gap: 8px; }
+      .post-actions button, .card-actions button { flex: 1 1 calc(50% - 6px); min-height: 44px; justify-content: center; }
+      .comment-section { padding: 10px 12px 14px; }
+      .comment-bubble { padding: 8px 12px; }
+      .comment-text { font-size: 13px; }
+      .new-comment-input-row { gap: 8px; }
+      .comment-avatar, .comment-author-avatar { width: 28px; height: 28px; min-width: 28px; }
+      .comment-input-wrapper { padding: 6px 8px; }
+      .people-grid, .gig-grid, .event-grid { grid-template-columns: 1fr; gap: 10px; }
+      .ai-grid { grid-template-columns: 1fr; }
+      .messages-layout { min-height: calc(100vh - var(--header-h) - 86px); }
+      .conversation-list { max-height: 320px; }
+      .message-bubble { max-width: 85%; }
+      .saved-header, .saved-item-card { grid-template-columns: 1fr; }
+      .saved-header { flex-direction: column; }
+      .saved-item-actions { flex-direction: row; flex-wrap: wrap; }
+      .saved-item-actions button { flex: 1 1 calc(50% - 6px); }
+      .saved-person-card, .saved-event-card { align-items: flex-start; flex-wrap: wrap; }
+      .toast-stack { bottom: calc(82px + env(safe-area-inset-bottom)); }
+      button, .btn, .chip, .search-hit { min-height: 44px; }
+    }
+    @media (min-width: 1280px) {
+      .right-sidebar { display: grid; }
+      .layout { grid-template-columns: 220px minmax(0, 1fr) 280px; }
+    }
   </style>
 </head>
 <body>
@@ -1245,7 +1675,7 @@
         gigs: "ch_gigs",
         events: "ch_events",
         ai: "ch_ai_queries",
-        saved: "ch_saved_items",
+        saved: "ch_saved",
         seed: "ch_seed_version_full_1"
       };
       const sectors = ["FinTech", "HealthTech", "EdTech", "SaaS", "AgriTech", "D2C", "AI/ML"];
@@ -1279,9 +1709,12 @@
         events: { list: [], filter: "all", myEvents: [] },
         aiHub: { category: "founder_match", history: [], currentResponse: "", loading: false },
         messages: { conversations: [], activeMessages: [] },
-        ui: { notificationPanelOpen: false, composerOpen: false, profileModalOpen: false }
+        ui: { notificationPanelOpen: false, composerOpen: false, profileModalOpen: false },
+        settingsTab: "saved",
+        savedTab: ""
       };
       let motionObserver = null;
+      let activeMentionInput = null;
       window.ConnectHubFullApp = { appState, registerTestUser, setSection, createGigFromTest, sendTestMessage, seedDatabase };
 
       seedDatabase();
@@ -1516,8 +1949,114 @@
             if (motionObserver) motionObserver.observe(node);
             else node.classList.add("is-visible");
           });
+          syncSaveButtonStates();
+          updateSavedCounts();
         });
       }
+      function emptySavedItems() {
+        return { posts: [], gigs: [], people: [], events: [] };
+      }
+      function getSavedItems(userId = appState.currentUser?.id) {
+        const saved = read(KEYS.saved, {});
+        if (!userId) return emptySavedItems();
+        const mine = saved[userId] || {};
+        if (Array.isArray(mine)) {
+          return mine.reduce((items, entry) => {
+            const typeMap = { post: "posts", gig: "gigs", person: "people", event: "events" };
+            const type = typeMap[entry.type] || entry.type;
+            if (items[type] && entry.id && !items[type].includes(entry.id)) items[type].push(entry.id);
+            return items;
+          }, emptySavedItems());
+        }
+        return {
+          posts: Array.isArray(mine.posts) ? mine.posts : [],
+          gigs: Array.isArray(mine.gigs) ? mine.gigs : [],
+          people: Array.isArray(mine.people) ? mine.people : [],
+          events: Array.isArray(mine.events) ? mine.events : []
+        };
+      }
+      function writeSavedItems(userId, items) {
+        if (!userId) return;
+        const saved = read(KEYS.saved, {});
+        saved[userId] = {
+          posts: [...new Set(items.posts || [])],
+          gigs: [...new Set(items.gigs || [])],
+          people: [...new Set(items.people || [])],
+          events: [...new Set(items.events || [])]
+        };
+        write(KEYS.saved, saved);
+        document.dispatchEvent(new CustomEvent("savedItemsUpdated", { detail: { userId } }));
+      }
+      function saveItem(userId, type, itemId) {
+        const items = getSavedItems(userId);
+        if (!items[type] || !itemId) return false;
+        if (!items[type].includes(itemId)) items[type].push(itemId);
+        writeSavedItems(userId, items);
+        return true;
+      }
+      function unsaveItem(userId, type, itemId) {
+        const items = getSavedItems(userId);
+        if (!items[type] || !itemId) return false;
+        items[type] = items[type].filter(id => id !== itemId);
+        writeSavedItems(userId, items);
+        return false;
+      }
+      function isItemSaved(userId, type, itemId) {
+        return Boolean(getSavedItems(userId)[type]?.includes(itemId));
+      }
+      function toggleSaveItem(userId, type, itemId) {
+        return isItemSaved(userId, type, itemId) ? unsaveItem(userId, type, itemId) : saveItem(userId, type, itemId);
+      }
+      function handleSaveToggle(event) {
+        const button = event.target.closest("[data-save-type][data-save-id]");
+        if (!button || !appState.currentUser) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const type = button.dataset.saveType;
+        const id = button.dataset.saveId;
+        const saved = toggleSaveItem(appState.currentUser.id, type, id);
+        const labels = {
+          posts: saved ? "Post saved to your collection" : "Post removed from saved",
+          gigs: saved ? "Gig saved" : "Gig removed from saved",
+          people: saved ? "Profile saved" : "Profile removed from saved",
+          events: saved ? "Event saved" : "Event removed from saved"
+        };
+        toast(labels[type] || (saved ? "Saved" : "Removed"));
+        button.classList.add("saved-toggle-pulse");
+        setTimeout(() => button.classList.remove("saved-toggle-pulse"), 220);
+      }
+      function syncSaveButtonStates() {
+        if (!appState.currentUser) return;
+        document.querySelectorAll("[data-save-type][data-save-id]").forEach(button => {
+          const saved = isItemSaved(appState.currentUser.id, button.dataset.saveType, button.dataset.saveId);
+          button.classList.toggle("saved", saved);
+          button.setAttribute("aria-pressed", saved ? "true" : "false");
+          const icon = button.querySelector("i");
+          if (icon) {
+            icon.classList.toggle("ti-bookmark", !saved);
+            icon.classList.toggle("ti-bookmark-filled", saved);
+          }
+          const label = button.querySelector("[data-save-label]");
+          if (label) label.textContent = saved ? "Saved" : "Save";
+        });
+      }
+      function savedTotal(items = getSavedItems()) {
+        return Object.values(items).reduce((sum, list) => sum + list.length, 0);
+      }
+      function updateSavedCounts() {
+        if (!appState.currentUser) return;
+        const items = getSavedItems(appState.currentUser.id);
+        document.querySelectorAll("[data-saved-count]").forEach(node => {
+          const key = node.dataset.savedCount;
+          node.textContent = key === "total" ? savedTotal(items) : (items[key]?.length || 0);
+        });
+      }
+      document.addEventListener("savedItemsUpdated", () => {
+        syncSaveButtonStates();
+        updateSavedCounts();
+        if (appState.activeSection === "settings" && appState.settingsTab === "saved") renderSavedItemsPage();
+        if (appState.activeSection === "saved") renderSaved();
+      });
       function createRealtime() {
         if ("BroadcastChannel" in window) {
           const channel = new BroadcastChannel("connecthub_rt");
@@ -1853,6 +2392,19 @@
 
       function bindAppEvents() {
         document.addEventListener("click", event => {
+          if (event.target.closest("[data-save-type][data-save-id]")) return handleSaveToggle(event);
+          if (event.target.closest(".comment-submit-btn")) return handleCommentSubmit(event);
+          if (event.target.closest(".reply-submit-btn")) return handleReplySubmit(event);
+          if (event.target.closest(".comment-like-btn")) return handleCommentLike(event);
+          if (event.target.closest(".reply-like-btn")) return handleReplyLike(event);
+          if (event.target.closest(".comment-reply-btn")) return toggleReplyInput(event);
+          if (event.target.closest(".load-more-comments")) return expandComments(event);
+          if (event.target.closest(".sort-tab")) return sortComments(event);
+          if (event.target.closest(".comment-delete-btn")) return requestDeleteComment(event);
+          if (event.target.closest(".reply-delete-btn")) return requestDeleteReply(event);
+          if (event.target.closest("[data-confirm-delete]")) return confirmDeleteInline(event);
+          if (event.target.closest(".mention-item")) return insertMention(event);
+          if (!event.target.closest(".mention-dropdown, .comment-input")) closeMentionDropdown();
           const sectionButton = event.target.closest("[data-section]");
           if (sectionButton) setSection(sectionButton.dataset.section);
           const action = event.target.closest("[data-action]");
@@ -1866,9 +2418,21 @@
         document.addEventListener("submit", event => {
           if (event.target.matches("[data-form='post']")) submitPost(event);
           if (event.target.matches("[data-form='gig']")) submitGig(event);
-          if (event.target.matches("[data-form='comment']")) submitComment(event);
           if (event.target.matches("[data-form='message']")) submitMessage(event);
           if (event.target.matches("[data-form='ai']")) submitAI(event);
+        });
+        document.addEventListener("input", event => {
+          const input = event.target.closest(".comment-input");
+          if (input) handleCommentInput(input);
+        });
+        document.addEventListener("keydown", event => {
+          const input = event.target.closest(".comment-input");
+          if (input && event.ctrlKey && event.key === "Enter") {
+            event.preventDefault();
+            const replyButton = input.closest(".reply-input-row")?.querySelector(".reply-submit-btn");
+            const commentButton = input.closest(".new-comment-input-row")?.querySelector(".comment-submit-btn");
+            (replyButton || commentButton)?.click();
+          }
         });
         document.getElementById("globalSearch").addEventListener("input", debounce(event => renderGlobalSearch(event.target.value), 250));
         document.getElementById("globalSearch").addEventListener("focus", event => renderGlobalSearch(event.target.value));
@@ -1878,9 +2442,8 @@
         const { action: type, id, userId, tab, value } = action.dataset;
         if (type === "open-post-modal") return openPostModal();
         if (type === "like-post") return toggleLike(id);
-        if (type === "comments") return document.getElementById(`comments-${id}`)?.classList.toggle("active");
+        if (type === "comments") return toggleCommentSection(id);
         if (type === "share-post") return sharePost(id);
-        if (type === "save-post") return saveItem("post", id);
         if (type === "network-tab") return setNetworkTab(tab);
         if (type === "connect") return connectTo(userId, action);
         if (type === "accept") return respondConnection(id, "accepted");
@@ -1894,10 +2457,15 @@
         if (type === "save-ai") return saveAIResponse();
         if (type === "open-gig-modal") return openGigModal();
         if (type === "apply-gig") return applyGig(id);
-        if (type === "save-gig") return saveItem("gig", id);
         if (type === "event-filter") return setEventFilter(value);
         if (type === "rsvp") return rsvpEvent(id);
         if (type === "calendar") return downloadICS(id);
+        if (type === "setting-tab") return setSettingsTab(value);
+        if (type === "saved-tab") return setSavedTab(value);
+        if (type === "view-saved-post") return viewSavedPost(id);
+        if (type === "view-saved-gig") return viewSavedGig(id);
+        if (type === "view-saved-person") return openProfile(id);
+        if (type === "view-saved-event") return viewSavedEvent(id);
         if (type === "logout") return logout();
         if (type === "close-modal") return closeModal();
       }
@@ -1968,20 +2536,18 @@
       function renderPost(post) {
         const user = getUser(post.authorId) || appState.currentUser;
         const liked = post.likes.includes(appState.currentUser.id);
+        const commentCount = getCommentCount(post);
         return `<article class="post-card" id="post-${post.id}">
           <div class="entity-head">${avatar(user)}<div class="meta"><h3>${esc(user.name)} ${user.isVerified ? '<i class="ti ti-circle-check" style="color:var(--teal)"></i>' : ""}</h3><p>${esc(user.startupName)} · ${esc(user.stage)} · ${timeAgo(post.createdAt)}</p></div>${stageBadge(user.stage)}</div>
           <p>${esc(post.content)}</p>
           <div class="tag-list">${post.tags.map(tag => `<span class="chip">#${esc(tag)}</span>`).join("")}</div>
           <div class="post-actions">
             <button class="${liked ? "active" : ""}" data-action="like-post" data-id="${post.id}"><i class="ti ti-thumb-up"></i> Like ${post.likes.length}</button>
-            <button data-action="comments" data-id="${post.id}"><i class="ti ti-message-circle"></i> Comment ${post.comments.length}</button>
+            <button data-action="comments" data-id="${post.id}"><i class="ti ti-message-circle"></i> Comment <span data-comment-count="${post.id}">${commentCount}</span></button>
             <button data-action="share-post" data-id="${post.id}"><i class="ti ti-share-3"></i> Share ${post.shares}</button>
-            <button data-action="save-post" data-id="${post.id}"><i class="ti ti-bookmark"></i> Save</button>
+            <button class="save-toggle" data-save-type="posts" data-save-id="${post.id}"><i class="ti ti-bookmark"></i> <span data-save-label>Save</span></button>
           </div>
-          <div id="comments-${post.id}" class="comments">
-            ${post.comments.map(comment => `<div class="comment-row"><strong>${esc(comment.name)}</strong><span>${esc(comment.text)}</span><small>${timeAgo(comment.createdAt)}</small></div>`).join("")}
-            <form class="comment-row" data-form="comment" data-post-id="${post.id}"><input name="comment" placeholder="Write a comment..." maxlength="180"><button class="btn btn-primary" type="submit">Post</button></form>
-          </div>
+          <div id="comments-${post.id}" class="comments comment-section-mount" data-post-id="${post.id}"></div>
         </article>`;
       }
 
@@ -2043,21 +2609,329 @@
         renderFeed();
       }
 
-      function submitComment(event) {
-        event.preventDefault();
-        const postId = event.target.dataset.postId;
-        const input = event.target.comment;
-        const text = input.value.trim();
-        if (!text) return;
+      function getPost(postId) {
+        return read(KEYS.feed, []).find(item => item.id === postId) || appState.feed.posts.find(item => item.id === postId) || null;
+      }
+      function normalizePostComments(post) {
+        if (!post) return [];
+        const rawComments = Array.isArray(post.comments) ? post.comments : [];
+        post.comments = rawComments.map(comment => {
+          const author = getUser(comment.authorId || comment.userId) || appState.currentUser || {};
+          return {
+            id: comment.id || uid("comment"),
+            postId: post.id,
+            authorId: comment.authorId || comment.userId || author.id || "",
+            authorName: comment.authorName || comment.name || author.name || "ConnectHub User",
+            authorInitials: comment.authorInitials || author.initials || initials(comment.authorName || comment.name || "User"),
+            authorColor: comment.authorColor || author.color || "#0f766e",
+            body: comment.body || comment.text || "",
+            createdAt: comment.createdAt || Date.now(),
+            updatedAt: comment.updatedAt || comment.createdAt || Date.now(),
+            likes: Array.isArray(comment.likes) ? comment.likes : [],
+            replies: (Array.isArray(comment.replies) ? comment.replies : []).map(reply => {
+              const replyAuthor = getUser(reply.authorId || reply.userId) || appState.currentUser || {};
+              return {
+                id: reply.id || uid("reply"),
+                commentId: comment.id,
+                authorId: reply.authorId || reply.userId || replyAuthor.id || "",
+                authorName: reply.authorName || reply.name || replyAuthor.name || "ConnectHub User",
+                authorInitials: reply.authorInitials || replyAuthor.initials || initials(reply.authorName || reply.name || "User"),
+                authorColor: reply.authorColor || replyAuthor.color || "#0f766e",
+                body: reply.body || reply.text || "",
+                createdAt: reply.createdAt || Date.now(),
+                updatedAt: reply.updatedAt || reply.createdAt || Date.now(),
+                likes: Array.isArray(reply.likes) ? reply.likes : []
+              };
+            })
+          };
+        });
+        return post.comments;
+      }
+      function savePostComments(postId, comments) {
         const posts = read(KEYS.feed, []);
         const post = posts.find(item => item.id === postId);
         if (!post) return;
-        post.comments.push({ id: uid("comment"), userId: appState.currentUser.id, name: appState.currentUser.name, text, createdAt: Date.now() });
+        post.comments = comments;
         write(KEYS.feed, posts);
+        appState.feed.posts = posts;
+      }
+      function getCommentCount(post) {
+        return normalizePostComments(post).reduce((total, comment) => total + 1 + (comment.replies?.length || 0), 0);
+      }
+      function updatePostCommentCounts(postId) {
+        const post = getPost(postId);
+        document.querySelectorAll(`[data-comment-count="${postId}"]`).forEach(node => {
+          node.textContent = post ? getCommentCount(post) : 0;
+        });
+      }
+      function sortedComments(comments, mode) {
+        const list = comments.slice();
+        if (mode === "oldest") return list.sort((a, b) => a.createdAt - b.createdAt);
+        if (mode === "top") return list.sort((a, b) => (b.likes.length + b.replies.length) - (a.likes.length + a.replies.length) || b.createdAt - a.createdAt);
+        return list.sort((a, b) => b.createdAt - a.createdAt);
+      }
+      function renderCommentSection(postId, mountElement) {
+        const mount = mountElement || document.getElementById(`comments-${postId}`);
+        const post = getPost(postId);
+        if (!mount || !post) return;
+        const sort = mount.dataset.sort || "top";
+        const comments = sortedComments(normalizePostComments(post), sort);
+        const expanded = mount.dataset.expanded === "true";
+        const visible = expanded ? comments : comments.slice(0, 3);
+        mount.classList.add("active");
+        mount.innerHTML = `<section class="comment-section" aria-label="Comments for post">
+          <div class="comment-section-header">
+            <div><strong>Comments</strong><span>${getCommentCount(post)} total</span></div>
+            <div class="comment-sort-tabs" role="tablist">
+              ${[["top", "Top"], ["newest", "Newest"], ["oldest", "Oldest"]].map(tab => `<button class="sort-tab ${sort === tab[0] ? "active" : ""}" data-post-id="${postId}" data-sort="${tab[0]}" type="button">${tab[1]}</button>`).join("")}
+            </div>
+          </div>
+          <div class="new-comment-input-row">
+            ${avatar(appState.currentUser)}
+            <div class="comment-input-shell">
+              <div class="comment-input" contenteditable="true" data-post-id="${postId}" data-placeholder="Write a thoughtful comment..."></div>
+              <button class="comment-submit-btn" data-post-id="${postId}" type="button" disabled>Post</button>
+            </div>
+          </div>
+          <div class="comments-list">${visible.map(comment => renderComment(comment, postId)).join("") || '<p class="comment-empty">No comments yet. Start the conversation.</p>'}</div>
+          ${comments.length > visible.length ? `<button class="load-more-comments" data-post-id="${postId}" type="button">Load ${comments.length - visible.length} more comments</button>` : ""}
+        </section>`;
+        applySectionMotion(mount);
+      }
+      function renderComment(comment, postId) {
+        const mine = comment.authorId === appState.currentUser.id;
+        const liked = comment.likes.includes(appState.currentUser.id);
+        return `<article class="comment-item" data-comment-id="${comment.id}">
+          <div class="comment-avatar" style="background:${esc(comment.authorColor)}">${esc(comment.authorInitials)}</div>
+          <div class="comment-body">
+            <div class="comment-bubble">
+              <div class="comment-meta"><button class="comment-author" data-action="profile-user" data-user-id="${comment.authorId}">${esc(comment.authorName)}</button><span>${timeAgo(comment.createdAt)}</span>${mine ? `<button class="comment-delete-btn" data-post-id="${postId}" data-comment-id="${comment.id}" type="button"><i class="ti ti-dots"></i></button>` : ""}</div>
+              <p>${linkMentions(esc(comment.body))}</p>
+            </div>
+            <div class="comment-actions">
+              <button class="comment-like-btn ${liked ? "active" : ""}" data-post-id="${postId}" data-comment-id="${comment.id}" type="button"><i class="ti ti-thumb-up"></i> Like ${comment.likes.length || ""}</button>
+              <button class="comment-reply-btn" data-post-id="${postId}" data-comment-id="${comment.id}" type="button">Reply</button>
+            </div>
+            <div class="reply-input-row" data-reply-box="${comment.id}">
+              ${avatar(appState.currentUser)}
+              <div class="comment-input-shell">
+                <div class="comment-input reply-input" contenteditable="true" data-post-id="${postId}" data-comment-id="${comment.id}" data-placeholder="Write a reply..."></div>
+                <button class="reply-submit-btn" data-post-id="${postId}" data-comment-id="${comment.id}" type="button" disabled>Reply</button>
+              </div>
+            </div>
+            <div class="reply-list">${comment.replies.map(reply => renderReply(reply, postId, comment.id)).join("")}</div>
+          </div>
+        </article>`;
+      }
+      function renderReply(reply, postId, commentId) {
+        const mine = reply.authorId === appState.currentUser.id;
+        const liked = reply.likes.includes(appState.currentUser.id);
+        return `<article class="reply-item" data-reply-id="${reply.id}">
+          <div class="comment-avatar reply-avatar" style="background:${esc(reply.authorColor)}">${esc(reply.authorInitials)}</div>
+          <div class="comment-body">
+            <div class="comment-bubble">
+              <div class="comment-meta"><button class="comment-author" data-action="profile-user" data-user-id="${reply.authorId}">${esc(reply.authorName)}</button><span>${timeAgo(reply.createdAt)}</span>${mine ? `<button class="reply-delete-btn" data-post-id="${postId}" data-comment-id="${commentId}" data-reply-id="${reply.id}" type="button"><i class="ti ti-dots"></i></button>` : ""}</div>
+              <p>${linkMentions(esc(reply.body))}</p>
+            </div>
+            <div class="comment-actions"><button class="reply-like-btn ${liked ? "active" : ""}" data-post-id="${postId}" data-comment-id="${commentId}" data-reply-id="${reply.id}" type="button"><i class="ti ti-thumb-up"></i> Like ${reply.likes.length || ""}</button></div>
+          </div>
+        </article>`;
+      }
+      function linkMentions(text) {
+        return text.replace(/(^|\s)@([A-Za-z][\w.-]*(?:\s[A-Za-z][\w.-]*)?)/g, '$1<span class="mention-tag">@$2</span>');
+      }
+      function toggleCommentSection(postId) {
+        const mount = document.getElementById(`comments-${postId}`);
+        if (!mount) return;
+        if (mount.classList.contains("active") && mount.innerHTML.trim()) {
+          mount.classList.remove("active");
+          mount.innerHTML = "";
+          return;
+        }
+        renderCommentSection(postId, mount);
+      }
+      function commentText(input) {
+        return (input?.textContent || "").replace(/\u00a0/g, " ").trim();
+      }
+      function handleCommentInput(input) {
+        const row = input.closest(".comment-input-shell");
+        row?.querySelector(".comment-submit-btn, .reply-submit-btn")?.toggleAttribute("disabled", !commentText(input));
+        maybeShowMentionDropdown(input);
+      }
+      function handleCommentSubmit(event) {
+        const button = event.target.closest(".comment-submit-btn");
+        const postId = button?.dataset.postId;
+        const input = button?.closest(".comment-input-shell")?.querySelector(".comment-input");
+        const body = commentText(input);
+        const post = getPost(postId);
+        if (!post || !body) return;
+        const comments = normalizePostComments(post);
+        const comment = {
+          id: uid("comment"),
+          postId,
+          authorId: appState.currentUser.id,
+          authorName: appState.currentUser.name,
+          authorInitials: appState.currentUser.initials,
+          authorColor: appState.currentUser.color,
+          body,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          likes: [],
+          replies: []
+        };
+        comments.push(comment);
+        savePostComments(postId, comments);
         if (post.authorId !== appState.currentUser.id) createNotification(post.authorId, "post_comment", post.id, `${appState.currentUser.name} commented on your post`);
-        refreshState();
-        renderFeed();
-        document.getElementById(`comments-${postId}`)?.classList.add("active");
+        input.textContent = "";
+        button.disabled = true;
+        renderCommentSection(postId, document.getElementById(`comments-${postId}`));
+        updatePostCommentCounts(postId);
+      }
+      function handleReplySubmit(event) {
+        const button = event.target.closest(".reply-submit-btn");
+        const postId = button?.dataset.postId;
+        const commentId = button?.dataset.commentId;
+        const input = button?.closest(".comment-input-shell")?.querySelector(".comment-input");
+        const body = commentText(input);
+        const post = getPost(postId);
+        if (!post || !body) return;
+        const comments = normalizePostComments(post);
+        const comment = comments.find(item => item.id === commentId);
+        if (!comment) return;
+        comment.replies.push({
+          id: uid("reply"),
+          commentId,
+          authorId: appState.currentUser.id,
+          authorName: appState.currentUser.name,
+          authorInitials: appState.currentUser.initials,
+          authorColor: appState.currentUser.color,
+          body,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          likes: []
+        });
+        savePostComments(postId, comments);
+        if (comment.authorId !== appState.currentUser.id) createNotification(comment.authorId, "post_comment", post.id, `${appState.currentUser.name} replied to your comment`);
+        renderCommentSection(postId, document.getElementById(`comments-${postId}`));
+        updatePostCommentCounts(postId);
+      }
+      function toggleReplyInput(event) {
+        const button = event.target.closest(".comment-reply-btn");
+        const commentId = button?.dataset.commentId;
+        const mount = button?.closest(".comment-section-mount");
+        mount?.querySelectorAll(".reply-input-row").forEach(row => row.classList.toggle("active", row.dataset.replyBox === commentId && !row.classList.contains("active")));
+        const input = mount?.querySelector(`[data-reply-box="${commentId}"] .comment-input`);
+        setTimeout(() => input?.focus(), 30);
+      }
+      function expandComments(event) {
+        const postId = event.target.closest(".load-more-comments")?.dataset.postId;
+        const mount = document.getElementById(`comments-${postId}`);
+        if (!mount) return;
+        mount.dataset.expanded = "true";
+        renderCommentSection(postId, mount);
+      }
+      function sortComments(event) {
+        const button = event.target.closest(".sort-tab");
+        const mount = document.getElementById(`comments-${button?.dataset.postId}`);
+        if (!button || !mount) return;
+        mount.dataset.sort = button.dataset.sort;
+        renderCommentSection(button.dataset.postId, mount);
+      }
+      function handleCommentLike(event) {
+        const button = event.target.closest(".comment-like-btn");
+        const postId = button?.dataset.postId;
+        const commentId = button?.dataset.commentId;
+        const post = getPost(postId);
+        const comment = normalizePostComments(post).find(item => item.id === commentId);
+        if (!post || !comment) return;
+        comment.likes = comment.likes.includes(appState.currentUser.id) ? comment.likes.filter(id => id !== appState.currentUser.id) : comment.likes.concat(appState.currentUser.id);
+        savePostComments(postId, post.comments);
+        renderCommentSection(postId, document.getElementById(`comments-${postId}`));
+      }
+      function handleReplyLike(event) {
+        const button = event.target.closest(".reply-like-btn");
+        const postId = button?.dataset.postId;
+        const commentId = button?.dataset.commentId;
+        const replyId = button?.dataset.replyId;
+        const post = getPost(postId);
+        const comment = normalizePostComments(post).find(item => item.id === commentId);
+        const reply = comment?.replies.find(item => item.id === replyId);
+        if (!post || !reply) return;
+        reply.likes = reply.likes.includes(appState.currentUser.id) ? reply.likes.filter(id => id !== appState.currentUser.id) : reply.likes.concat(appState.currentUser.id);
+        savePostComments(postId, post.comments);
+        renderCommentSection(postId, document.getElementById(`comments-${postId}`));
+      }
+      function requestDeleteComment(event) {
+        const button = event.target.closest(".comment-delete-btn");
+        showDeletePopover(button, { kind: "comment", postId: button?.dataset.postId, commentId: button?.dataset.commentId });
+      }
+      function requestDeleteReply(event) {
+        const button = event.target.closest(".reply-delete-btn");
+        showDeletePopover(button, { kind: "reply", postId: button?.dataset.postId, commentId: button?.dataset.commentId, replyId: button?.dataset.replyId });
+      }
+      function showDeletePopover(button, data) {
+        if (!button) return;
+        closeDeletePopovers();
+        const popover = document.createElement("div");
+        popover.className = "delete-popover";
+        popover.innerHTML = `<button data-confirm-delete="${data.kind}" data-post-id="${data.postId}" data-comment-id="${data.commentId}" data-reply-id="${data.replyId || ""}" type="button">Delete</button><button data-confirm-delete="cancel" type="button">Cancel</button>`;
+        button.parentElement.appendChild(popover);
+      }
+      function closeDeletePopovers() {
+        document.querySelectorAll(".delete-popover").forEach(node => node.remove());
+      }
+      function confirmDeleteInline(event) {
+        const button = event.target.closest("[data-confirm-delete]");
+        const kind = button?.dataset.confirmDelete;
+        if (kind === "cancel") return closeDeletePopovers();
+        const post = getPost(button.dataset.postId);
+        if (!post) return;
+        const comments = normalizePostComments(post);
+        if (kind === "comment") {
+          savePostComments(post.id, comments.filter(comment => comment.id !== button.dataset.commentId));
+        } else if (kind === "reply") {
+          const comment = comments.find(item => item.id === button.dataset.commentId);
+          if (comment) comment.replies = comment.replies.filter(reply => reply.id !== button.dataset.replyId);
+          savePostComments(post.id, comments);
+        }
+        closeDeletePopovers();
+        renderCommentSection(post.id, document.getElementById(`comments-${post.id}`));
+        updatePostCommentCounts(post.id);
+      }
+      function maybeShowMentionDropdown(input) {
+        const text = commentText(input);
+        const match = text.match(/@([A-Za-z][\w.-]{0,24})$/);
+        closeMentionDropdown();
+        if (!match) return;
+        const term = match[1].toLowerCase();
+        const matches = getUsers().filter(user => user.name.toLowerCase().includes(term)).slice(0, 5);
+        if (!matches.length) return;
+        activeMentionInput = input;
+        const dropdown = document.createElement("div");
+        dropdown.className = "mention-dropdown";
+        dropdown.innerHTML = matches.map(user => `<button class="mention-item" data-mention-name="${esc(user.name)}" type="button">${avatar(user)}<span>${esc(user.name)}<small>${esc(user.startupName)} · ${esc(user.city)}</small></span></button>`).join("");
+        input.closest(".comment-input-shell").appendChild(dropdown);
+      }
+      function insertMention(event) {
+        const button = event.target.closest(".mention-item");
+        if (!button || !activeMentionInput) return;
+        const name = button.dataset.mentionName;
+        activeMentionInput.textContent = commentText(activeMentionInput).replace(/@[A-Za-z][\w.-]{0,24}$/, `@${name} `);
+        placeCaretAtEnd(activeMentionInput);
+        handleCommentInput(activeMentionInput);
+        closeMentionDropdown();
+      }
+      function placeCaretAtEnd(node) {
+        node.focus();
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      function closeMentionDropdown() {
+        document.querySelectorAll(".mention-dropdown").forEach(node => node.remove());
       }
 
       function sharePost(id) {
@@ -2144,6 +3018,7 @@
             <button data-action="connect" data-user-id="${user.id}" ${pending || connected ? "disabled" : ""}>${connected ? "Connected" : pending ? "Pending ✓" : "Connect"}</button>
             <button data-action="message-user" data-user-id="${user.id}">Message</button>
             <button data-action="profile-user" data-user-id="${user.id}">View Profile</button>
+            <button class="save-toggle" data-save-type="people" data-save-id="${user.id}"><i class="ti ti-bookmark"></i> <span data-save-label>Save</span></button>
           </div>
         </article>`;
       }
@@ -2364,12 +3239,12 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
       function renderGigCard(gig) {
         const poster = getUser(gig.posterId) || appState.currentUser;
         const applied = gig.applicants.some(a => a.userId === appState.currentUser.id);
-        return `<article class="gig-card">
+        return `<article class="gig-card" id="gig-${gig.id}">
           <div class="entity-head">${avatar(poster)}<div class="meta"><span class="type-badge">${esc(gig.type)}</span><h3>${esc(gig.title)}</h3><p>${esc(poster.name)} · ${esc(poster.startupName)} · ${esc(gig.city)} · ${timeAgo(gig.createdAt)}</p></div></div>
           <p>${esc(gig.description)}</p>
           <div class="tag-list">${gig.skills.map(skill => `<span class="chip">${esc(skill)}</span>`).join("")}${gig.remote ? '<span class="chip active">Remote</span>' : ""}</div>
           <p><strong>${esc(gig.equity || gig.stipend || gig.salary || "Discuss")}</strong> · ${gig.applicants.length} applicants</p>
-          <div class="card-actions"><button data-action="apply-gig" data-id="${gig.id}" ${applied ? "disabled" : ""}>${applied ? "Applied ✓" : "Apply Now"}</button><button data-action="save-gig" data-id="${gig.id}">Save</button><button data-action="share-post" data-id="${gig.id}">Share</button></div>
+          <div class="card-actions"><button data-action="apply-gig" data-id="${gig.id}" ${applied ? "disabled" : ""}>${applied ? "Applied ✓" : "Apply Now"}</button><button class="save-toggle" data-save-type="gigs" data-save-id="${gig.id}"><i class="ti ti-bookmark"></i> <span data-save-label>Save</span></button><button data-action="share-post" data-id="${gig.id}">Share</button></div>
         </article>`;
       }
 
@@ -2448,7 +3323,7 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
             const going = event.rsvpList.includes(appState.currentUser.id);
             const pct = Math.min(100, Math.round((event.rsvpCount / event.capacity) * 100));
             const date = new Date(event.date);
-            return `<article class="event-card"><div class="entity-head"><div class="avatar" style="background:var(--saffron)">${date.getDate()}</div><div class="meta"><span class="type-badge">${esc(event.type)}</span><h3>${esc(event.title)}</h3><p>${esc(event.city)} · ${event.isOnline ? "Online" : esc(event.venue)} · ${esc(event.time)}</p></div></div><p>${esc(event.description)}</p><div class="tag-list">${event.tags.map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}</div><p class="muted">Capacity ${event.rsvpCount}/${event.capacity}</p><div class="capacity-track"><span class="capacity-fill" style="--capacity:${pct}%;"></span></div><div class="card-actions"><button data-action="rsvp" data-id="${event.id}">${going ? "You're Going ✓" : "RSVP"}</button><button data-action="calendar" data-id="${event.id}">Add to Calendar</button></div></article>`;
+            return `<article class="event-card" id="event-${event.id}"><div class="entity-head"><div class="avatar" style="background:var(--saffron)">${date.getDate()}</div><div class="meta"><span class="type-badge">${esc(event.type)}</span><h3>${esc(event.title)}</h3><p>${esc(event.city)} · ${event.isOnline ? "Online" : esc(event.venue)} · ${esc(event.time)}</p></div></div><p>${esc(event.description)}</p><div class="tag-list">${event.tags.map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}</div><p class="muted">Capacity ${event.rsvpCount}/${event.capacity}</p><div class="capacity-track"><span class="capacity-fill" style="--capacity:${pct}%;"></span></div><div class="card-actions"><button data-action="rsvp" data-id="${event.id}">${going ? "You're Going ✓" : "RSVP"}</button><button data-action="calendar" data-id="${event.id}">Add to Calendar</button><button class="save-toggle" data-save-type="events" data-save-id="${event.id}"><i class="ti ti-bookmark"></i> <span data-save-label>Save</span></button></div></article>`;
           }).join("")}</div>`;
         applySectionMotion(root);
       }
@@ -2566,20 +3441,129 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
       }
 
       function renderSaved() {
-        const saved = read(KEYS.saved, {})[appState.currentUser.id] || [];
-        const posts = read(KEYS.feed, []).filter(p => saved.some(s => s.type === "post" && s.id === p.id));
-        const gigs = read(KEYS.gigs, []).filter(g => saved.some(s => s.type === "gig" && s.id === g.id));
         const root = document.getElementById("section-saved");
-        root.innerHTML = `<div class="section-title"><div><h2>Saved</h2><p>Your saved posts, gigs and AI answers.</p></div></div>${posts.map(renderPost).join("")}${gigs.map(renderGigCard).join("") || '<div class="card" style="padding:24px;"><p class="muted">No saved items yet.</p></div>'}`;
+        root.innerHTML = `<div class="section-title"><div><h2>Saved</h2><p>Your saved posts, gigs, people and events.</p></div><button class="btn btn-secondary" data-section="settings"><i class="ti ti-settings"></i> Saved settings</button></div><div id="savedStandalonePage"></div>`;
+        renderSavedItemsPage(document.getElementById("savedStandalonePage"));
         applySectionMotion(root);
       }
 
       function renderSettings() {
         const root = document.getElementById("section-settings");
-        root.innerHTML = `<div class="section-title"><div><h2>Settings</h2><p>Account, appearance, privacy and app controls.</p></div></div><div class="card" style="padding:18px;"><button class="btn btn-secondary auth-submit" id="settingsTheme">Toggle dark/light mode</button><button class="btn btn-secondary auth-submit" data-action="logout">Sign out</button><p class="muted">Anthropic API keys are session-only and never saved here.</p></div>`;
-        document.getElementById("settingsTheme").addEventListener("click", toggleTheme);
+        const tabs = [
+          ["saved", "ti-bookmark", "Saved"],
+          ["account", "ti-user-cog", "Account"],
+          ["privacy", "ti-lock", "Privacy"],
+          ["appearance", "ti-palette", "Appearance"],
+          ["notifications", "ti-bell", "Notifications"]
+        ];
+        root.innerHTML = `<div class="section-title"><div><h2>Settings</h2><p>Account controls, saved items, privacy and app preferences.</p></div></div>
+          <div class="settings-shell">
+            <aside class="settings-tabs">${tabs.map(tab => `<button class="${appState.settingsTab === tab[0] ? "active" : ""}" data-action="setting-tab" data-value="${tab[0]}"><i class="ti ${tab[1]}"></i><span>${tab[2]}</span>${tab[0] === "saved" ? `<small data-saved-count="total">0</small>` : ""}</button>`).join("")}</aside>
+            <main id="settingsContent" class="settings-content"></main>
+          </div>`;
+        renderSettingsContent();
         applySectionMotion(root);
       }
+
+      function renderSettingsContent() {
+        const content = document.getElementById("settingsContent");
+        if (!content) return;
+        if (appState.settingsTab === "saved") return renderSavedItemsPage(content);
+        if (appState.settingsTab === "appearance") {
+          content.innerHTML = `<section class="card settings-card"><h3>Appearance</h3><p class="muted">Theme preference is saved locally on this device.</p><button class="btn btn-secondary auth-submit" id="settingsTheme"><i class="ti ti-moon"></i> Toggle dark/light mode</button></section>`;
+          document.getElementById("settingsTheme")?.addEventListener("click", toggleTheme);
+        } else if (appState.settingsTab === "account") {
+          content.innerHTML = `<section class="card settings-card"><h3>Account</h3><div class="entity-head">${avatar(appState.currentUser)}<div class="meta"><h4>${esc(appState.currentUser.name)}</h4><p>${esc(appState.currentUser.email)} · ${esc(appState.currentUser.role)}</p></div></div><button class="btn btn-secondary auth-submit" data-action="profile-user" data-user-id="${appState.currentUser.id}">Open profile</button><button class="btn btn-secondary auth-submit" data-action="logout">Sign out</button></section>`;
+        } else if (appState.settingsTab === "privacy") {
+          content.innerHTML = `<section class="card settings-card"><h3>Privacy</h3><p class="muted">Profile viewing and connection controls for a networking app.</p><label class="toggle-row"><span>Allow people to message me</span><input type="checkbox" checked></label><label class="toggle-row"><span>Show my city in marketplace</span><input type="checkbox" checked></label></section>`;
+        } else {
+          content.innerHTML = `<section class="card settings-card"><h3>Notifications</h3><p class="muted">Choose what ConnectHub should alert you about.</p><label class="toggle-row"><span>Messages</span><input type="checkbox" checked></label><label class="toggle-row"><span>Connection requests</span><input type="checkbox" checked></label><label class="toggle-row"><span>Saved item updates</span><input type="checkbox" checked></label></section>`;
+        }
+        updateSavedCounts();
+        applySectionMotion(content);
+      }
+
+      function setSettingsTab(value) {
+        appState.settingsTab = value || "saved";
+        renderSettings();
+      }
+      function setSavedTab(value) {
+        appState.savedTab = value || "posts";
+        renderSavedItemsPage();
+      }
+      function savedItemTypeMeta() {
+        return {
+          posts: ["Posts", "ti-news", "view-saved-post"],
+          gigs: ["Gigs", "ti-briefcase", "view-saved-gig"],
+          people: ["People", "ti-users", "view-saved-person"],
+          events: ["Events", "ti-calendar-event", "view-saved-event"]
+        };
+      }
+      function renderSavedItemsPage(mount = document.getElementById("settingsContent") || document.getElementById("savedStandalonePage")) {
+        if (!mount || !appState.currentUser) return;
+        const items = getSavedItems(appState.currentUser.id);
+        const meta = savedItemTypeMeta();
+        if (!appState.savedTab || !meta[appState.savedTab]) {
+          appState.savedTab = Object.keys(meta).find(type => items[type].length) || "posts";
+        }
+        const active = appState.savedTab;
+        const count = savedTotal(items);
+        mount.innerHTML = `<section class="saved-items-page">
+          <div class="saved-header">
+            <div><h3>Saved items</h3><p class="muted">${count ? `${count} saved across your ConnectHub workspace.` : "Save useful posts, gigs, profiles and events from anywhere in the app."}</p></div>
+            <span class="chip active"><span data-saved-count="total">${count}</span> total</span>
+          </div>
+          <div class="saved-tabs">${Object.entries(meta).map(([type, data]) => `<button class="${active === type ? "active" : ""}" data-action="saved-tab" data-value="${type}"><i class="ti ${data[1]}"></i>${data[0]} <span data-saved-count="${type}">${items[type].length}</span></button>`).join("")}</div>
+          <div class="saved-list">${renderSavedList(active, items[active])}</div>
+        </section>`;
+        syncSaveButtonStates();
+        updateSavedCounts();
+        applySectionMotion(mount);
+      }
+      function renderSavedList(type, ids) {
+        const renderers = { posts: renderSavedPostCard, gigs: renderSavedGigCard, people: renderSavedPersonCard, events: renderSavedEventCard };
+        const cards = ids.map(id => renderers[type](id)).filter(Boolean);
+        const missing = ids.length - cards.length;
+        return `${missing ? `<div class="saved-missing"><i class="ti ti-alert-circle"></i> ${missing} saved item${missing > 1 ? "s were" : " was"} removed by the original owner.</div>` : ""}${cards.join("") || `<div class="saved-empty"><i class="ti ti-bookmark"></i><h3>No saved ${type} yet</h3><p>Tap any bookmark across ConnectHub and it will appear here instantly.</p></div>`}`;
+      }
+      function compactSavedActions(type, id) {
+        const action = savedItemTypeMeta()[type][2];
+        return `<div class="saved-item-actions"><button data-action="${action}" data-id="${id}"><i class="ti ti-eye"></i> View</button><button class="save-toggle saved" data-save-type="${type}" data-save-id="${id}"><i class="ti ti-bookmark-filled"></i> <span data-save-label>Saved</span></button></div>`;
+      }
+      function renderSavedPostCard(id) {
+        const post = read(KEYS.feed, []).find(item => item.id === id);
+        if (!post) return "";
+        const author = getUser(post.authorId) || appState.currentUser;
+        return `<article class="saved-item-card">${avatar(author)}<div class="saved-item-main"><h4>${esc(author.name)}</h4><p>${esc(post.content.slice(0, 140))}${post.content.length > 140 ? "..." : ""}</p><div class="tag-list">${post.tags.slice(0, 3).map(tag => `<span class="chip">#${esc(tag)}</span>`).join("")}</div>${compactSavedActions("posts", id)}</div></article>`;
+      }
+      function renderSavedGigCard(id) {
+        const gig = read(KEYS.gigs, []).find(item => item.id === id);
+        if (!gig) return "";
+        const poster = getUser(gig.posterId) || appState.currentUser;
+        return `<article class="saved-item-card">${avatar(poster)}<div class="saved-item-main"><h4>${esc(gig.title)}</h4><p>${esc(gig.city)} · ${esc(gig.type)} · ${esc(gig.equity || gig.stipend || gig.salary || "Discuss")}</p><div class="tag-list">${gig.skills.slice(0, 4).map(skill => `<span class="chip">${esc(skill)}</span>`).join("")}</div>${compactSavedActions("gigs", id)}</div></article>`;
+      }
+      function renderSavedPersonCard(id) {
+        const user = getUser(id);
+        if (!user) return "";
+        return `<article class="saved-item-card">${avatar(user)}<div class="saved-item-main"><h4>${esc(user.name)}</h4><p>${esc(user.role)} · ${esc(user.startupName)} · ${esc(user.city)}</p><div class="tag-list">${user.sectors.slice(0, 3).map(sector => `<span class="chip">${esc(sector)}</span>`).join("")}</div>${compactSavedActions("people", id)}</div></article>`;
+      }
+      function renderSavedEventCard(id) {
+        const event = read(KEYS.events, []).find(item => item.id === id);
+        if (!event) return "";
+        return `<article class="saved-item-card"><div class="avatar" style="background:var(--saffron)">${new Date(event.date).getDate()}</div><div class="saved-item-main"><h4>${esc(event.title)}</h4><p>${esc(event.city)} · ${event.isOnline ? "Online" : esc(event.venue)} · ${esc(event.time)}</p><div class="tag-list">${event.tags.slice(0, 3).map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}</div>${compactSavedActions("events", id)}</div></article>`;
+      }
+      function focusSavedTarget(section, selector) {
+        setSection(section);
+        setTimeout(() => {
+          const node = document.querySelector(selector);
+          node?.scrollIntoView({ behavior: "smooth", block: "center" });
+          node?.classList.add("saved-focus");
+          setTimeout(() => node?.classList.remove("saved-focus"), 1100);
+        }, 80);
+      }
+      function viewSavedPost(id) { focusSavedTarget("feed", `#post-${CSS.escape(id)}`); }
+      function viewSavedGig(id) { focusSavedTarget("gigs", `#gig-${CSS.escape(id)}`); }
+      function viewSavedEvent(id) { focusSavedTarget("events", `#event-${CSS.escape(id)}`); }
 
       function renderProfile(userId, own = false) {
         const user = getUser(userId) || appState.currentUser;
@@ -2878,19 +3862,9 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
         }, 500);
       }
 
-      function saveItem(type, id) {
-        const saved = read(KEYS.saved, {});
-        saved[appState.currentUser.id] = saved[appState.currentUser.id] || [];
-        if (!saved[appState.currentUser.id].some(item => item.type === type && item.id === id)) saved[appState.currentUser.id].push({ type, id, createdAt: Date.now() });
-        write(KEYS.saved, saved);
-        toast("Saved");
-      }
       function saveAIResponse() {
-        const saved = read(KEYS.saved, {});
-        saved[appState.currentUser.id] = saved[appState.currentUser.id] || [];
-        saved[appState.currentUser.id].push({ type: "ai", id: uid("saved_ai"), text: appState.aiHub.currentResponse, createdAt: Date.now() });
-        write(KEYS.saved, saved);
-        toast("AI response saved");
+        copyText(appState.aiHub.currentResponse);
+        toast("AI response copied. Saved page keeps posts, gigs, people and events.");
       }
       function copyText(text) {
         navigator.clipboard?.writeText(text || "").then(() => toast("Copied")).catch(() => toast("Copy unavailable", "error"));
