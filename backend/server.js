@@ -1184,6 +1184,8 @@ function serveStatic(req, res) {
       ? "/chat.html"
     : /^\/auth-portal\/?$/.test(urlPath)
       ? "/auth-portal.html"
+    : /^\/full-app\/?$/.test(urlPath)
+      ? "/connecthub-full.html"
     : /^\/feed\/?$/.test(urlPath)
       ? "/dashboard-freelancer.html"
     : /^\/settings\/?$/.test(urlPath)

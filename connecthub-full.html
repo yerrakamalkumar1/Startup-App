@@ -1,0 +1,2329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect Hub - Indian Startup Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    :root {
+      --saffron: #ff6b00;
+      --green: #138808;
+      --teal: #0f766e;
+      --teal-2: #0d9488;
+      --indigo: #6366f1;
+      --navy: #1a2340;
+      --slate-900: #0f172a;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-100: #f1f5f9;
+      --bg: #f4f5f8;
+      --card: #ffffff;
+      --line: #e2e8f0;
+      --danger: #dc2626;
+      --amber: #d97706;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.11);
+      --soft-shadow: 0 8px 25px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+      --header-h: 72px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      color: var(--slate-900);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(255, 107, 0, 0.12), transparent 26%),
+        radial-gradient(circle at 90% 4%, rgba(19, 136, 8, 0.11), transparent 28%),
+        var(--bg);
+      overflow-x: hidden;
+    }
+
+    body.dark {
+      --bg: #0f0f0f;
+      --card: #1a1a1a;
+      --line: #374151;
+      --slate-900: #ffffff;
+      --slate-600: #e5e7eb;
+      --slate-500: #cbd5e1;
+      --slate-100: #1e1e1e;
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.34);
+      --soft-shadow: 0 8px 25px rgba(0, 0, 0, 0.26);
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button { border: 0; cursor: pointer; }
+    a { color: inherit; }
+    .hidden { display: none !important; }
+    .skip-link {
+      position: fixed;
+      left: 14px;
+      top: 14px;
+      z-index: 99;
+      transform: translateY(-80px);
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--teal);
+      transition: transform 0.18s ease;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .auth-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .auth-card {
+      width: min(1080px, 100%);
+      min-height: 700px;
+      display: grid;
+      grid-template-columns: 0.95fr 1.05fr;
+      overflow: hidden;
+      border: 1px solid rgba(226, 232, 240, 0.86);
+      border-radius: 34px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    body.dark .auth-card { background: rgba(26, 26, 26, 0.92); }
+
+    .auth-hero {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 32px;
+      padding: clamp(28px, 5vw, 52px);
+      color: #fff;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(255, 107, 0, 0.62), transparent 28%),
+        radial-gradient(circle at 90% 85%, rgba(19, 136, 8, 0.54), transparent 30%),
+        linear-gradient(135deg, #0f766e, #1a2340);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: "Sora", sans-serif;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand-mark {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.08);
+    }
+
+    .auth-hero h1 {
+      margin: 0;
+      max-width: 560px;
+      font-family: "Sora", sans-serif;
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 1.03;
+    }
+    .auth-hero p { max-width: 520px; color: rgba(255, 255, 255, 0.78); line-height: 1.7; }
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .hero-stats div {
+      padding: 15px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .hero-stats b { display: block; font-size: 22px; }
+    .hero-stats span { color: rgba(255, 255, 255, 0.75); font-size: 12px; }
+
+    .auth-form-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(24px, 5vw, 56px);
+    }
+
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 6px;
+      margin-bottom: 26px;
+      border-radius: 999px;
+      background: var(--slate-100);
+    }
+
+    .auth-tabs button {
+      padding: 13px 14px;
+      border-radius: 999px;
+      color: var(--slate-500);
+      background: transparent;
+      font-weight: 800;
+      transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
+    }
+    .auth-tabs button.active { color: #fff; background: var(--teal); box-shadow: 0 12px 26px rgba(15, 118, 110, 0.24); }
+
+    .auth-form { display: none; animation: rise 0.24s ease both; }
+    .auth-form.active { display: block; }
+    .auth-form h2, .section-title h2 {
+      margin: 0;
+      font-family: "Sora", sans-serif;
+      font-size: clamp(25px, 3vw, 36px);
+    }
+    .auth-form > p, .section-title p { margin: 8px 0 22px; color: var(--slate-500); line-height: 1.6; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .field { display: grid; gap: 8px; margin-bottom: 14px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { color: var(--slate-600); font-weight: 800; font-size: 13px; }
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      color: var(--slate-600);
+      background: var(--slate-100);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .control:focus-within { border-color: var(--teal-2); box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.13); }
+    .control input, .control textarea, .control select {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      resize: vertical;
+      color: var(--slate-900);
+      background: transparent;
+    }
+    .control textarea { padding: 12px 0; min-height: 98px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 14px;
+      font-weight: 900;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { color: #fff; background: var(--teal); box-shadow: 0 12px 28px rgba(15, 118, 110, 0.2); }
+    .btn-primary:hover { background: var(--teal-2); transform: translateY(-1px); }
+    .btn-saffron { color: #fff; background: var(--saffron); box-shadow: 0 12px 28px rgba(255, 107, 0, 0.22); }
+    .btn-secondary { color: var(--slate-900); background: var(--card); border: 1px solid var(--line); }
+    .btn-ghost { color: var(--slate-600); background: transparent; }
+    .btn-icon { width: 44px; min-width: 44px; padding: 0; border-radius: 50%; }
+    .auth-submit { width: 100%; min-height: 52px; margin-top: 4px; }
+
+    .tag-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tag-picker button, .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      color: var(--slate-600);
+      background: var(--slate-100);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .tag-picker button.active, .chip.active { color: #fff; background: var(--teal); border-color: var(--teal); }
+
+    .app-shell { display: none; min-height: 100vh; }
+    .app-shell.active { display: block; }
+    .top-nav {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 40;
+      height: var(--header-h);
+      display: grid;
+      grid-template-columns: 220px minmax(280px, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(14px);
+    }
+    body.dark .top-nav { background: rgba(26, 26, 26, 0.9); }
+    .top-search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--slate-100);
+      border: 1px solid var(--line);
+    }
+    .top-search input { width: 100%; border: 0; outline: 0; color: var(--slate-900); background: transparent; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 900;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);
+      position: relative;
+    }
+    .avatar.lg { width: 84px; height: 84px; font-size: 26px; }
+    .online-dot {
+      position: absolute;
+      right: 0;
+      bottom: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #22c55e;
+      border: 2px solid var(--card);
+      animation: pulse 2s infinite;
+    }
+    .badge-count {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      min-width: 21px;
+      height: 21px;
+      display: none;
+      place-items: center;
+      border-radius: 999px;
+      color: #fff;
+      background: #ef4444;
+      font-size: 11px;
+      font-weight: 900;
+      animation: bounce 0.32s ease;
+    }
+    .badge-count.active { display: grid; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) 280px;
+      gap: 20px;
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: calc(var(--header-h) + 20px) 20px 96px;
+    }
+    .left-sidebar, .right-sidebar {
+      position: sticky;
+      top: calc(var(--header-h) + 20px);
+      height: calc(100vh - var(--header-h) - 40px);
+      overflow-y: auto;
+    }
+    .side-card, .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: var(--soft-shadow);
+    }
+    .left-sidebar { display: grid; align-content: start; gap: 12px; }
+    .nav-link {
+      width: 100%;
+      justify-content: flex-start;
+      min-height: 48px;
+      color: var(--slate-600);
+      background: transparent;
+    }
+    .nav-link.active { color: var(--teal); background: rgba(13, 148, 136, 0.11); }
+    .portal-card { padding: 16px; }
+    .portal-card small { color: var(--slate-500); }
+    .right-sidebar { display: grid; align-content: start; gap: 16px; }
+    .side-card { padding: 16px; }
+    .side-card h3 { margin: 0 0 12px; font-family: "Sora", sans-serif; }
+
+    .content { min-width: 0; }
+    .section {
+      display: none;
+      animation: rise 0.2s ease both;
+    }
+    .section.active { display: block; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .composer-trigger {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 16px;
+      color: var(--slate-500);
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: var(--soft-shadow);
+    }
+
+    .filter-row, .tabs-row {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 4px 0 14px;
+      scrollbar-width: thin;
+    }
+    .filter-row button, .tabs-row button {
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      color: var(--slate-600);
+      background: var(--card);
+      border: 1px solid var(--line);
+      font-weight: 850;
+    }
+    .filter-row button.active, .tabs-row button.active { color: #fff; background: var(--teal); border-color: var(--teal); }
+
+    .post-card, .person-card, .gig-card, .event-card {
+      padding: 18px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: var(--soft-shadow);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .post-card:hover, .person-card:hover, .gig-card:hover, .event-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+    .entity-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .entity-head .meta { min-width: 0; flex: 1; }
+    .entity-head h3, .entity-head h4 { margin: 0; font-family: "Sora", sans-serif; }
+    .entity-head p, .muted { color: var(--slate-500); margin: 3px 0 0; }
+    .stage-badge, .type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--indigo);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .stage-Idea { background: #64748b; }
+    .stage-Pre-Seed { background: var(--amber); }
+    .stage-Seed { background: var(--saffron); }
+    .stage-Series-A { background: #2563eb; }
+    .stage-Series-B { background: var(--green); }
+    .stage-Bootstrapped { background: var(--teal); }
+    .post-actions, .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+    .post-actions button, .card-actions button {
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 999px;
+      color: var(--slate-600);
+      background: var(--slate-100);
+      font-weight: 850;
+    }
+    .post-actions button.active { color: var(--teal); animation: heart 0.3s ease; }
+    .comments { display: none; margin-top: 12px; padding: 12px; border-radius: 16px; background: var(--slate-100); }
+    .comments.active { display: block; }
+    .comment-row { display: flex; gap: 8px; margin: 10px 0; }
+    .comment-row input { flex: 1; min-height: 42px; border-radius: 999px; border: 1px solid var(--line); padding: 0 12px; color: var(--slate-900); background: var(--card); }
+
+    .people-grid, .gig-grid, .event-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .person-card, .gig-card, .event-card { margin-bottom: 0; }
+    .person-tags, .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 10px;
+    }
+    .distance { font-weight: 900; color: var(--teal); }
+    .just-joined {
+      color: #fff;
+      background: linear-gradient(135deg, var(--saffron), #ef4444);
+    }
+
+    .ai-grid {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr) 260px;
+      gap: 16px;
+    }
+    .ai-category-list { display: grid; gap: 8px; }
+    .ai-category-list button { justify-content: flex-start; }
+    .ai-panel { padding: 18px; }
+    .ai-key-panel { margin-bottom: 14px; padding: 14px; border-radius: 18px; background: rgba(13, 148, 136, 0.1); border: 1px solid rgba(13, 148, 136, 0.24); }
+    .ai-response {
+      min-height: 180px;
+      padding: 16px;
+      border-radius: 18px;
+      color: var(--slate-600);
+      background: var(--slate-100);
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    .powered { display: inline-flex; margin-top: 10px; padding: 7px 10px; border-radius: 999px; color: var(--teal); background: rgba(13, 148, 136, 0.1); font-weight: 900; font-size: 12px; }
+
+    .messages-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      min-height: calc(100vh - var(--header-h) - 72px);
+      overflow: hidden;
+    }
+    .conversation-list {
+      border-right: 1px solid var(--line);
+      overflow-y: auto;
+      background: var(--card);
+    }
+    .conversation-item {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 10px;
+      padding: 12px;
+      text-align: left;
+      color: var(--slate-900);
+      background: transparent;
+      border-bottom: 1px solid var(--line);
+    }
+    .conversation-item.active { background: rgba(13, 148, 136, 0.12); }
+    .chat-window {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background:
+        linear-gradient(180deg, rgba(13, 148, 136, 0.05), transparent),
+        var(--card);
+    }
+    .chat-header { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 1px solid var(--line); }
+    .message-list {
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px;
+    }
+    .message-bubble {
+      max-width: 75%;
+      width: fit-content;
+      padding: 11px 13px;
+      border-radius: 17px;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+      line-height: 1.48;
+    }
+    .message-bubble.sent { align-self: flex-end; color: #fff; background: var(--teal); border-bottom-right-radius: 5px; }
+    .message-bubble.received { align-self: flex-start; color: var(--slate-900); background: var(--slate-100); border-bottom-left-radius: 5px; }
+    .message-bubble small { display: block; margin-top: 5px; opacity: 0.76; font-size: 11px; }
+    .chat-compose {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: var(--card);
+    }
+    .chat-compose input {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 14px;
+      color: var(--slate-900);
+      background: var(--slate-100);
+      outline: 0;
+    }
+
+    .profile-cover {
+      height: 190px;
+      border-radius: 26px 26px 0 0;
+      background: linear-gradient(135deg, var(--teal), var(--saffron));
+      animation: scaleIn 0.35s ease both;
+    }
+    .profile-main { padding: 0 22px 22px; }
+    .profile-main .avatar { margin-top: -42px; border: 5px solid var(--card); transition: transform 0.16s ease, box-shadow 0.16s ease; }
+    .profile-main .avatar:hover { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(13, 148, 136, 0.12); }
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+    .stat-row div { padding: 12px; border-radius: 16px; background: var(--slate-100); text-align: center; animation: rise 0.22s ease both; }
+    .profile-tabs { position: relative; display: flex; gap: 8px; padding: 6px; border-radius: 999px; background: var(--slate-100); overflow: hidden; }
+    .profile-tabs button { position: relative; z-index: 1; flex: 1; min-height: 42px; border-radius: 999px; color: var(--slate-600); background: transparent; font-weight: 900; }
+    .profile-tabs button.active { color: #fff; background: var(--teal); }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.42);
+      backdrop-filter: blur(8px);
+    }
+    .modal-backdrop.active { display: grid; }
+    .modal-card {
+      width: min(620px, 100%);
+      max-height: min(760px, 92vh);
+      overflow-y: auto;
+      padding: 20px;
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      animation: modalIn 0.2s ease both;
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .modal-head h3 { margin: 0; font-family: "Sora", sans-serif; }
+
+    .toast-stack {
+      position: fixed;
+      right: 16px;
+      bottom: 18px;
+      z-index: 100;
+      display: grid;
+      gap: 10px;
+    }
+    .toast {
+      min-width: min(360px, calc(100vw - 32px));
+      padding: 13px 15px;
+      border-radius: 16px;
+      color: #fff;
+      background: var(--navy);
+      box-shadow: var(--shadow);
+      animation: rise 0.18s ease both;
+      font-weight: 800;
+    }
+    .toast.success { background: var(--teal); }
+    .toast.error { background: var(--danger); }
+
+    .search-overlay {
+      position: fixed;
+      inset: var(--header-h) 0 auto 0;
+      z-index: 35;
+      display: none;
+      max-height: calc(100vh - var(--header-h));
+      overflow-y: auto;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .search-overlay.active { display: block; }
+    .search-results {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .search-section { padding: 14px; border-radius: 18px; background: var(--slate-100); }
+    .search-section h4 { margin: 0 0 8px; font-family: "Sora", sans-serif; }
+    .search-hit { display: block; width: 100%; padding: 9px; margin: 6px 0; border-radius: 12px; color: var(--slate-900); background: var(--card); text-align: left; }
+
+    .bottom-nav {
+      position: fixed;
+      left: 50%;
+      bottom: 14px;
+      z-index: 60;
+      transform: translateX(-50%);
+      display: none;
+      width: min(520px, calc(100vw - 24px));
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+    body.dark .bottom-nav { background: rgba(26, 26, 26, 0.92); }
+    .bottom-nav button { display: grid; gap: 3px; place-items: center; min-height: 56px; border-radius: 18px; color: var(--slate-500); background: transparent; font-weight: 900; font-size: 12px; }
+    .bottom-nav button.active { color: var(--teal); background: rgba(13, 148, 136, 0.12); }
+    .bottom-nav i { font-size: 22px; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+    @keyframes scaleIn { from { transform: scale(1.02); opacity: 0.7; } to { transform: scale(1); opacity: 1; } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+    @keyframes bounce { 0% { transform: scale(0.5); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
+    @keyframes heart { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+
+    @media (max-width: 1023px) {
+      .top-nav { grid-template-columns: auto 1fr auto; }
+      .top-nav .brand span { display: none; }
+      .layout { grid-template-columns: 1fr; padding-inline: 14px; }
+      .left-sidebar, .right-sidebar { display: none; }
+      .bottom-nav { display: grid; }
+      .ai-grid { grid-template-columns: 1fr; }
+      .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 767px) {
+      :root { --header-h: 66px; }
+      .auth-screen { padding: 0; }
+      .auth-card { min-height: 100vh; grid-template-columns: 1fr; border-radius: 0; }
+      .auth-hero { min-height: 310px; padding: 26px; }
+      .hero-stats { grid-template-columns: 1fr 1fr 1fr; }
+      .auth-form-panel { padding: 22px; }
+      .grid-2, .people-grid, .gig-grid, .event-grid, .messages-layout { grid-template-columns: 1fr; }
+      .top-nav { padding: 0 12px; gap: 8px; }
+      .top-search { min-width: 0; }
+      .top-actions .hide-mobile { display: none; }
+      .section-title { align-items: flex-start; flex-direction: column; }
+      .search-results { grid-template-columns: 1fr; }
+      .conversation-list { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .chat-window { min-height: 560px; }
+      .message-bubble { max-width: 82%; }
+      .stat-row { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <aside class="auth-hero">
+        <div class="brand"><span class="brand-mark"><i class="ti ti-rocket"></i></span><span>Connect Hub</span></div>
+        <div>
+          <h1>Indian startup networking in one live app.</h1>
+          <p>Register as a founder, investor, builder, mentor, or VC. Discover nearby people, post gigs, join events, ask AI, and message across tabs in real time.</p>
+        </div>
+        <div class="hero-stats">
+          <div><b>20</b><span>Seeded founders</span></div>
+          <div><b>12</b><span>Live gigs</span></div>
+          <div><b>8</b><span>Events</span></div>
+        </div>
+      </aside>
+
+      <main class="auth-form-panel">
+        <div class="auth-tabs" role="tablist">
+          <button id="tabLogin" class="active" type="button" data-auth-tab="login">Sign in</button>
+          <button id="tabRegister" type="button" data-auth-tab="register">Register</button>
+        </div>
+
+        <form id="loginForm" class="auth-form active" novalidate>
+          <h2>Welcome back</h2>
+          <p>Use a seeded profile or your registered account.</p>
+          <div class="field"><label>Email</label><div class="control"><i class="ti ti-mail"></i><input id="loginEmail" type="email" autocomplete="username" placeholder="aarav@connecthub.in"></div></div>
+          <div class="field"><label>Password</label><div class="control"><i class="ti ti-lock"></i><input id="loginPassword" type="password" autocomplete="current-password" placeholder="connect123"></div></div>
+          <button class="btn btn-primary auth-submit" type="submit"><i class="ti ti-login-2"></i> Sign in</button>
+          <button class="btn btn-secondary auth-submit" type="button" id="demoLoginBtn"><i class="ti ti-sparkles"></i> Use demo founder</button>
+        </form>
+
+        <form id="registerForm" class="auth-form" novalidate>
+          <h2>Create profile</h2>
+          <p>Your profile enters the live Network immediately.</p>
+          <div class="grid-2">
+            <div class="field"><label>Name</label><div class="control"><i class="ti ti-user"></i><input id="regName" type="text" placeholder="Kamal Kumar"></div></div>
+            <div class="field"><label>Email</label><div class="control"><i class="ti ti-mail"></i><input id="regEmail" type="email" placeholder="you@example.com"></div></div>
+            <div class="field"><label>Mobile</label><div class="control"><i class="ti ti-phone"></i><input id="regMobile" type="tel" placeholder="+919876543210"></div></div>
+            <div class="field"><label>Password</label><div class="control"><i class="ti ti-key"></i><input id="regPassword" type="password" placeholder="Create password"></div></div>
+            <div class="field"><label>Role</label><div class="control"><i class="ti ti-briefcase"></i><select id="regRole"><option>Founder</option><option>Investor</option><option>Builder</option><option>Mentor</option><option>VC</option></select></div></div>
+            <div class="field"><label>Startup name</label><div class="control"><i class="ti ti-building"></i><input id="regStartup" type="text" placeholder="Your startup"></div></div>
+            <div class="field"><label>Stage</label><div class="control"><i class="ti ti-chart-bar"></i><select id="regStage"><option>Idea</option><option>Pre-Seed</option><option>Seed</option><option>Series A</option><option>Bootstrapped</option></select></div></div>
+            <div class="field"><label>City</label><div class="control"><i class="ti ti-map-pin"></i><select id="regCity"></select></div></div>
+            <div class="field full"><label>Sectors</label><div id="sectorPicker" class="tag-picker"></div></div>
+            <div class="field full"><label>Bio</label><div class="control"><textarea id="regBio" maxlength="220" placeholder="What are you building or looking for?"></textarea></div></div>
+          </div>
+          <button class="btn btn-primary auth-submit" type="submit"><i class="ti ti-user-plus"></i> Register and open app</button>
+        </form>
+      </main>
+    </div>
+  </section>
+
+  <section id="appShell" class="app-shell">
+    <header class="top-nav">
+      <div class="brand"><span class="brand-mark"><i class="ti ti-rocket"></i></span><span>Connect Hub</span></div>
+      <label class="top-search" aria-label="Global search"><i class="ti ti-search"></i><input id="globalSearch" type="search" placeholder="Search people, gigs, posts, events..."></label>
+      <div class="top-actions">
+        <button id="notificationBtn" class="btn btn-secondary btn-icon" type="button" aria-label="Open notifications"><i class="ti ti-bell"></i><span id="notifBadge" class="badge-count"></span></button>
+        <button id="messagesTopBtn" class="btn btn-secondary btn-icon hide-mobile" type="button" aria-label="Open messages"><i class="ti ti-message"></i><span id="msgBadge" class="badge-count"></span></button>
+        <button id="themeBtn" class="btn btn-secondary btn-icon hide-mobile" type="button" aria-label="Toggle theme"><i class="ti ti-moon"></i></button>
+        <button id="avatarBtn" class="avatar" type="button" aria-label="Open profile menu"></button>
+      </div>
+    </header>
+
+    <div id="searchOverlay" class="search-overlay" aria-live="polite"></div>
+
+    <div class="layout">
+      <aside class="left-sidebar">
+        <div class="side-card portal-card">
+          <strong id="portalName">Founder Portal</strong>
+          <br><small id="portalSub">Live Indian startup network</small>
+        </div>
+        <button class="btn nav-link active" data-section="feed"><i class="ti ti-home"></i> Home Feed</button>
+        <button class="btn nav-link" data-section="network"><i class="ti ti-users"></i> My Network</button>
+        <button class="btn nav-link" data-section="ai"><i class="ti ti-brain"></i> AI Hub</button>
+        <button class="btn nav-link" data-section="gigs"><i class="ti ti-briefcase"></i> StartGigs</button>
+        <button class="btn nav-link" data-section="events"><i class="ti ti-calendar"></i> Events</button>
+        <button class="btn nav-link" data-section="messages"><i class="ti ti-message-2"></i> Messages</button>
+        <button class="btn nav-link" data-section="saved"><i class="ti ti-bookmark"></i> Saved</button>
+        <button class="btn nav-link" data-section="settings"><i class="ti ti-settings"></i> Settings</button>
+      </aside>
+
+      <main id="mainContent" class="content" tabindex="-1">
+        <section id="section-feed" class="section active"></section>
+        <section id="section-network" class="section"></section>
+        <section id="section-ai" class="section"></section>
+        <section id="section-gigs" class="section"></section>
+        <section id="section-events" class="section"></section>
+        <section id="section-messages" class="section"></section>
+        <section id="section-saved" class="section"></section>
+        <section id="section-settings" class="section"></section>
+        <section id="section-profile" class="section"></section>
+      </main>
+
+      <aside id="rightSidebar" class="right-sidebar"></aside>
+    </div>
+
+    <nav class="bottom-nav" aria-label="Mobile navigation">
+      <button class="active" data-section="feed"><i class="ti ti-home"></i><span>Home</span></button>
+      <button data-section="network"><i class="ti ti-users"></i><span>Network</span></button>
+      <button data-section="ai"><i class="ti ti-brain"></i><span>AI Hub</span></button>
+      <button data-section="gigs"><i class="ti ti-briefcase"></i><span>Gigs</span></button>
+      <button data-section="profile"><i class="ti ti-user-circle"></i><span>Profile</span></button>
+    </nav>
+  </section>
+
+  <div id="modalRoot" class="modal-backdrop" role="dialog" aria-modal="true"></div>
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const KEYS = {
+        users: "ch_users",
+        session: "ch_session",
+        messages: "ch_messages",
+        connections: "ch_connections",
+        notifications: "ch_notifications",
+        feed: "ch_feed",
+        gigs: "ch_gigs",
+        events: "ch_events",
+        ai: "ch_ai_queries",
+        saved: "ch_saved_items",
+        seed: "ch_seed_version_full_1"
+      };
+      const sectors = ["FinTech", "HealthTech", "EdTech", "SaaS", "AgriTech", "D2C", "AI/ML"];
+      const stages = ["Idea", "Pre-Seed", "Seed", "Series A", "Bootstrapped"];
+      const palette = ["#ff6b00", "#138808", "#0f766e", "#6366f1", "#d946ef", "#2563eb", "#dc2626", "#f59e0b"];
+      const cityCoords = {
+        Bengaluru: [12.9716, 77.5946],
+        Mumbai: [19.0760, 72.8777],
+        Delhi: [28.6139, 77.2090],
+        Hyderabad: [17.3850, 78.4867],
+        Pune: [18.5204, 73.8567],
+        Chennai: [13.0827, 80.2707],
+        Jaipur: [26.9124, 75.7873],
+        Ahmedabad: [23.0225, 72.5714],
+        Kochi: [9.9312, 76.2673],
+        Kolkata: [22.5726, 88.3639]
+      };
+      const memoryStore = new Map();
+      const rt = createRealtime();
+      const appState = {
+        currentUser: null,
+        activeSection: "feed",
+        activeConversationId: null,
+        notifications: [],
+        unreadNotifications: 0,
+        unreadMessages: 0,
+        searchQuery: "",
+        network: { tab: "discover", query: "", sort: "nearby", filter: "all", discover: [], connections: [], pending: { sent: [], received: [] }, nearby: [] },
+        feed: { posts: [], filter: "all" },
+        gigs: { list: [], query: "", filter: { type: "all", city: "", remote: false }, myGigs: [] },
+        events: { list: [], filter: "all", myEvents: [] },
+        aiHub: { category: "founder_match", history: [], currentResponse: "", loading: false },
+        messages: { conversations: [], activeMessages: [] },
+        ui: { notificationPanelOpen: false, composerOpen: false, profileModalOpen: false }
+      };
+      window.ConnectHubFullApp = { appState, registerTestUser, setSection, createGigFromTest, sendTestMessage, seedDatabase };
+
+      seedDatabase();
+      bindAuth();
+      bindAppEvents();
+      const session = read(KEYS.session, null);
+      if (session) {
+        appState.currentUser = session;
+        markOnline(session.id, true);
+        showApp();
+      } else {
+        populateAuthControls();
+      }
+      if (new URLSearchParams(location.search).get("selftest") === "1") {
+        setTimeout(runSelfTest, 150);
+      }
+      if (new URLSearchParams(location.search).get("tabtest") === "listener") {
+        setTimeout(runTabListenerTest, 180);
+      }
+      if (new URLSearchParams(location.search).get("tabtest") === "sender") {
+        setTimeout(runTabSenderTest, 450);
+      }
+      window.addEventListener("beforeunload", () => {
+        if (appState.currentUser) markOnline(appState.currentUser.id, false);
+      });
+      setInterval(simulatePresence, 30000);
+      setInterval(simulateNotification, randomInt(45000, 90000));
+
+      function read(key, fallback) {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch {
+          return memoryStore.has(key) ? memoryStore.get(key) : fallback;
+        }
+      }
+      function write(key, value) {
+        try { localStorage.setItem(key, JSON.stringify(value)); }
+        catch { memoryStore.set(key, value); }
+      }
+      function uid(prefix) {
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      }
+      function initials(name) {
+        return String(name || "CH").split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase();
+      }
+      function esc(value) {
+        return String(value || "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+      }
+      function timeAgo(ts) {
+        const diff = Math.max(0, Date.now() - Number(ts || Date.now()));
+        const m = 60000, h = 60 * m, d = 24 * h;
+        if (diff < m) return "Just now";
+        if (diff < h) return `${Math.floor(diff / m)} min ago`;
+        if (diff < d) return `${Math.floor(diff / h)}h ago`;
+        return `${Math.floor(diff / d)}d ago`;
+      }
+      function randomInt(min, max) {
+        return Math.floor(min + Math.random() * (max - min + 1));
+      }
+      function haversine(aLat, aLng, bLat, bLng) {
+        const toRad = deg => deg * Math.PI / 180;
+        const R = 6371;
+        const dLat = toRad(bLat - aLat);
+        const dLng = toRad(bLng - aLng);
+        const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+      }
+      function avatar(user, size = "") {
+        return `<span class="avatar ${size}" style="background:${esc(user.color || "#0f766e")}">${esc(user.initials || initials(user.name))}${user.isOnline ? '<i class="online-dot"></i>' : ""}</span>`;
+      }
+      function stageBadge(stage) {
+        return `<span class="stage-badge stage-${String(stage || "").replace(/\s|\\+/g, "-")}">${esc(stage)}</span>`;
+      }
+      function toast(message, type = "success") {
+        const node = document.createElement("div");
+        node.className = `toast ${type}`;
+        node.textContent = message;
+        document.getElementById("toastStack").appendChild(node);
+        setTimeout(() => node.remove(), 2800);
+      }
+      function debounce(fn, wait = 300) {
+        let timer;
+        return (...args) => {
+          clearTimeout(timer);
+          timer = setTimeout(() => fn(...args), wait);
+        };
+      }
+      function createRealtime() {
+        if ("BroadcastChannel" in window) {
+          const channel = new BroadcastChannel("connecthub_rt");
+          return {
+            send(type, payload) { channel.postMessage({ type, payload, at: Date.now() }); },
+            listen(handler) { channel.onmessage = event => handler(event.data || {}); }
+          };
+        }
+        let last = Number(sessionStorage.getItem("ch_rt_last") || "0");
+        return {
+          send(type, payload) { write("ch_rt_fallback", { type, payload, at: Date.now() }); },
+          listen(handler) {
+            setInterval(() => {
+              const event = read("ch_rt_fallback", null);
+              if (event && event.at > last) {
+                last = event.at;
+                sessionStorage.setItem("ch_rt_last", String(last));
+                handler(event);
+              }
+            }, 800);
+          }
+        };
+      }
+
+      function seedDatabase() {
+        if (read(KEYS.seed, false)) return;
+        const now = Date.now();
+        const userSeed = [
+          ["Aarav Menon", "aarav@connecthub.in", "Founder", "LedgerLeap", "Seed", ["FinTech", "AI/ML"], "Bengaluru", "Building GST-first cashflow intelligence for Indian SMEs.", ["Python", "Risk Models", "B2B Sales"], ["Seed investors", "Backend builders"], true],
+          ["Priya Sharma", "priya@connecthub.in", "Builder", "CareNest", "Pre-Seed", ["HealthTech"], "Bengaluru", "Designing patient engagement workflows for clinics.", ["Product Design", "Figma", "No-code"], ["Founders", "Pilot clinics"], true],
+          ["Rahul Iyer", "rahul@connecthub.in", "Founder", "KiranaCloud", "Series A", ["SaaS", "D2C"], "Bengaluru", "Retail operating system for local kirana chains.", ["SaaS", "Retail Ops", "Hiring"], ["Growth marketers"], true],
+          ["Nisha Rao", "nisha@connecthub.in", "Investor", "SouthBridge Angels", "Seed", ["FinTech", "SaaS"], "Bengaluru", "Angel investor backing practical Indian B2B software.", ["Investing", "GTM", "Fundraising"], ["FinTech founders"], true],
+          ["Vikram Bhat", "vikram@connecthub.in", "Mentor", "ScaleCraft", "Bootstrapped", ["AI/ML"], "Bengaluru", "Helps AI startups move from prototype to revenue.", ["ML Ops", "Pricing", "Enterprise"], ["AI founders"], false],
+          ["Meera Nair", "meera@connecthub.in", "VC", "Matrix Scout", "Series A", ["HealthTech", "EdTech"], "Bengaluru", "Scout for early Indian SaaS and health companies.", ["Investing", "Market sizing"], ["Warm intros"], true],
+          ["Kabir Khan", "kabir@connecthub.in", "Founder", "PaySetu", "Seed", ["FinTech"], "Mumbai", "UPI-led B2B collections for distributors.", ["Payments", "RBI", "Sales"], ["Compliance advisor"], true],
+          ["Ananya Sen", "ananya@connecthub.in", "Founder", "SkillSutra", "Pre-Seed", ["EdTech", "AI/ML"], "Mumbai", "AI interview practice for Tier-2 college students.", ["LLMs", "Content", "Hiring"], ["Campus partners"], false],
+          ["Devika Patel", "devika@connecthub.in", "Investor", "Harbour Angels", "Seed", ["D2C", "AgriTech"], "Mumbai", "Investing in consumer brands with strong Indian distribution.", ["Brand", "Finance"], ["D2C founders"], true],
+          ["Rohan Desai", "rohan@connecthub.in", "Builder", "ShopMint", "Bootstrapped", ["D2C", "SaaS"], "Mumbai", "Building storefront automation for homegrown brands.", ["React", "Node.js", "Shopify"], ["Freelance projects"], false],
+          ["Ishita Malhotra", "ishita@connecthub.in", "Founder", "LegalLedger", "Seed", ["FinTech", "SaaS"], "Delhi", "Compliance workspace for startups handling GST, DPIIT and payroll.", ["Compliance", "B2B", "LegalTech"], ["Product marketers"], true],
+          ["Arjun Kapoor", "arjun@connecthub.in", "Mentor", "FounderRoom", "Idea", ["SaaS"], "Delhi", "Mentoring founders on first customers and founder-led sales.", ["Sales", "Pitching"], ["Early founders"], false],
+          ["Sana Qureshi", "sana@connecthub.in", "Investor", "North Star Capital", "Series A", ["HealthTech", "EdTech"], "Delhi", "Invests in regulated India-scale healthcare and education.", ["Investing", "Policy"], ["Health founders"], false],
+          ["Kamal Kumar", "kamal@connecthub.in", "Builder", "MediaSprint", "Pre-Seed", ["AI/ML", "D2C"], "Hyderabad", "Creates AI-assisted videos and launch media for startups.", ["Video", "Photography", "AI Tools"], ["Startup clients"], true],
+          ["Harsha Reddy", "harsha@connecthub.in", "Founder", "AgriPulse", "Seed", ["AgriTech", "AI/ML"], "Hyderabad", "Crop advisory and mandi pricing intelligence for farmers.", ["AgriTech", "Data", "Partnerships"], ["State pilots"], false],
+          ["Lakshmi Varma", "lakshmi@connecthub.in", "Builder", "ClinicOS", "Series A", ["HealthTech", "SaaS"], "Hyderabad", "Engineering lead for clinic operations software.", ["Backend", "Security", "Healthcare"], ["Hiring engineers"], false],
+          ["Tanvi Kulkarni", "tanvi@connecthub.in", "Founder", "LearnLoop", "Pre-Seed", ["EdTech"], "Pune", "Vernacular upskilling for first-time job seekers.", ["Content", "Communities"], ["Mentors"], false],
+          ["Omkar Joshi", "omkar@connecthub.in", "Founder", "FarmPay", "Seed", ["AgriTech", "FinTech"], "Pune", "Credit and settlement tools for FPOs.", ["FinTech", "Rural Ops"], ["Banking partners"], false],
+          ["Sanjay Krishnan", "sanjay@connecthub.in", "Founder", "MediTrail", "Series A", ["HealthTech"], "Chennai", "Patient logistics platform for hospitals.", ["Healthcare", "Ops", "Sales"], ["Tamil Nadu pilots"], false],
+          ["Pooja Jain", "pooja@connecthub.in", "Founder", "CraftKart", "Idea", ["D2C"], "Jaipur", "Marketplace for artisan-led Indian gifting.", ["D2C", "Branding"], ["Co-founder"], false]
+        ];
+        const users = userSeed.map((u, index) => {
+          const [lat, lng] = cityCoords[u[6]];
+          return {
+            id: `usr_seed_${index + 1}`,
+            name: u[0],
+            email: u[1],
+            mobile: `+91${9000000000 + index}`,
+            passwordHash: btoa("connect123"),
+            avatar: "",
+            initials: initials(u[0]),
+            color: palette[index % palette.length],
+            startupName: u[3],
+            stage: u[4],
+            sectors: u[5],
+            city: u[6],
+            lat,
+            lng,
+            role: u[2],
+            linkedin: `https://linkedin.com/in/${u[0].toLowerCase().replace(/\\s/g, "-")}`,
+            dpiit: index % 4 === 0 ? `DPIIT${12345000 + index}` : "",
+            bio: u[7],
+            skills: u[8],
+            lookingFor: u[9],
+            isVerified: index % 3 === 0,
+            isOnline: u[10],
+            lastSeen: now - randomInt(60000, 3600000),
+            joinedAt: now - (index < 6 ? randomInt(300000, 20 * 3600000) : randomInt(2, 24) * 86400000),
+            connections: randomInt(4, 72),
+            profileViews: randomInt(15, 260),
+            messageCount: randomInt(0, 24)
+          };
+        });
+        write(KEYS.users, users);
+        write(KEYS.connections, [
+          { requesterId: "usr_seed_2", receiverId: "usr_seed_1", status: "pending", createdAt: now - 900000 },
+          { requesterId: "usr_seed_1", receiverId: "usr_seed_4", status: "accepted", createdAt: now - 7200000 }
+        ]);
+        write(KEYS.messages, {});
+        write(KEYS.notifications, []);
+        write(KEYS.feed, seedPosts(users, now));
+        write(KEYS.gigs, seedGigs(users, now));
+        write(KEYS.events, seedEvents(users, now));
+        write(KEYS.ai, []);
+        write(KEYS.saved, {});
+        write(KEYS.seed, true);
+      }
+
+      function seedPosts(users, now) {
+        const templates = [
+          ["milestone", "Closed our first 25 paying SME customers this month. Indian B2B adoption is slower than hype, but deeper when onboarding is done right.", ["SaaS", "Milestones"]],
+          ["job", "Hiring a freelance product designer for a 3-week MVP polish sprint. Need mobile-first portfolio and fintech comfort.", ["Hiring", "FinTech"]],
+          ["ask", "What is the cleanest way to handle DPIIT recognition documents for a new seed round?", ["DPIIT", "Fundraising"]],
+          ["update", "Launching a pilot with two clinics in Hyderabad next week. Looking for healthcare operators who can review patient journey flows.", ["HealthTech", "Pilot"]],
+          ["milestone", "Our AI interview practice crossed 10,000 mock sessions with students from Tier-2 colleges.", ["EdTech", "AI/ML"]],
+          ["event", "Hosting a founder circle in Bengaluru for SaaS GTM lessons. Comment if you want an invite.", ["Events", "SaaS"]],
+          ["ask", "Any recommendations for GST-friendly payment reconciliation tools for distributors?", ["FinTech", "Operations"]],
+          ["update", "We are testing vernacular course content in Marathi and Hindi. Early completion rates look promising.", ["EdTech", "India"]],
+          ["job", "Need a Node.js builder for a rural credit workflow. Contract role, remote, 4 weeks.", ["Hiring", "AgriTech"]],
+          ["milestone", "Signed our first hospital network LOI. Still early, but a good week for the team.", ["HealthTech", "Milestones"]],
+          ["ask", "For D2C founders: what worked better for you, quick commerce partnerships or Instagram communities?", ["D2C", "GTM"]],
+          ["update", "Investor conversations are improving after we simplified our pitch to one use case and one metric.", ["Fundraising", "Pitch"]],
+          ["job", "Looking for a short-form video editor to create founder-led launch reels for a SaaS product.", ["Hiring", "Media"]],
+          ["event", "Jaipur craft founders meetup planned for March. Bringing creators, exporters, and logistics partners together.", ["Events", "D2C"]],
+          ["ask", "How are AI startups in India pricing pilots for enterprise customers without over-customising?", ["AI/ML", "Pricing"]]
+        ];
+        return templates.map((item, index) => ({
+          id: `post_seed_${index + 1}`,
+          authorId: users[index % users.length].id,
+          type: item[0],
+          content: item[1],
+          tags: item[2],
+          imageUrl: "",
+          likes: users.slice(0, randomInt(1, 5)).map(user => user.id),
+          comments: [],
+          shares: randomInt(0, 9),
+          createdAt: now - index * 3600000,
+          isPinned: index === 0
+        }));
+      }
+
+      function seedGigs(users, now) {
+        const data = [
+          ["CTO Co-founder for FinTech workflow", "cofounder", "Need a technical partner to build RBI-aware SME cashflow tools.", ["Node.js", "Risk", "APIs"], "0.5-2%", "", "", true, "Bengaluru", "FinTech", "Seed"],
+          ["Product designer for clinic dashboard", "freelance", "Design patient and doctor workflows for a HealthTech pilot.", ["Figma", "UX", "Healthcare"], "", "₹45,000", "", true, "Hyderabad", "HealthTech", "Pre-Seed"],
+          ["AI content intern for EdTech", "internship", "Create lesson prompts and QA vernacular AI practice content.", ["Content", "Hindi", "AI"], "", "₹12,000/month", "", true, "Pune", "EdTech", "Pre-Seed"],
+          ["Full-stack engineer for SaaS MVP", "contract", "Build auth, billing mockups and admin screens for a B2B product.", ["React", "Node.js", "MongoDB"], "", "", "₹1.8L fixed", true, "Delhi", "SaaS", "Seed"],
+          ["Growth marketer for D2C launch", "freelance", "Plan influencer and community launch for artisan gifting brand.", ["Instagram", "D2C", "Copywriting"], "", "₹30,000", "", false, "Jaipur", "D2C", "Idea"],
+          ["Agri field ops advisor", "advisor", "Help design farmer onboarding and FPO partnerships.", ["AgriTech", "Partnerships"], "0.2-0.5%", "", "", false, "Pune", "AgriTech", "Seed"],
+          ["Video editor for founder reels", "freelance", "Create 12 short launch videos for Indian startup audience.", ["Video Editing", "Reels"], "", "₹24,000", "", true, "Hyderabad", "AI/ML", "Pre-Seed"],
+          ["Healthcare compliance consultant", "contract", "Review data handling and hospital onboarding process.", ["Compliance", "Healthcare"], "", "", "₹80,000 fixed", true, "Chennai", "HealthTech", "Series A"],
+          ["Sales development rep", "fulltime", "Founder-led sales support for kirana SaaS in South India.", ["Sales", "Retail"], "", "", "₹8-12 LPA", false, "Bengaluru", "SaaS", "Series A"],
+          ["Pitch deck storyteller", "freelance", "Rewrite deck narrative for seed raise, India market focus.", ["Pitch", "Fundraising"], "", "₹35,000", "", true, "Mumbai", "FinTech", "Seed"],
+          ["ML prototype builder", "contract", "Build trend model for mandi pricing and crop alerts.", ["Python", "ML", "Data"], "", "", "₹1.2L fixed", true, "Hyderabad", "AgriTech", "Seed"],
+          ["Community manager for student cohorts", "internship", "Manage WhatsApp and Discord cohorts for EdTech users.", ["Community", "EdTech"], "", "₹15,000/month", "", true, "Mumbai", "EdTech", "Pre-Seed"]
+        ];
+        return data.map((g, index) => ({
+          id: `gig_seed_${index + 1}`,
+          posterId: users[(index + 2) % users.length].id,
+          title: g[0],
+          type: g[1],
+          description: g[2],
+          skills: g[3],
+          equity: g[4],
+          stipend: g[5],
+          salary: g[6],
+          remote: g[7],
+          city: g[8],
+          sector: g[9],
+          stage: g[10],
+          deadline: `2026-0${(index % 3) + 2}-${String(10 + index).padStart(2, "0")}`,
+          applicants: [],
+          savedBy: [],
+          createdAt: now - index * 7200000,
+          isActive: true
+        }));
+      }
+
+      function seedEvents(users, now) {
+        const data = [
+          ["Bengaluru Founders Meetup - Q1", "meetup", "Founder-led GTM and hiring lessons.", "Bengaluru", "91springboard Koramangala", false, "", "2026-02-15", "6:00 PM IST", 100, ["Networking", "SaaS"]],
+          ["Mumbai D2C Fundraising Circle", "workshop", "Consumer fundraising and distribution masterclass.", "Mumbai", "WeWork BKC", false, "", "2026-02-22", "5:30 PM IST", 80, ["D2C", "Funding"]],
+          ["AI Builders Demo Day India", "demo_day", "AI/ML startups demoing applied products.", "Bengaluru", "Online", true, "https://meet.example/ai", "2026-03-05", "7:00 PM IST", 200, ["AI/ML", "Demo"]],
+          ["Hyderabad HealthTech Operators", "meetup", "Hospitals, founders and compliance advisors.", "Hyderabad", "T-Hub", false, "", "2026-03-12", "4:00 PM IST", 120, ["HealthTech"]],
+          ["Delhi Startup Legal Basics", "webinar", "DPIIT, GST, term sheets and ESOPs for founders.", "Delhi", "Online", true, "https://meet.example/legal", "2026-03-18", "6:00 PM IST", 150, ["Legal", "DPIIT"]],
+          ["Pune AgriTech Field Day", "meetup", "Rural fintech and agritech partnerships.", "Pune", "Venture Center", false, "", "2026-03-25", "10:00 AM IST", 75, ["AgriTech"]],
+          ["Chennai Health SaaS Hackathon", "hackathon", "Build practical health SaaS prototypes.", "Chennai", "IITM Research Park", false, "", "2026-04-04", "9:00 AM IST", 160, ["HealthTech", "SaaS"]],
+          ["Jaipur Creator Commerce Meetup", "meetup", "D2C creators, exporters and logistics partners.", "Jaipur", "Startup Oasis", false, "", "2026-04-11", "5:00 PM IST", 90, ["D2C"]]
+        ];
+        return data.map((e, index) => ({
+          id: `evt_seed_${index + 1}`,
+          organizerId: users[index % users.length].id,
+          title: e[0],
+          type: e[1],
+          description: e[2],
+          city: e[3],
+          venue: e[4],
+          isOnline: e[5],
+          meetLink: e[6],
+          date: e[7],
+          time: e[8],
+          capacity: e[9],
+          rsvpCount: randomInt(18, Math.min(e[9] - 5, 120)),
+          rsvpList: [],
+          tags: e[10],
+          createdAt: now - index * 864000
+        }));
+      }
+
+      function populateAuthControls() {
+        document.getElementById("regCity").innerHTML = Object.keys(cityCoords).map(city => `<option>${city}</option>`).join("");
+        document.getElementById("sectorPicker").innerHTML = sectors.map(sector => `<button type="button" data-sector="${sector}">${sector}</button>`).join("");
+      }
+
+      function bindAuth() {
+        populateAuthControls();
+        document.querySelectorAll("[data-auth-tab]").forEach(button => {
+          button.addEventListener("click", () => {
+            document.querySelectorAll("[data-auth-tab]").forEach(item => item.classList.toggle("active", item === button));
+            document.getElementById("loginForm").classList.toggle("active", button.dataset.authTab === "login");
+            document.getElementById("registerForm").classList.toggle("active", button.dataset.authTab === "register");
+          });
+        });
+        document.getElementById("sectorPicker").addEventListener("click", event => {
+          const button = event.target.closest("[data-sector]");
+          if (button) button.classList.toggle("active");
+        });
+        document.getElementById("demoLoginBtn").addEventListener("click", () => loginAs("aarav@connecthub.in", "connect123"));
+        document.getElementById("loginForm").addEventListener("submit", event => {
+          event.preventDefault();
+          loginAs(document.getElementById("loginEmail").value, document.getElementById("loginPassword").value);
+        });
+        document.getElementById("registerForm").addEventListener("submit", event => {
+          event.preventDefault();
+          registerFromForm();
+        });
+      }
+
+      function loginAs(email, password) {
+        const user = read(KEYS.users, []).find(item => item.email.toLowerCase() === String(email).trim().toLowerCase());
+        if (!user || user.passwordHash !== btoa(password || "")) return toast("Invalid email or password", "error");
+        appState.currentUser = { ...user, isOnline: true };
+        write(KEYS.session, appState.currentUser);
+        markOnline(user.id, true);
+        showApp();
+      }
+
+      function registerFromForm() {
+        const selectedSectors = [...document.querySelectorAll("#sectorPicker .active")].map(button => button.dataset.sector);
+        const user = registerTestUser({
+          name: document.getElementById("regName").value.trim(),
+          email: document.getElementById("regEmail").value.trim(),
+          mobile: document.getElementById("regMobile").value.trim(),
+          password: document.getElementById("regPassword").value,
+          role: document.getElementById("regRole").value,
+          startupName: document.getElementById("regStartup").value.trim(),
+          stage: document.getElementById("regStage").value,
+          city: document.getElementById("regCity").value,
+          sectors: selectedSectors.length ? selectedSectors : ["SaaS"],
+          bio: document.getElementById("regBio").value.trim()
+        });
+        if (!user) return;
+        toast("Registered successfully");
+        showApp();
+      }
+
+      function registerTestUser(data) {
+        if (!data?.name || !data?.email || !data?.password) {
+          toast("Name, email and password are required", "error");
+          return null;
+        }
+        const users = read(KEYS.users, []);
+        if (users.some(user => user.email.toLowerCase() === data.email.toLowerCase())) {
+          toast("Email already registered", "error");
+          return null;
+        }
+        const [lat, lng] = cityCoords[data.city || "Hyderabad"] || cityCoords.Hyderabad;
+        const user = {
+          id: uid("usr"),
+          name: data.name,
+          email: data.email,
+          mobile: data.mobile || "",
+          passwordHash: btoa(data.password),
+          avatar: "",
+          initials: initials(data.name),
+          color: palette[randomInt(0, palette.length - 1)],
+          startupName: data.startupName || `${data.name.split(" ")[0]} Labs`,
+          stage: data.stage || "Idea",
+          sectors: data.sectors || ["SaaS"],
+          city: data.city || "Hyderabad",
+          lat,
+          lng,
+          role: data.role || "Founder",
+          linkedin: "",
+          dpiit: "",
+          bio: data.bio || "Building for the Indian startup ecosystem.",
+          skills: data.sectors || ["Startup"],
+          lookingFor: ["Collaborators", "Mentors", "Customers"],
+          isVerified: false,
+          isOnline: true,
+          lastSeen: Date.now(),
+          joinedAt: Date.now(),
+          connections: 0,
+          profileViews: 0,
+          messageCount: 0
+        };
+        users.push(user);
+        write(KEYS.users, users);
+        appState.currentUser = user;
+        write(KEYS.session, user);
+        rt.send("user_online", { userId: user.id, isOnline: true });
+        return user;
+      }
+
+      function showApp() {
+        document.getElementById("authScreen").classList.add("hidden");
+        document.getElementById("appShell").classList.add("active");
+        updateChrome();
+        setupRealtime();
+        renderAll();
+      }
+
+      function updateChrome() {
+        const user = appState.currentUser;
+        document.getElementById("avatarBtn").innerHTML = `${esc(user.initials)}<span class="online-dot"></span>`;
+        document.getElementById("avatarBtn").style.background = user.color || "#0f766e";
+        document.getElementById("portalName").textContent = `${user.role} Portal`;
+        document.getElementById("portalSub").textContent = `${user.startupName} · ${user.city}`;
+      }
+
+      function bindAppEvents() {
+        document.addEventListener("click", event => {
+          const sectionButton = event.target.closest("[data-section]");
+          if (sectionButton) setSection(sectionButton.dataset.section);
+          const action = event.target.closest("[data-action]");
+          if (action) handleAction(action, event);
+          if (event.target.id === "themeBtn") toggleTheme();
+          if (event.target.closest("#messagesTopBtn")) setSection("messages");
+          if (event.target.closest("#avatarBtn")) setSection("profile");
+          if (event.target.closest("#notificationBtn")) openNotifications();
+          if (event.target.id === "modalRoot") closeModal();
+        });
+        document.addEventListener("submit", event => {
+          if (event.target.matches("[data-form='post']")) submitPost(event);
+          if (event.target.matches("[data-form='gig']")) submitGig(event);
+          if (event.target.matches("[data-form='comment']")) submitComment(event);
+          if (event.target.matches("[data-form='message']")) submitMessage(event);
+          if (event.target.matches("[data-form='ai']")) submitAI(event);
+        });
+        document.getElementById("globalSearch").addEventListener("input", debounce(event => renderGlobalSearch(event.target.value), 250));
+        document.getElementById("globalSearch").addEventListener("focus", event => renderGlobalSearch(event.target.value));
+      }
+
+      function handleAction(action, event) {
+        const { action: type, id, userId, tab, value } = action.dataset;
+        if (type === "open-post-modal") return openPostModal();
+        if (type === "like-post") return toggleLike(id);
+        if (type === "comments") return document.getElementById(`comments-${id}`)?.classList.toggle("active");
+        if (type === "share-post") return sharePost(id);
+        if (type === "save-post") return saveItem("post", id);
+        if (type === "network-tab") return setNetworkTab(tab);
+        if (type === "connect") return connectTo(userId);
+        if (type === "accept") return respondConnection(id, "accepted");
+        if (type === "decline") return respondConnection(id, "declined");
+        if (type === "cancel") return cancelConnection(id);
+        if (type === "message-user") return openMessage(userId);
+        if (type === "profile-user") return openProfile(userId);
+        if (type === "ai-category") return setAICategory(value);
+        if (type === "ai-suggest") return askSuggestedAI(value);
+        if (type === "copy-ai") return copyText(appState.aiHub.currentResponse);
+        if (type === "save-ai") return saveAIResponse();
+        if (type === "open-gig-modal") return openGigModal();
+        if (type === "apply-gig") return applyGig(id);
+        if (type === "save-gig") return saveItem("gig", id);
+        if (type === "event-filter") return setEventFilter(value);
+        if (type === "rsvp") return rsvpEvent(id);
+        if (type === "calendar") return downloadICS(id);
+        if (type === "logout") return logout();
+        if (type === "close-modal") return closeModal();
+      }
+
+      function setSection(section) {
+        appState.activeSection = section;
+        document.querySelectorAll(".section").forEach(node => node.classList.toggle("active", node.id === `section-${section}`));
+        document.querySelectorAll("[data-section]").forEach(node => node.classList.toggle("active", node.dataset.section === section));
+        document.getElementById("mainContent").focus({ preventScroll: true });
+        if (section === "network") renderNetwork();
+        if (section === "ai") renderAIHub();
+        if (section === "gigs") renderGigs();
+        if (section === "events") renderEvents();
+        if (section === "messages") renderMessages();
+        if (section === "saved") renderSaved();
+        if (section === "settings") renderSettings();
+        if (section === "profile") renderProfile(appState.currentUser.id, true);
+      }
+
+      function renderAll() {
+        refreshState();
+        renderFeed();
+        renderNetwork();
+        renderAIHub();
+        renderGigs();
+        renderEvents();
+        renderMessages();
+        renderSaved();
+        renderSettings();
+        renderProfile(appState.currentUser.id, true);
+        renderRightSidebar();
+        updateBadges();
+      }
+
+      function refreshState() {
+        appState.notifications = read(KEYS.notifications, []);
+        appState.feed.posts = read(KEYS.feed, []);
+        appState.gigs.list = read(KEYS.gigs, []);
+        appState.events.list = read(KEYS.events, []);
+        appState.aiHub.history = read(KEYS.ai, []);
+      }
+
+      function getUsers() { return read(KEYS.users, []); }
+      function getUser(id) { return getUsers().find(user => user.id === id) || null; }
+      function myIds() { return [appState.currentUser.id]; }
+      function sameSectorScore(user) {
+        return (user.sectors || []).filter(sector => (appState.currentUser.sectors || []).includes(sector)).length;
+      }
+
+      function renderFeed() {
+        const root = document.getElementById("section-feed");
+        const posts = appState.feed.posts
+          .filter(post => appState.feed.filter === "all" || post.tags.join(" ").toLowerCase().includes(appState.feed.filter))
+          .sort((a, b) => b.createdAt - a.createdAt);
+        root.innerHTML = `
+          <div class="section-title"><div><h2>Home Feed</h2><p>Updates, asks, hiring, events and milestones from Indian founders.</p></div><button class="btn btn-primary" data-action="open-post-modal"><i class="ti ti-plus"></i> Post</button></div>
+          <button class="composer-trigger" data-action="open-post-modal">${avatar(appState.currentUser)} <span>Share an update, milestone, or ask...</span></button>
+          <div class="filter-row">${["all", "fundraising", "hiring", "milestones", "asks", "events"].map(key => `<button class="${appState.feed.filter === key ? "active" : ""}" data-action="feed-filter" data-value="${key}">${key[0].toUpperCase() + key.slice(1)}</button>`).join("")}</div>
+          <div class="card" style="padding:16px;margin-bottom:16px;"><strong>Suggested for you</strong><div class="tag-list">${posts.filter(post => sameSectorScore(getUser(post.authorId) || {}) || getUser(post.authorId)?.city === appState.currentUser.city).slice(0, 3).map(post => `<span class="chip">${esc((getUser(post.authorId) || {}).startupName || "Startup")} · ${esc(post.tags[0] || "Update")}</span>`).join("") || '<span class="muted">More suggestions appear as your network grows.</span>'}</div></div>
+          ${posts.slice(0, 20).map(renderPost).join("")}`;
+        root.querySelectorAll("[data-action='feed-filter']").forEach(button => button.addEventListener("click", () => { appState.feed.filter = button.dataset.value; renderFeed(); }));
+      }
+
+      function renderPost(post) {
+        const user = getUser(post.authorId) || appState.currentUser;
+        const liked = post.likes.includes(appState.currentUser.id);
+        return `<article class="post-card" id="post-${post.id}">
+          <div class="entity-head">${avatar(user)}<div class="meta"><h3>${esc(user.name)} ${user.isVerified ? '<i class="ti ti-circle-check" style="color:var(--teal)"></i>' : ""}</h3><p>${esc(user.startupName)} · ${esc(user.stage)} · ${timeAgo(post.createdAt)}</p></div>${stageBadge(user.stage)}</div>
+          <p>${esc(post.content)}</p>
+          <div class="tag-list">${post.tags.map(tag => `<span class="chip">#${esc(tag)}</span>`).join("")}</div>
+          <div class="post-actions">
+            <button class="${liked ? "active" : ""}" data-action="like-post" data-id="${post.id}"><i class="ti ti-thumb-up"></i> Like ${post.likes.length}</button>
+            <button data-action="comments" data-id="${post.id}"><i class="ti ti-message-circle"></i> Comment ${post.comments.length}</button>
+            <button data-action="share-post" data-id="${post.id}"><i class="ti ti-share-3"></i> Share ${post.shares}</button>
+            <button data-action="save-post" data-id="${post.id}"><i class="ti ti-bookmark"></i> Save</button>
+          </div>
+          <div id="comments-${post.id}" class="comments">
+            ${post.comments.map(comment => `<div class="comment-row"><strong>${esc(comment.name)}</strong><span>${esc(comment.text)}</span><small>${timeAgo(comment.createdAt)}</small></div>`).join("")}
+            <form class="comment-row" data-form="comment" data-post-id="${post.id}"><input name="comment" placeholder="Write a comment..." maxlength="180"><button class="btn btn-primary" type="submit">Post</button></form>
+          </div>
+        </article>`;
+      }
+
+      function openPostModal() {
+        openModal("Create post", `<form data-form="post">
+          <div class="tabs-row">${["update", "milestone", "ask", "job"].map(type => `<button type="button" class="${type === "update" ? "active" : ""}" data-post-type="${type}">${type}</button>`).join("")}</div>
+          <input type="hidden" name="type" value="update">
+          <div class="field"><label>Post content</label><div class="control"><textarea name="content" maxlength="500" placeholder="Share an update, milestone, ask, or job opening..." required></textarea></div><small class="muted"><span id="postCount">0</span>/500</small></div>
+          <div class="field"><label>Tags</label><div class="tag-picker">${sectors.concat(["Fundraising", "Hiring", "Milestones", "Events"]).map(tag => `<button type="button" data-tag="${tag}">${tag}</button>`).join("")}</div></div>
+          <button class="btn btn-primary auth-submit" type="submit"><i class="ti ti-send"></i> Post</button>
+        </form>`);
+        document.querySelectorAll("[data-post-type]").forEach(button => button.addEventListener("click", () => {
+          document.querySelectorAll("[data-post-type]").forEach(item => item.classList.toggle("active", item === button));
+          document.querySelector("[name='type']").value = button.dataset.postType;
+        }));
+        document.querySelector(".modal-card textarea").addEventListener("input", event => document.getElementById("postCount").textContent = event.target.value.length);
+        document.querySelector(".modal-card .tag-picker").addEventListener("click", event => {
+          const button = event.target.closest("[data-tag]");
+          if (button) button.classList.toggle("active");
+        });
+      }
+
+      function submitPost(event) {
+        event.preventDefault();
+        const form = event.target;
+        const tags = [...form.querySelectorAll("[data-tag].active")].map(button => button.dataset.tag);
+        const post = {
+          id: uid("post"),
+          authorId: appState.currentUser.id,
+          type: form.type.value,
+          content: form.content.value.trim(),
+          tags: tags.length ? tags : appState.currentUser.sectors,
+          imageUrl: "",
+          likes: [],
+          comments: [],
+          shares: 0,
+          createdAt: Date.now(),
+          isPinned: false
+        };
+        const posts = read(KEYS.feed, []);
+        posts.unshift(post);
+        write(KEYS.feed, posts);
+        closeModal();
+        refreshState();
+        renderFeed();
+        rt.send("new_post", post);
+        toast("Post published");
+      }
+
+      function toggleLike(id) {
+        const posts = read(KEYS.feed, []);
+        const post = posts.find(item => item.id === id);
+        if (!post) return;
+        const mine = post.likes.includes(appState.currentUser.id);
+        post.likes = mine ? post.likes.filter(userId => userId !== appState.currentUser.id) : post.likes.concat(appState.currentUser.id);
+        write(KEYS.feed, posts);
+        if (!mine && post.authorId !== appState.currentUser.id) createNotification(post.authorId, "post_like", post.id, `${appState.currentUser.name} liked your post`);
+        refreshState();
+        renderFeed();
+      }
+
+      function submitComment(event) {
+        event.preventDefault();
+        const postId = event.target.dataset.postId;
+        const input = event.target.comment;
+        const text = input.value.trim();
+        if (!text) return;
+        const posts = read(KEYS.feed, []);
+        const post = posts.find(item => item.id === postId);
+        if (!post) return;
+        post.comments.push({ id: uid("comment"), userId: appState.currentUser.id, name: appState.currentUser.name, text, createdAt: Date.now() });
+        write(KEYS.feed, posts);
+        if (post.authorId !== appState.currentUser.id) createNotification(post.authorId, "post_comment", post.id, `${appState.currentUser.name} commented on your post`);
+        refreshState();
+        renderFeed();
+        document.getElementById(`comments-${postId}`)?.classList.add("active");
+      }
+
+      function sharePost(id) {
+        const posts = read(KEYS.feed, []);
+        const post = posts.find(item => item.id === id);
+        if (!post) return;
+        post.shares += 1;
+        write(KEYS.feed, posts);
+        refreshState();
+        renderFeed();
+        toast("Shared!");
+      }
+
+      function renderNetwork() {
+        const root = document.getElementById("section-network");
+        const tabs = [["discover", "Discover People"], ["connections", "My Connections"], ["pending", "Pending Requests"], ["nearby", "Nearby Founders"]];
+        root.innerHTML = `
+          <div class="section-title"><div><h2>My Network</h2><p>Find founders, investors, builders and mentors near you.</p></div></div>
+          <div class="tabs-row">${tabs.map(tab => `<button class="${appState.network.tab === tab[0] ? "active" : ""}" data-action="network-tab" data-tab="${tab[0]}">${tab[1]}</button>`).join("")}</div>
+          <div class="card" style="padding:14px;margin-bottom:16px;"><div class="grid-2"><label class="control"><i class="ti ti-search"></i><input id="networkSearch" placeholder="Search name, startup, sector..." value="${esc(appState.network.query)}"></label><label class="control"><i class="ti ti-arrows-sort"></i><select id="networkSort"><option value="nearby">Nearby</option><option value="recent">Recently Joined</option><option value="connected">Most Connected</option><option value="mutual">Mutual Connections</option></select></label></div><div class="filter-row">${["all", "Founder", "Investor", "Builder", "Mentor", "VC"].map(role => `<button class="${appState.network.filter === role ? "active" : ""}" data-network-filter="${role}">${role}</button>`).join("")}</div></div>
+          <div id="networkBody"></div>`;
+        document.getElementById("networkSearch").addEventListener("input", debounce(event => { appState.network.query = event.target.value; renderNetworkBody(); }, 300));
+        document.getElementById("networkSort").value = appState.network.sort;
+        document.getElementById("networkSort").addEventListener("change", event => { appState.network.sort = event.target.value; renderNetworkBody(); });
+        root.querySelectorAll("[data-network-filter]").forEach(button => button.addEventListener("click", () => { appState.network.filter = button.dataset.networkFilter; renderNetwork(); }));
+        renderNetworkBody();
+      }
+
+      function setNetworkTab(tab) {
+        appState.network.tab = tab;
+        if (tab === "nearby") requestNearby();
+        renderNetwork();
+      }
+
+      function renderNetworkBody() {
+        const body = document.getElementById("networkBody");
+        if (!body) return;
+        if (appState.network.tab === "discover") {
+          const people = getDiscoverPeople();
+          const justJoined = people.filter(user => Date.now() - user.joinedAt < 24 * 3600000).slice(0, 4);
+          body.innerHTML = `${justJoined.length ? `<div class="card" style="padding:14px;margin-bottom:14px;"><strong>Just Joined</strong><div class="tag-list">${justJoined.map(user => `<span class="chip just-joined">New ${esc(user.name)} · ${esc(user.city)}</span>`).join("")}</div></div>` : ""}
+          <div class="people-grid">${people.slice(0, 20).map(renderPersonCard).join("")}</div>`;
+        } else if (appState.network.tab === "connections") {
+          const list = getConnectedUsers();
+          body.innerHTML = list.length ? `<div class="people-grid">${list.map(renderPersonCard).join("")}</div>` : `<div class="card" style="padding:30px;text-align:center;"><i class="ti ti-users" style="font-size:42px;color:var(--teal)"></i><h3>You haven't connected with anyone yet.</h3><p class="muted">Start with Discover!</p></div>`;
+        } else if (appState.network.tab === "pending") {
+          body.innerHTML = renderPending();
+        } else {
+          const near = appState.network.nearby.length ? appState.network.nearby : getDiscoverPeople();
+          body.innerHTML = `<div class="people-grid">${near.slice(0, 20).map(renderPersonCard).join("")}</div>`;
+        }
+      }
+
+      function getDiscoverPeople() {
+        const q = appState.network.query.toLowerCase();
+        const conns = read(KEYS.connections, []);
+        const related = new Set(conns.filter(c => [c.requesterId, c.receiverId].includes(appState.currentUser.id)).flatMap(c => [c.requesterId, c.receiverId]));
+        return getUsers()
+          .filter(user => user.id !== appState.currentUser.id)
+          .filter(user => appState.network.tab !== "discover" || !related.has(user.id) || conns.some(c => c.status === "pending" && c.requesterId === appState.currentUser.id && c.receiverId === user.id))
+          .filter(user => appState.network.filter === "all" || user.role === appState.network.filter)
+          .filter(user => !q || [user.name, user.startupName, user.city, user.role, ...(user.sectors || [])].join(" ").toLowerCase().includes(q))
+          .map(user => ({ ...user, distance: haversine(appState.currentUser.lat, appState.currentUser.lng, user.lat, user.lng), sectorScore: sameSectorScore(user) }))
+          .sort((a, b) => {
+            if (appState.network.sort === "recent") return b.joinedAt - a.joinedAt;
+            if (appState.network.sort === "connected") return b.connections - a.connections;
+            if (appState.network.sort === "mutual") return b.sectorScore - a.sectorScore || Number(b.isOnline) - Number(a.isOnline);
+            return Number(b.city === appState.currentUser.city) - Number(a.city === appState.currentUser.city) || a.distance - b.distance || b.sectorScore - a.sectorScore || b.joinedAt - a.joinedAt || Number(b.isOnline) - Number(a.isOnline);
+          });
+      }
+
+      function renderPersonCard(user) {
+        const pending = read(KEYS.connections, []).some(c => c.requesterId === appState.currentUser.id && c.receiverId === user.id && c.status === "pending");
+        const connected = read(KEYS.connections, []).some(c => c.status === "accepted" && [c.requesterId, c.receiverId].includes(appState.currentUser.id) && [c.requesterId, c.receiverId].includes(user.id));
+        const overlap = (user.sectors || []).filter(sector => appState.currentUser.sectors.includes(sector));
+        return `<article class="person-card">
+          <div class="entity-head">${avatar(user)}<div class="meta"><h3>${esc(user.name)}</h3><p>${esc(user.role)} · ${esc(user.startupName)}</p></div>${stageBadge(user.stage)}</div>
+          <p class="muted">${esc(user.bio)}</p>
+          <p><i class="ti ti-map-pin"></i> ${esc(user.city)} · <span class="distance">${user.distance < 1 ? "In " + user.city : user.distance.toFixed(1) + " km away"}</span></p>
+          <div class="person-tags">${(overlap.length ? overlap : user.sectors).slice(0, 3).map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}${Date.now() - user.joinedAt < 24 * 3600000 ? '<span class="chip just-joined">New Just joined</span>' : ""}</div>
+          <div class="card-actions">
+            <button data-action="connect" data-user-id="${user.id}" ${pending || connected ? "disabled" : ""}>${connected ? "Connected" : pending ? "Pending ✓" : "Connect"}</button>
+            <button data-action="message-user" data-user-id="${user.id}">Message</button>
+            <button data-action="profile-user" data-user-id="${user.id}">View Profile</button>
+          </div>
+        </article>`;
+      }
+
+      function getConnectedUsers() {
+        return read(KEYS.connections, [])
+          .filter(c => c.status === "accepted" && [c.requesterId, c.receiverId].includes(appState.currentUser.id))
+          .map(c => getUser(c.requesterId === appState.currentUser.id ? c.receiverId : c.requesterId))
+          .filter(Boolean)
+          .map(user => ({ ...user, distance: haversine(appState.currentUser.lat, appState.currentUser.lng, user.lat, user.lng) }));
+      }
+
+      function renderPending() {
+        const conns = read(KEYS.connections, []);
+        const sent = conns.filter(c => c.requesterId === appState.currentUser.id && c.status === "pending");
+        const received = conns.filter(c => c.receiverId === appState.currentUser.id && c.status === "pending");
+        const section = (title, items, mode) => `<div class="card" style="padding:16px;margin-bottom:14px;"><h3>${title}</h3>${items.map(c => {
+          const user = getUser(mode === "sent" ? c.receiverId : c.requesterId);
+          if (!user) return "";
+          return `<div class="entity-head">${avatar(user)}<div class="meta"><h4>${esc(user.name)}</h4><p>${esc(user.startupName)} · ${esc(user.city)}</p></div>${mode === "sent" ? `<button class="btn btn-secondary" data-action="cancel" data-id="${c.id}">Cancel</button>` : `<button class="btn btn-primary" data-action="accept" data-id="${c.id}">Accept</button><button class="btn btn-secondary" data-action="decline" data-id="${c.id}">Decline</button>`}</div>`;
+        }).join("") || '<p class="muted">Nothing here yet.</p>'}</div>`;
+        return section("Received", received, "received") + section("Sent", sent, "sent");
+      }
+
+      function connectTo(userId) {
+        const conns = read(KEYS.connections, []);
+        if (conns.some(c => c.requesterId === appState.currentUser.id && c.receiverId === userId)) return;
+        const conn = { id: uid("conn"), requesterId: appState.currentUser.id, receiverId: userId, status: "pending", createdAt: Date.now() };
+        conns.push(conn);
+        write(KEYS.connections, conns);
+        createNotification(userId, "connection_request", conn.id, `${appState.currentUser.name} sent you a connection request`);
+        rt.send("connection_update", conn);
+        toast("Connection request sent");
+        renderNetwork();
+      }
+
+      function respondConnection(id, status) {
+        const conns = read(KEYS.connections, []);
+        const conn = conns.find(c => c.id === id);
+        if (!conn) return;
+        conn.status = status;
+        write(KEYS.connections, conns);
+        if (status === "accepted") createNotification(conn.requesterId, "connection_accepted", conn.id, `${appState.currentUser.name} accepted your connection request`);
+        renderNetwork();
+      }
+
+      function cancelConnection(id) {
+        write(KEYS.connections, read(KEYS.connections, []).filter(c => c.id !== id));
+        renderNetwork();
+      }
+
+      function requestNearby() {
+        const fallback = () => {
+          appState.network.nearby = getUsers()
+            .filter(user => user.id !== appState.currentUser.id)
+            .map(user => ({ ...user, distance: haversine(appState.currentUser.lat, appState.currentUser.lng, user.lat, user.lng) }))
+            .sort((a, b) => a.distance - b.distance);
+        };
+        if (!navigator.geolocation) return fallback();
+        navigator.geolocation.getCurrentPosition(pos => {
+          appState.network.nearby = getUsers()
+            .filter(user => user.id !== appState.currentUser.id)
+            .map(user => ({ ...user, distance: haversine(pos.coords.latitude, pos.coords.longitude, user.lat, user.lng) }))
+            .sort((a, b) => a.distance - b.distance);
+          renderNetworkBody();
+        }, fallback, { enableHighAccuracy: true, timeout: 8000 });
+      }
+
+      function renderAIHub() {
+        const root = document.getElementById("section-ai");
+        const categories = [
+          ["founder_match", "Founder Match", "Find collaborators"],
+          ["market", "Market Intelligence", "India insights"],
+          ["fundraising", "Fundraising Advisor", "Pitch tips"],
+          ["tech", "Tech Stack Advisor", "Stack choices"],
+          ["gtm", "GTM Strategy", "Go-to-market"],
+          ["legal", "Legal & Compliance", "DPIIT, GST, RBI"],
+          ["idea", "Idea Validator", "Validate startup idea"],
+          ["location", "Location Intelligence", appState.currentUser.city]
+        ];
+        const hasKey = Boolean(sessionStorage.getItem("ch_anthropic_key"));
+        root.innerHTML = `
+          <div class="section-title"><div><h2>AI Hub</h2><p>Role-aware intelligence for the Indian startup ecosystem.</p></div></div>
+          <div class="ai-grid">
+            <aside class="card ai-panel"><div class="ai-category-list">${categories.map(cat => `<button class="btn ${appState.aiHub.category === cat[0] ? "btn-primary" : "btn-secondary"}" data-action="ai-category" data-value="${cat[0]}"><i class="ti ti-sparkles"></i> ${cat[1]}<small>${cat[2]}</small></button>`).join("")}</div></aside>
+            <main class="card ai-panel">
+              <div class="ai-key-panel"><strong>Anthropic API key</strong><p class="muted">Stored in sessionStorage only for this tab.</p><div class="grid-2"><label class="control"><i class="ti ti-key"></i><input id="aiKeyInput" type="password" placeholder="${hasKey ? "Key saved for this session" : "sk-ant-..."}"></label><button id="aiKeySave" class="btn btn-primary" type="button">Save key</button></div></div>
+              <form data-form="ai"><div class="field"><label>Ask AI</label><div class="control"><textarea id="aiQuestion" maxlength="1000" placeholder="Ask anything about the Indian startup ecosystem..."></textarea></div><small class="muted"><span id="aiCount">0</span>/1000</small></div><button class="btn btn-primary" type="submit"><i class="ti ti-send"></i> Ask AI</button></form>
+              <div style="margin-top:16px;" class="ai-response" id="aiResponse">${appState.aiHub.currentResponse ? formatAI(appState.aiHub.currentResponse) : "Choose a category or ask about your sector, city, fundraising, legal, GTM, or team."}</div>
+              <span class="powered">Powered by Claude AI with local fallback</span>
+              <div class="post-actions"><button data-action="copy-ai">Copy</button><button data-action="save-ai">Save to Saved</button></div>
+            </main>
+            <aside class="card ai-panel"><h3>Suggested queries</h3><div class="tag-list">${buildAISuggestions().map(q => `<button class="chip" data-action="ai-suggest" data-value="${esc(q)}">${esc(q)}</button>`).join("")}</div><h3>History</h3>${appState.aiHub.history.slice(-10).reverse().map(item => `<button class="search-hit" data-action="ai-suggest" data-value="${esc(item.question)}">${esc(item.question.slice(0, 64))}</button>`).join("") || '<p class="muted">No AI history yet.</p>'}</aside>
+          </div>`;
+        document.getElementById("aiKeySave").addEventListener("click", () => {
+          const key = document.getElementById("aiKeyInput").value.trim();
+          if (!key) return toast("Enter an API key first", "error");
+          sessionStorage.setItem("ch_anthropic_key", key);
+          document.getElementById("aiKeyInput").value = "";
+          toast("API key saved for this session");
+        });
+        document.getElementById("aiQuestion").addEventListener("input", event => document.getElementById("aiCount").textContent = event.target.value.length);
+      }
+
+      function setAICategory(category) {
+        appState.aiHub.category = category;
+        renderAIHub();
+      }
+
+      function buildAISuggestions() {
+        const user = appState.currentUser;
+        const sector = user.sectors[0] || "SaaS";
+        const city = user.city;
+        const base = {
+          founder_match: [`Find top 3 collaborators for ${sector}`, `Who should I connect with in ${city}?`, "Recommend co-founder profiles from this platform"],
+          market: [`Market size and trends for ${sector} in India`, `Competitors in Indian ${sector}`, `What is hot in ${sector} this week?`],
+          fundraising: [`How much should a ${user.stage} ${sector} startup raise?`, "Which Indian investors fit my profile?", "Improve my pitch for seed investors"],
+          tech: [`Best tech stack for a ${sector} startup`, "Should I use no-code or custom build?", "What infrastructure is cheapest for MVP?"],
+          gtm: [`GTM plan for ${sector} in ${city}`, "First 100 customers in India", "Founder-led sales script"],
+          legal: ["DPIIT recognition checklist", "GST and startup compliance basics", "Term sheet risks for Indian founders"],
+          idea: ["Validate my startup idea", `Risks in ${sector}`, "Write experiment plan for next 30 days"],
+          location: [`Top investors in ${city}`, `Co-working spaces in ${city}`, `Startup ecosystem overview of ${city}`]
+        };
+        return base[appState.aiHub.category] || base.founder_match;
+      }
+
+      function askSuggestedAI(value) {
+        setSection("ai");
+        setTimeout(() => {
+          document.getElementById("aiQuestion").value = value;
+          document.querySelector("[data-form='ai']").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        }, 30);
+      }
+
+      async function submitAI(event) {
+        event.preventDefault();
+        const question = document.getElementById("aiQuestion").value.trim();
+        if (!question) return toast("Ask a question first", "error");
+        const cached = read(KEYS.ai, []).find(item => item.question.toLowerCase() === question.toLowerCase() && Date.now() - item.createdAt < 3600000);
+        const responseBox = document.getElementById("aiResponse");
+        responseBox.textContent = "Thinking for your Indian startup context...";
+        let answer = cached?.response || "";
+        if (!answer) answer = await callAI(question);
+        appState.aiHub.currentResponse = answer;
+        typewriter(responseBox, formatAI(answer));
+        const history = read(KEYS.ai, []);
+        history.push({ id: uid("ai"), userId: appState.currentUser.id, category: appState.aiHub.category, question, response: answer, createdAt: Date.now() });
+        write(KEYS.ai, history);
+        appState.aiHub.history = history;
+      }
+
+      async function callAI(question) {
+        const user = appState.currentUser;
+        const platformUsers = getUsers().map(u => ({ name: u.name, role: u.role, startup: u.startupName, city: u.city, sectors: u.sectors, lookingFor: u.lookingFor })).slice(0, 20);
+        const systemPrompt = `You are an expert startup advisor for the Indian startup ecosystem.
+The user's profile: Name: ${user.name}, Role: ${user.role}, Startup: ${user.startupName}, Stage: ${user.stage}, Sectors: ${user.sectors.join(", ")}, City: ${user.city}, Looking for: ${user.lookingFor.join(", ")}.
+Platform users summary: ${JSON.stringify(platformUsers)}.
+Tailor all advice specifically for India, Indian regulations, Indian investors, and practical startup execution. Keep it actionable.`;
+        const key = sessionStorage.getItem("ch_anthropic_key");
+        if (key) {
+          try {
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+              body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: systemPrompt, messages: [{ role: "user", content: question }] })
+            });
+            const data = await res.json();
+            const text = data?.content?.map(part => part.text).join("\\n").trim();
+            if (text) return text;
+          } catch {}
+        }
+        return localAIAnswer(question, user);
+      }
+
+      function localAIAnswer(question, user) {
+        if (appState.aiHub.category === "founder_match") {
+          const matches = getUsers().filter(u => u.id !== user.id).map(u => ({ user: u, score: sameSectorScore(u) * 30 + (u.city === user.city ? 25 : 0) + (u.isOnline ? 10 : 0) })).sort((a, b) => b.score - a.score).slice(0, 3);
+          return `Top founder matches for ${user.name}:\\n- ${matches.map(m => `${m.user.name} (${m.user.startupName}, ${m.user.city}) because of ${m.user.sectors.join(", ")} and ${m.user.lookingFor.join(", ")}`).join("\\n- ")}\\n\\nAction: send a short message with your sector, current stage, and one specific ask.`;
+        }
+        if (appState.aiHub.category === "location") {
+          return `${user.city} ecosystem snapshot:\\n- Strong local fit for ${user.sectors.join(", ")} if you target founder communities, local accelerators, and university/operator networks.\\n- Start with 5 warm intros from ConnectHub, 2 local events, and 1 pilot customer conversation per week.\\n- For compliance-heavy sectors, keep DPIIT/GST and data-handling documents ready before investor calls.`;
+        }
+        return `For your ${user.stage} ${user.sectors.join("/")} startup in ${user.city}:\\n- Focus on one measurable customer problem and one segment for the next 30 days.\\n- Use ConnectHub to message nearby founders, post a gig for missing skills, and ask for 3 pilot intros.\\n- If fundraising, prepare DPIIT status, traction proof, monthly burn, and a clear INR ask before approaching Indian angels or funds.\\n\\nQuestion handled: ${question}`;
+      }
+
+      function typewriter(node, html) {
+        node.innerHTML = "";
+        const text = html.replace(/<br>/g, "\\n").replace(/<[^>]+>/g, "");
+        let i = 0;
+        const tick = () => {
+          node.textContent = text.slice(0, i);
+          i += 3;
+          if (i <= text.length) requestAnimationFrame(tick);
+        };
+        tick();
+      }
+
+      function formatAI(text) {
+        return esc(text).replace(/\\*\\*(.*?)\\*\\*/g, "<strong>$1</strong>").replace(/\\n/g, "<br>");
+      }
+
+      function renderGigs() {
+        const root = document.getElementById("section-gigs");
+        const gigs = read(KEYS.gigs, [])
+          .filter(g => !appState.gigs.query || [g.title, g.description, g.skills.join(" "), g.type].join(" ").toLowerCase().includes(appState.gigs.query.toLowerCase()))
+          .sort((a, b) => b.createdAt - a.createdAt);
+        root.innerHTML = `
+          <div class="section-title"><div><h2>StartGigs</h2><p>Opportunities, co-founder roles, contracts and startup work.</p></div><button class="btn btn-saffron" data-action="open-gig-modal"><i class="ti ti-plus"></i> Post a Gig</button></div>
+          <div class="card" style="padding:14px;margin-bottom:16px;"><div class="grid-2"><label class="control"><i class="ti ti-search"></i><input id="gigSearch" placeholder="Search title, skills, type..." value="${esc(appState.gigs.query)}"></label><label class="control"><i class="ti ti-map-pin"></i><select id="gigCity"><option value="">All cities</option>${Object.keys(cityCoords).map(city => `<option>${city}</option>`).join("")}</select></label></div></div>
+          <div class="gig-grid">${gigs.slice(0, 20).map(renderGigCard).join("")}</div>`;
+        document.getElementById("gigSearch").addEventListener("input", debounce(event => { appState.gigs.query = event.target.value; renderGigs(); }, 300));
+      }
+
+      function renderGigCard(gig) {
+        const poster = getUser(gig.posterId) || appState.currentUser;
+        const applied = gig.applicants.some(a => a.userId === appState.currentUser.id);
+        return `<article class="gig-card">
+          <div class="entity-head">${avatar(poster)}<div class="meta"><span class="type-badge">${esc(gig.type)}</span><h3>${esc(gig.title)}</h3><p>${esc(poster.name)} · ${esc(poster.startupName)} · ${esc(gig.city)} · ${timeAgo(gig.createdAt)}</p></div></div>
+          <p>${esc(gig.description)}</p>
+          <div class="tag-list">${gig.skills.map(skill => `<span class="chip">${esc(skill)}</span>`).join("")}${gig.remote ? '<span class="chip active">Remote</span>' : ""}</div>
+          <p><strong>${esc(gig.equity || gig.stipend || gig.salary || "Discuss")}</strong> · ${gig.applicants.length} applicants</p>
+          <div class="card-actions"><button data-action="apply-gig" data-id="${gig.id}" ${applied ? "disabled" : ""}>${applied ? "Applied ✓" : "Apply Now"}</button><button data-action="save-gig" data-id="${gig.id}">Save</button><button data-action="share-post" data-id="${gig.id}">Share</button></div>
+        </article>`;
+      }
+
+      function openGigModal() {
+        openModal("Post a gig", `<form data-form="gig">
+          <div class="grid-2">
+            <div class="field"><label>Title</label><div class="control"><input name="title" required placeholder="Looking for CTO Co-founder"></div></div>
+            <div class="field"><label>Type</label><div class="control"><select name="type"><option>cofounder</option><option>freelance</option><option>internship</option><option>fulltime</option><option>contract</option><option>advisor</option></select></div></div>
+            <div class="field full"><label>Description</label><div class="control"><textarea name="description" required maxlength="600"></textarea></div></div>
+            <div class="field"><label>Skills</label><div class="control"><input name="skills" placeholder="React, Node.js, AWS"></div></div>
+            <div class="field"><label>Sector</label><div class="control"><select name="sector">${sectors.map(s => `<option>${s}</option>`).join("")}</select></div></div>
+            <div class="field"><label>Equity</label><div class="control"><input name="equity" placeholder="0.5-2%"></div></div>
+            <div class="field"><label>Salary/Stipend</label><div class="control"><input name="salary" placeholder="₹12-18 LPA"></div></div>
+          </div>
+          <label class="muted"><input name="remote" type="checkbox" checked> Remote available</label>
+          <button class="btn btn-saffron auth-submit" type="submit">Publish Gig</button>
+        </form>`);
+      }
+
+      function submitGig(event) {
+        event.preventDefault();
+        const gig = createGigFromTest(Object.fromEntries(new FormData(event.target)));
+        if (!gig) return;
+        closeModal();
+        renderGigs();
+        toast("Gig published");
+      }
+
+      function createGigFromTest(data) {
+        if (!data.title) return null;
+        const gig = {
+          id: uid("gig"),
+          posterId: appState.currentUser.id,
+          title: data.title,
+          type: data.type || "freelance",
+          description: data.description || "Startup opportunity on ConnectHub.",
+          skills: String(data.skills || "Startup").split(",").map(s => s.trim()).filter(Boolean),
+          equity: data.equity || "",
+          stipend: data.stipend || "",
+          salary: data.salary || "",
+          remote: data.remote === "on" || data.remote === true,
+          city: appState.currentUser.city,
+          sector: data.sector || appState.currentUser.sectors[0],
+          stage: appState.currentUser.stage,
+          deadline: "2026-03-31",
+          applicants: [],
+          savedBy: [],
+          createdAt: Date.now(),
+          isActive: true
+        };
+        const gigs = read(KEYS.gigs, []);
+        gigs.unshift(gig);
+        write(KEYS.gigs, gigs);
+        rt.send("new_gig", gig);
+        createSectorNotifications(gig);
+        return gig;
+      }
+
+      function applyGig(id) {
+        const gigs = read(KEYS.gigs, []);
+        const gig = gigs.find(item => item.id === id);
+        if (!gig || gig.applicants.some(app => app.userId === appState.currentUser.id)) return;
+        gig.applicants.push({ userId: appState.currentUser.id, coverNote: "Interested in this opportunity.", linkedIn: appState.currentUser.linkedin, createdAt: Date.now() });
+        write(KEYS.gigs, gigs);
+        createNotification(gig.posterId, "gig_application", gig.id, `${appState.currentUser.name} applied to ${gig.title}`);
+        renderGigs();
+        toast("Application submitted");
+      }
+
+      function renderEvents() {
+        const root = document.getElementById("section-events");
+        const filtered = read(KEYS.events, []).filter(event => appState.events.filter === "all" || (appState.events.filter === "mycity" ? event.city === appState.currentUser.city : event.type === appState.events.filter || (appState.events.filter === "online" && event.isOnline)));
+        root.innerHTML = `<div class="section-title"><div><h2>Events</h2><p>Meetups, webinars, demo days and hackathons.</p></div></div>
+          <div class="filter-row">${["all", "meetup", "webinar", "workshop", "demo_day", "hackathon", "online", "mycity"].map(f => `<button class="${appState.events.filter === f ? "active" : ""}" data-action="event-filter" data-value="${f}">${f}</button>`).join("")}</div>
+          <div class="event-grid">${filtered.map(event => {
+            const going = event.rsvpList.includes(appState.currentUser.id);
+            const pct = Math.min(100, Math.round((event.rsvpCount / event.capacity) * 100));
+            const date = new Date(event.date);
+            return `<article class="event-card"><div class="entity-head"><div class="avatar" style="background:var(--saffron)">${date.getDate()}</div><div class="meta"><span class="type-badge">${esc(event.type)}</span><h3>${esc(event.title)}</h3><p>${esc(event.city)} · ${event.isOnline ? "Online" : esc(event.venue)} · ${esc(event.time)}</p></div></div><p>${esc(event.description)}</p><div class="tag-list">${event.tags.map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}</div><p class="muted">Capacity ${event.rsvpCount}/${event.capacity}</p><div style="height:8px;border-radius:999px;background:var(--slate-100);overflow:hidden;"><span style="display:block;height:100%;width:${pct}%;background:var(--teal);"></span></div><div class="card-actions"><button data-action="rsvp" data-id="${event.id}">${going ? "You're Going ✓" : "RSVP"}</button><button data-action="calendar" data-id="${event.id}">Add to Calendar</button></div></article>`;
+          }).join("")}</div>`;
+      }
+
+      function setEventFilter(filter) {
+        appState.events.filter = filter;
+        renderEvents();
+      }
+
+      function rsvpEvent(id) {
+        const events = read(KEYS.events, []);
+        const event = events.find(item => item.id === id);
+        if (!event || event.rsvpList.includes(appState.currentUser.id)) return;
+        event.rsvpList.push(appState.currentUser.id);
+        event.rsvpCount += 1;
+        write(KEYS.events, events);
+        createNotification(event.organizerId, "event_rsvp", event.id, `${appState.currentUser.name} RSVP'd to ${event.title}`);
+        renderEvents();
+        toast("You're going");
+      }
+
+      function downloadICS(id) {
+        const event = read(KEYS.events, []).find(item => item.id === id);
+        if (!event) return;
+        const ics = `BEGIN:VCALENDAR\\nVERSION:2.0\\nBEGIN:VEVENT\\nSUMMARY:${event.title}\\nDESCRIPTION:${event.description}\\nLOCATION:${event.venue}\\nDTSTART:${event.date.replace(/-/g, "")}T120000Z\\nEND:VEVENT\\nEND:VCALENDAR`;
+        const blob = new Blob([ics], { type: "text/calendar" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${event.title}.ics`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      function renderMessages() {
+        const root = document.getElementById("section-messages");
+        const users = getUsers().filter(user => user.id !== appState.currentUser.id);
+        if (!appState.activeConversationId && users[0]) appState.activeConversationId = conversationId(appState.currentUser.id, users[0].id);
+        const activeOtherId = appState.activeConversationId?.split("_").filter(id => id !== "conv" && id !== appState.currentUser.id)[0];
+        const activeUser = getUser(activeOtherId) || users[0];
+        const messages = activeUser ? getConversation(activeUser.id) : [];
+        root.innerHTML = `<div class="section-title"><div><h2>Messages</h2><p>BroadcastChannel-powered cross-tab chat simulation.</p></div></div>
+          <div class="card messages-layout">
+            <aside class="conversation-list">${users.map(user => {
+              const conv = getConversation(user.id);
+              const last = conv.at(-1);
+              const unread = conv.filter(m => m.senderId === user.id && m.status !== "read").length;
+              return `<button class="conversation-item ${activeUser?.id === user.id ? "active" : ""}" data-action="message-user" data-user-id="${user.id}">${avatar(user)}<span><strong>${esc(user.name)}</strong><small class="muted">${esc(last?.content || user.startupName)}</small></span>${unread ? `<span class="badge-count active">${unread}</span>` : ""}</button>`;
+            }).join("")}</aside>
+            <main class="chat-window">${activeUser ? `<header class="chat-header">${avatar(activeUser)}<div><strong>${esc(activeUser.name)}</strong><p class="muted">${activeUser.isOnline ? "Online" : "Offline"} · ${esc(activeUser.role)}</p></div><span style="margin-left:auto;"><i class="ti ti-phone"></i> <i class="ti ti-video"></i></span></header><div id="messageList" class="message-list" aria-live="polite">${messages.map(message => renderMessageBubble(message)).join("") || '<p class="muted" style="text-align:center;">No messages yet.</p>'}</div><form class="chat-compose" data-form="message"><button class="btn btn-secondary btn-icon" type="button"><i class="ti ti-paperclip"></i></button><input name="message" autocomplete="off" placeholder="Message ${esc(activeUser.name.split(" ")[0])}..."><button class="btn btn-primary btn-icon" type="submit"><i class="ti ti-send"></i></button></form>` : '<p class="muted">No users available.</p>'}</main>
+          </div>`;
+        setTimeout(() => {
+          const list = document.getElementById("messageList");
+          if (list) list.scrollTop = list.scrollHeight;
+        }, 20);
+      }
+
+      function renderMessageBubble(message) {
+        const sent = message.senderId === appState.currentUser.id;
+        const receipt = sent ? (message.status === "read" ? "✓✓" : message.status === "delivered" ? "✓✓" : "✓") : "";
+        return `<div class="message-bubble ${sent ? "sent" : "received"}">${esc(message.content)}<small>${timeAgo(message.timestamp)} ${receipt}</small></div>`;
+      }
+
+      function conversationId(a, b) {
+        return `conv_${[a, b].sort().join("_")}`;
+      }
+      function getConversation(otherId) {
+        const map = read(KEYS.messages, {});
+        return map[conversationId(appState.currentUser.id, otherId)] || [];
+      }
+      function openMessage(userId) {
+        appState.activeConversationId = conversationId(appState.currentUser.id, userId);
+        setSection("messages");
+      }
+      function submitMessage(event) {
+        event.preventDefault();
+        const input = event.target.message;
+        const text = input.value.trim();
+        if (!text || !appState.activeConversationId) return;
+        const otherId = appState.activeConversationId.split("_").filter(id => id !== "conv" && id !== appState.currentUser.id)[0];
+        sendTestMessage(otherId, text);
+        input.value = "";
+      }
+      function sendTestMessage(otherId, text) {
+        const map = read(KEYS.messages, {});
+        const cid = conversationId(appState.currentUser.id, otherId);
+        const message = { id: uid("msg"), senderId: appState.currentUser.id, content: text, type: "text", timestamp: Date.now(), status: "sent", reactions: [] };
+        map[cid] = (map[cid] || []).concat(message);
+        write(KEYS.messages, map);
+        rt.send("new_message", { conversationId: cid, message });
+        createNotification(otherId, "message", message.id, `${appState.currentUser.name} sent you a message`);
+        renderMessages();
+        const seeded = getUser(otherId);
+        if (seeded && seeded.id.startsWith("usr_seed")) {
+          setTimeout(() => autoReply(otherId, cid), randomInt(1500, 3000));
+        }
+        return message;
+      }
+      function autoReply(otherId, cid) {
+        const user = getUser(otherId);
+        if (!user) return;
+        const pool = [
+          `Thanks ${appState.currentUser.name.split(" ")[0]}, this is relevant for ${user.startupName}. Can you share your timeline?`,
+          `I saw your profile. Your ${appState.currentUser.sectors[0]} context could help us.`,
+          `Good timing. We are reviewing collaborators this week in ${user.city}.`,
+          `Can you send one sample and your expected rate in INR?`
+        ];
+        const map = read(KEYS.messages, {});
+        const message = { id: uid("msg"), senderId: otherId, content: pool[randomInt(0, pool.length - 1)], type: "text", timestamp: Date.now(), status: "delivered", reactions: [] };
+        map[cid] = (map[cid] || []).concat(message);
+        write(KEYS.messages, map);
+        rt.send("new_message", { conversationId: cid, message });
+        createNotification(appState.currentUser.id, "message", message.id, `${user.name} replied to your message`);
+        if (appState.activeSection === "messages") renderMessages();
+      }
+
+      function renderSaved() {
+        const saved = read(KEYS.saved, {})[appState.currentUser.id] || [];
+        const posts = read(KEYS.feed, []).filter(p => saved.some(s => s.type === "post" && s.id === p.id));
+        const gigs = read(KEYS.gigs, []).filter(g => saved.some(s => s.type === "gig" && s.id === g.id));
+        document.getElementById("section-saved").innerHTML = `<div class="section-title"><div><h2>Saved</h2><p>Your saved posts, gigs and AI answers.</p></div></div>${posts.map(renderPost).join("")}${gigs.map(renderGigCard).join("") || '<div class="card" style="padding:24px;"><p class="muted">No saved items yet.</p></div>'}`;
+      }
+
+      function renderSettings() {
+        document.getElementById("section-settings").innerHTML = `<div class="section-title"><div><h2>Settings</h2><p>Account, appearance, privacy and app controls.</p></div></div><div class="card" style="padding:18px;"><button class="btn btn-secondary auth-submit" id="settingsTheme">Toggle dark/light mode</button><button class="btn btn-secondary auth-submit" data-action="logout">Sign out</button><p class="muted">Anthropic API keys are session-only and never saved here.</p></div>`;
+        document.getElementById("settingsTheme").addEventListener("click", toggleTheme);
+      }
+
+      function renderProfile(userId, own = false) {
+        const user = getUser(userId) || appState.currentUser;
+        if (!own && user.id !== appState.currentUser.id) {
+          const users = getUsers();
+          const target = users.find(item => item.id === user.id);
+          if (target) target.profileViews += 1;
+          write(KEYS.users, users);
+        }
+        const posts = read(KEYS.feed, []).filter(post => post.authorId === user.id);
+        const gigs = read(KEYS.gigs, []).filter(gig => gig.posterId === user.id);
+        const events = read(KEYS.events, []).filter(event => event.organizerId === user.id);
+        const html = `<div class="card"><div class="profile-cover" style="background:linear-gradient(135deg,${esc(user.color)},var(--teal));"></div><div class="profile-main">${avatar(user, "lg")}<h2>${esc(user.name)}</h2><p>${esc(user.role)} · ${esc(user.startupName)} ${stageBadge(user.stage)}</p><p>${esc(user.bio)}</p><p><i class="ti ti-map-pin"></i> ${esc(user.city)} ${user.dpiit ? ` · <span class="chip">DPIIT ${esc(user.dpiit)}</span>` : ""}</p><div class="stat-row"><div><b>${user.connections}</b><br><span>Connections</span></div><div><b>${user.profileViews}</b><br><span>Views</span></div><div><b>${posts.length}</b><br><span>Posts</span></div><div><b>${gigs.length}</b><br><span>Gigs</span></div></div><div class="tag-list">${user.skills.map(skill => `<span class="chip">${esc(skill)}</span>`).join("")}${user.lookingFor.map(item => `<span class="chip active">${esc(item)}</span>`).join("")}</div>${own ? '<button class="btn btn-primary auth-submit" data-action="edit-profile">Edit Profile</button>' : `<div class="card-actions"><button data-action="connect" data-user-id="${user.id}">Connect</button><button data-action="message-user" data-user-id="${user.id}">Message</button></div>`}<div class="profile-tabs" style="margin-top:16px;"><button class="active">Posts</button><button>Gigs</button><button>Events</button><button>About</button></div><div style="margin-top:14px;">${posts.slice(0, 4).map(renderPost).join("") || '<p class="muted">No posts yet.</p>'}</div></div></div>`;
+        if (own) document.getElementById("section-profile").innerHTML = html;
+        else openModal(user.name, html);
+      }
+      function openProfile(userId) { renderProfile(userId, false); }
+
+      function renderRightSidebar() {
+        const people = getDiscoverPeople().slice(0, 4);
+        const events = read(KEYS.events, []).slice(0, 3);
+        document.getElementById("rightSidebar").innerHTML = `<div class="side-card"><h3>Who to Connect</h3>${people.map(user => `<button class="search-hit" data-action="profile-user" data-user-id="${user.id}">${esc(user.name)}<br><small>${esc(user.startupName)} · ${esc(user.city)}</small></button>`).join("")}</div><div class="side-card"><h3>Trending</h3><div class="tag-list">${["#FinTech", "#DPIIT", "#AIIndia", "#Hiring", "#SeedRound"].map(t => `<span class="chip">${t}</span>`).join("")}</div></div><div class="side-card"><h3>Upcoming Events</h3>${events.map(e => `<p><strong>${esc(e.title)}</strong><br><span class="muted">${esc(e.city)} · ${esc(e.date)}</span></p>`).join("")}</div>`;
+      }
+
+      function renderGlobalSearch(query) {
+        const overlay = document.getElementById("searchOverlay");
+        appState.searchQuery = query.trim();
+        if (!appState.searchQuery) {
+          const recent = read("ch_recent_searches", []);
+          overlay.innerHTML = `<div class="search-results"><div class="search-section"><h4>Recent searches</h4>${recent.map(item => `<button class="search-hit">${esc(item)}</button>`).join("") || '<p class="muted">Start typing to search.</p>'}<button class="btn btn-secondary" id="clearRecent">Clear recent</button></div></div>`;
+          overlay.classList.add("active");
+          document.getElementById("clearRecent")?.addEventListener("click", () => { write("ch_recent_searches", []); renderGlobalSearch(""); });
+          return;
+        }
+        const q = appState.searchQuery.toLowerCase();
+        const recent = read("ch_recent_searches", []).filter(item => item !== appState.searchQuery).slice(0, 8);
+        write("ch_recent_searches", [appState.searchQuery, ...recent]);
+        const people = getUsers().filter(u => [u.name, u.startupName, u.role, u.city, u.sectors.join(" ")].join(" ").toLowerCase().includes(q)).slice(0, 5);
+        const gigs = read(KEYS.gigs, []).filter(g => [g.title, g.skills.join(" "), g.type, g.city].join(" ").toLowerCase().includes(q)).slice(0, 5);
+        const posts = read(KEYS.feed, []).filter(p => [p.content, p.tags.join(" ")].join(" ").toLowerCase().includes(q)).slice(0, 5);
+        const events = read(KEYS.events, []).filter(e => [e.title, e.city, e.type].join(" ").toLowerCase().includes(q)).slice(0, 5);
+        overlay.innerHTML = `<div class="search-results">${searchGroup("People", people.map(u => `<button class="search-hit" data-action="profile-user" data-user-id="${u.id}">${esc(u.name)}<br><small>${esc(u.startupName)} · ${esc(u.city)}</small></button>`))}${searchGroup("Gigs", gigs.map(g => `<button class="search-hit" data-action="apply-gig" data-id="${g.id}">${esc(g.title)}<br><small>${esc(g.type)} · ${esc(g.city)}</small></button>`))}${searchGroup("Posts", posts.map(p => `<a class="search-hit" href="#post-${p.id}">${esc(p.content.slice(0, 70))}</a>`))}${searchGroup("Events", events.map(e => `<button class="search-hit" data-action="event-filter" data-value="${e.type}">${esc(e.title)}<br><small>${esc(e.city)}</small></button>`))}${searchGroup("AI Suggestions", [`<button class="search-hit" data-action="ai-suggest" data-value="Tell me about ${esc(appState.searchQuery)} in India">Ask AI about "${esc(appState.searchQuery)}"</button>`])}</div>`;
+        overlay.classList.add("active");
+      }
+      function searchGroup(title, items) {
+        return `<div class="search-section"><h4>${title}</h4>${items.join("") || `<p class="muted">No ${title.toLowerCase()} found.</p>`}<small class="muted">See all ${title.toLowerCase()}</small></div>`;
+      }
+
+      function setupRealtime() {
+        rt.listen(({ type, payload }) => {
+          if (!type) return;
+          if (type === "new_message") {
+            if (appState.activeSection === "messages") renderMessages();
+            updateBadges();
+          }
+          if (type === "new_notification") {
+            refreshState();
+            updateBadges();
+            toast(payload.message || "New notification");
+          }
+          if (type === "user_online") {
+            if (appState.activeSection === "network") renderNetwork();
+            if (appState.activeSection === "messages") renderMessages();
+          }
+          if (type === "new_post") { refreshState(); if (appState.activeSection === "feed") renderFeed(); }
+          if (type === "new_gig") { refreshState(); if (appState.activeSection === "gigs") renderGigs(); }
+          if (type === "connection_update") { if (appState.activeSection === "network") renderNetwork(); }
+        });
+      }
+
+      function createNotification(userId, type, entityId, message) {
+        const fromUser = appState.currentUser || { id: "", name: "ConnectHub" };
+        const note = { id: uid("notif"), userId, type, fromUserId: fromUser.id, fromName: fromUser.name, entityId, message, isRead: false, createdAt: Date.now() };
+        const notes = read(KEYS.notifications, []);
+        notes.push(note);
+        write(KEYS.notifications, notes);
+        rt.send("new_notification", note);
+        updateBadges();
+        return note;
+      }
+
+      function createSectorNotifications(gig) {
+        getUsers().filter(user => user.id !== appState.currentUser.id && user.sectors.includes(gig.sector)).slice(0, 5).forEach(user => createNotification(user.id, "gig_application", gig.id, `New ${gig.sector} gig posted: ${gig.title}`));
+      }
+
+      function updateBadges() {
+        const notes = read(KEYS.notifications, []).filter(n => n.userId === appState.currentUser?.id && !n.isRead);
+        const messagesMap = read(KEYS.messages, {});
+        const unreadMsg = Object.values(messagesMap).flat().filter(m => m.senderId !== appState.currentUser?.id && m.status !== "read" && (m.id || "")).length;
+        setBadge("notifBadge", notes.length);
+        setBadge("msgBadge", unreadMsg);
+      }
+      function setBadge(id, count) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = count;
+        el.classList.toggle("active", count > 0);
+      }
+      function openNotifications() {
+        const notes = read(KEYS.notifications, []).filter(n => n.userId === appState.currentUser.id).sort((a, b) => b.createdAt - a.createdAt);
+        openModal("Notifications", `<div>${notes.map(n => `<button class="search-hit" data-notification-id="${n.id}"><strong>${esc(n.fromName)}</strong><br>${esc(n.message)}<br><small>${timeAgo(n.createdAt)}</small></button>`).join("") || '<p class="muted">No notifications yet.</p>'}<button class="btn btn-primary auth-submit" id="markAllRead">Mark all as read</button></div>`);
+        document.getElementById("markAllRead").addEventListener("click", () => {
+          const all = read(KEYS.notifications, []);
+          all.forEach(note => { if (note.userId === appState.currentUser.id) note.isRead = true; });
+          write(KEYS.notifications, all);
+          closeModal();
+          updateBadges();
+        });
+      }
+
+      function markOnline(userId, online) {
+        const users = getUsers();
+        const user = users.find(item => item.id === userId);
+        if (user) {
+          user.isOnline = online;
+          user.lastSeen = Date.now();
+          write(KEYS.users, users);
+        }
+      }
+      function simulatePresence() {
+        const users = getUsers();
+        users.filter(u => u.id.startsWith("usr_seed")).sort(() => Math.random() - 0.5).slice(0, 3).forEach(user => { user.isOnline = Math.random() > 0.4; user.lastSeen = Date.now(); });
+        write(KEYS.users, users);
+        rt.send("user_online", { at: Date.now() });
+      }
+      function simulateNotification() {
+        if (!appState.currentUser) return;
+        const seeded = getUsers().filter(user => user.id !== appState.currentUser.id);
+        const from = seeded[randomInt(0, seeded.length - 1)];
+        const messages = [`${from.name} viewed your profile`, `${from.name} may be a good connection in ${from.city}`, `New gig posted in ${appState.currentUser.sectors[0]}`];
+        createNotification(appState.currentUser.id, "mention", from.id, messages[randomInt(0, messages.length - 1)]);
+      }
+
+      async function runSelfTest() {
+        const report = [];
+        const assert = (label, pass, detail = "") => {
+          report.push({ label, pass: Boolean(pass), detail });
+        };
+        try {
+          Object.values(KEYS).filter(key => typeof key === "string" && key.startsWith("ch_")).forEach(key => {
+            try { localStorage.removeItem(key); } catch {}
+          });
+          localStorage.removeItem("ch_theme");
+          seedDatabase();
+          const user = registerTestUser({
+            name: "Codex Test Founder",
+            email: `codex-founder-${Date.now()}@example.com`,
+            mobile: "+919876543210",
+            password: "connect123",
+            role: "Founder",
+            startupName: "Codex Bharat Labs",
+            stage: "Seed",
+            city: "Hyderabad",
+            sectors: ["SaaS", "AI/ML"],
+            bio: "Testing a complete ConnectHub single-file app flow."
+          });
+          showApp();
+          assert("register a user", Boolean(user && appState.currentUser?.id === user.id), user?.name || "");
+
+          setSection("network");
+          const discover = getDiscoverPeople();
+          const firstCities = discover.slice(0, 5).map(item => item.city).join(", ");
+          assert("browse Network sorted by city", discover.length >= 20 && discover[0]?.city === "Hyderabad", firstCities);
+
+          sessionStorage.setItem("ch_anthropic_key", "test-key");
+          setSection("ai");
+          appState.aiHub.category = "market";
+          const aiText = localAIAnswer("Tell me about my sector in India", user);
+          appState.aiHub.currentResponse = aiText;
+          const history = read(KEYS.ai, []);
+          history.push({ id: uid("ai"), userId: user.id, category: "market", question: "Tell me about my sector in India", response: aiText, createdAt: Date.now() });
+          write(KEYS.ai, history);
+          renderAIHub();
+          assert("open AI Hub, enter API key, ask about sector", aiText.includes(user.sectors[0]) || aiText.includes("India"), aiText.slice(0, 90));
+
+          const gig = createGigFromTest({
+            title: "Self-test AI SaaS Growth Designer",
+            type: "freelance",
+            description: "Validate gig posting flow for the single-file app.",
+            skills: "SaaS, AI/ML, Design",
+            sector: "SaaS",
+            salary: "₹40,000"
+          });
+          setSection("gigs");
+          assert("post a gig", Boolean(gig && read(KEYS.gigs, []).some(item => item.id === gig.id)), gig?.title || "");
+
+          const target = getUsers().find(item => item.id !== user.id && item.city === "Hyderabad") || getUsers().find(item => item.id !== user.id);
+          const received = await new Promise(resolve => {
+            let done = false;
+            if (!("BroadcastChannel" in window)) resolve(false);
+            const listener = new BroadcastChannel("connecthub_rt");
+            listener.onmessage = event => {
+              if (event.data?.type === "new_message" && event.data?.payload?.message?.content === "BroadcastChannel self-test message") {
+                done = true;
+                listener.close();
+                resolve(true);
+              }
+            };
+            sendTestMessage(target.id, "BroadcastChannel self-test message");
+            setTimeout(() => {
+              if (!done) {
+                listener.close();
+                resolve(false);
+              }
+            }, 700);
+          });
+          setSection("messages");
+          assert("open two tabs and send a message via BroadcastChannel", received, target?.name || "");
+        } catch (error) {
+          assert("self-test runtime", false, error.message);
+        }
+        const allPass = report.every(item => item.pass);
+        const panel = document.createElement("section");
+        panel.id = "selfTestResult";
+        panel.className = "card";
+        panel.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:200;max-width:760px;margin:auto;padding:16px;border:2px solid " + (allPass ? "var(--teal)" : "var(--danger)") + ";";
+        panel.innerHTML = `<strong>${allPass ? "SELF TEST PASSED" : "SELF TEST FAILED"}</strong>${report.map(item => `<p style="margin:8px 0;"><b>${item.pass ? "PASS" : "FAIL"}</b> - ${esc(item.label)} ${item.detail ? `<small class="muted">(${esc(item.detail)})</small>` : ""}</p>`).join("")}`;
+        document.body.appendChild(panel);
+        window.__connectHubSelfTest = { allPass, report };
+      }
+
+      function ensureTabTestSession() {
+        if (appState.currentUser) return appState.currentUser;
+        const existing = read(KEYS.session, null);
+        if (existing) {
+          appState.currentUser = existing;
+          showApp();
+          return existing;
+        }
+        const user = registerTestUser({
+          name: "Codex Tab Tester",
+          email: `codex-tab-${Date.now()}@example.com`,
+          mobile: "+919111111111",
+          password: "connect123",
+          role: "Founder",
+          startupName: "Broadcast Bharat Labs",
+          stage: "Seed",
+          city: "Hyderabad",
+          sectors: ["SaaS", "AI/ML"],
+          bio: "Testing BroadcastChannel between two tabs."
+        });
+        showApp();
+        return user;
+      }
+
+      function showTabTestPanel(text, ok = false) {
+        let panel = document.getElementById("tabTestResult");
+        if (!panel) {
+          panel = document.createElement("section");
+          panel.id = "tabTestResult";
+          panel.className = "card";
+          panel.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:210;max-width:720px;margin:auto;padding:16px;border:2px solid var(--teal);";
+          document.body.appendChild(panel);
+        }
+        panel.dataset.ok = ok ? "true" : "false";
+        panel.textContent = text;
+      }
+
+      function runTabListenerTest() {
+        ensureTabTestSession();
+        setSection("messages");
+        showTabTestPanel("LISTENING for BroadcastChannel message", false);
+        const listener = new BroadcastChannel("connecthub_rt");
+        listener.onmessage = event => {
+          const content = event.data?.payload?.message?.content || "";
+          if (event.data?.type === "new_message" && content === "Two tab BroadcastChannel verification") {
+            showTabTestPanel("RECEIVED BroadcastChannel message from sender tab", true);
+            listener.close();
+            renderMessages();
+          }
+        };
+      }
+
+      function runTabSenderTest() {
+        const user = ensureTabTestSession();
+        setSection("messages");
+        const target = getUsers().find(item => item.id !== user.id && item.city === "Hyderabad") || getUsers().find(item => item.id !== user.id);
+        setTimeout(() => {
+          sendTestMessage(target.id, "Two tab BroadcastChannel verification");
+          showTabTestPanel(`SENT BroadcastChannel message to ${target.name}`, true);
+        }, 500);
+      }
+
+      function saveItem(type, id) {
+        const saved = read(KEYS.saved, {});
+        saved[appState.currentUser.id] = saved[appState.currentUser.id] || [];
+        if (!saved[appState.currentUser.id].some(item => item.type === type && item.id === id)) saved[appState.currentUser.id].push({ type, id, createdAt: Date.now() });
+        write(KEYS.saved, saved);
+        toast("Saved");
+      }
+      function saveAIResponse() {
+        const saved = read(KEYS.saved, {});
+        saved[appState.currentUser.id] = saved[appState.currentUser.id] || [];
+        saved[appState.currentUser.id].push({ type: "ai", id: uid("saved_ai"), text: appState.aiHub.currentResponse, createdAt: Date.now() });
+        write(KEYS.saved, saved);
+        toast("AI response saved");
+      }
+      function copyText(text) {
+        navigator.clipboard?.writeText(text || "").then(() => toast("Copied")).catch(() => toast("Copy unavailable", "error"));
+      }
+      function toggleTheme() {
+        document.body.classList.toggle("dark");
+        write("ch_theme", document.body.classList.contains("dark") ? "dark" : "light");
+      }
+      if (read("ch_theme", "light") === "dark") document.body.classList.add("dark");
+      function logout() {
+        if (appState.currentUser) markOnline(appState.currentUser.id, false);
+        localStorage.removeItem(KEYS.session);
+        location.reload();
+      }
+      function openModal(title, html) {
+        const root = document.getElementById("modalRoot");
+        root.innerHTML = `<div class="modal-card"><div class="modal-head"><h3>${esc(title)}</h3><button class="btn btn-secondary btn-icon" data-action="close-modal"><i class="ti ti-x"></i></button></div>${html}</div>`;
+        root.classList.add("active");
+      }
+      function closeModal() {
+        const root = document.getElementById("modalRoot");
+        root.classList.remove("active");
+        root.innerHTML = "";
+      }
+    });
+  </script>
+</body>
+</html>
