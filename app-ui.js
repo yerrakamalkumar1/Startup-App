@@ -1015,8 +1015,14 @@ const AppUX = (() => {
     document.body.classList.add("explore-open");
     setBottomActive("explore");
     renderExploreDirectory();
+    const body = document.getElementById("exploreDockBody");
+    if (body) body.scrollTop = 0;
     syncFromBackend?.().then(() => {
-      if (page.classList.contains("active")) renderExploreDirectory(document.getElementById("exploreSearch")?.value || "");
+      if (page.classList.contains("active")) {
+        renderExploreDirectory(document.getElementById("exploreSearch")?.value || "");
+        const latestBody = document.getElementById("exploreDockBody");
+        if (latestBody) latestBody.scrollTop = 0;
+      }
     }).catch(() => {});
   }
 
@@ -1059,8 +1065,7 @@ const AppUX = (() => {
     const panels = buildExplorePanels(db, user, localResults);
     const activity = buildExploreActivity(db, user);
     body.innerHTML = `
-      <div class="explore-future-shell">
-        <section class="explore-future-hero">
+      <section class="explore-future-shell explore-future-hero">
           <div class="explore-hero-grid"></div>
           <button class="explore-round-action explore-back" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
           <div class="explore-hero-copy">
@@ -1089,21 +1094,26 @@ const AppUX = (() => {
               </div>
             </div>
           </div>
-          <div class="explore-trending-chips"><span>Trending:</span>${["fintech startups", "series A", "AI founders", "Bangalore tech", "SaaS B2B"].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item}')">${item}</button>`).join("")}</div>
+          <div class="explore-trending-chips" aria-label="Trending searches"><span>Trending:</span>${["fintech startups", "series A", "AI founders", "Bangalore tech", "SaaS B2B", "healthtech"].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item}')">${item}</button>`).join("")}</div>
           <section class="explore-recents glass-card">
             <div class="explore-section-title"><strong>Recently viewed</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
             <div class="explore-recent-row">${recents.map(renderExploreRecent).join("") || panels.founders.slice(0, 5).map(renderExploreRecentProfile).join("") || '<p>No recent profiles yet.</p>'}</div>
           </section>
-        </section>
+      </section>
+      <div class="explore-filter-sticky-wrap">
         <nav class="explore-filter-row explore-sticky-filters" aria-label="Explore filters">
-          <div class="explore-category-pills">${["all", "startups", "founders", "investors", "jobs", "events", "ideas"].map(key => `<button type="button" class="${exploreFilters.category === key ? "active" : ""}" onclick="AppUX.setExploreCategory('${key}')">${key[0].toUpperCase() + key.slice(1)}</button>`).join("")}</div>
-          <div class="explore-filter-selects">
+          <div class="explore-category-pills">${["all", "startups", "founders", "investors", "jobs", "events"].map(key => `<button type="button" class="${exploreFilters.category === key ? "active" : ""}" onclick="AppUX.setExploreCategory('${key}')">${key[0].toUpperCase() + key.slice(1)}</button>`).join("")}</div>
+          <div class="explore-filter-grid primary">
             ${renderExploreSelect("stage", "Stage", ["", "Idea", "Pre-seed", "Seed", "Series A", "Series B", "Growth"], exploreFilters.stage)}
-            ${renderExploreSelect("sector", "Sector", ["", "FinTech", "HealthTech", "EdTech", "SaaS", "D2C", "Deeptech", "AgriTech", "Cleantech", "Gaming", "Other"], exploreFilters.sector)}
-            ${renderExploreSelect("sort", "Sort", ["relevance", "Most Recent", "Most Active", "Top Funded", "Trending"], exploreFilters.sort)}
+            ${renderExploreSelect("sector", "Sector", ["", "FinTech", "HealthTech", "EdTech", "SaaS", "D2C", "Deeptech", "AgriTech", "Cleantech"], exploreFilters.sector)}
+          </div>
+          <div class="explore-filter-grid secondary">
+            ${renderExploreSelect("sort", "Sort", ["relevance", "Most Recent", "Top Funded", "Trending"], exploreFilters.sort)}
             <label class="explore-location-field"><i data-lucide="map-pin"></i><input value="${escapeHTML(exploreFilters.location || "")}" placeholder="Location" oninput="AppUX.setExploreFilter('location', this.value)"></label>
           </div>
         </nav>
+      </div>
+      <div class="explore-results-flow">
       <input id="exploreGalleryInput" type="file" accept="image/*" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <input id="exploreCameraInput" type="file" accept="image/*" capture="environment" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <div id="exploreVoicePanel" class="explore-voice-panel" hidden>

@@ -9361,3 +9361,338 @@ body.dark .settings-help-card {
     transform: none;
   }
 }
+
+/* Explore overlap repair: normal flow hero, direct-child sticky filters, mobile-safe rows */
+.explore-page.active #exploreDockBody {
+  width: 100%;
+  max-width: none;
+  padding: 0 0 calc(7.5rem + env(safe-area-inset-bottom));
+  gap: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-items: stretch;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.explore-page.active #exploreDockBody {
+  min-height: 0;
+}
+
+.explore-page.active .explore-future-shell:not(.explore-future-hero) {
+  min-height: 0;
+}
+
+.explore-future-shell {
+  display: block;
+  max-width: 1480px;
+  overflow: visible !important;
+}
+
+.explore-future-shell.explore-future-hero {
+  display: grid;
+  width: min(100%, 1480px);
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: clamp(16px, 3vw, 24px);
+  overflow: hidden !important;
+}
+
+.explore-filter-sticky-wrap,
+.explore-results-flow {
+  width: min(100%, 1480px);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: clamp(16px, 2vw, 28px);
+  padding-right: clamp(16px, 2vw, 28px);
+}
+
+.explore-results-flow {
+  position: relative;
+  z-index: 1;
+}
+
+.explore-future-hero {
+  margin: 0 0 clamp(16px, 3vw, 24px);
+  overflow: hidden;
+}
+
+.explore-page.active .explore-search-shell {
+  position: relative;
+  top: auto;
+  z-index: 2;
+  display: block;
+  padding: 0;
+  background: transparent;
+}
+
+.explore-filter-sticky-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 24;
+  display: block;
+  margin: 0 0 clamp(18px, 3vw, 26px);
+  padding: 8px 0;
+  background:
+    linear-gradient(180deg, rgba(5, 10, 20, 0.94), rgba(5, 10, 20, 0.72) 72%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.explore-sticky-filters {
+  position: relative !important;
+  top: auto !important;
+  z-index: auto;
+  margin: 0;
+  padding: clamp(12px, 2vw, 16px);
+  border-radius: 20px;
+}
+
+.explore-category-pills,
+.explore-trending-chips,
+.smart-suggestion-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.explore-category-pills::-webkit-scrollbar,
+.explore-trending-chips::-webkit-scrollbar,
+.smart-suggestion-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.explore-trending-chips {
+  min-width: 0;
+  padding: 2px 2px 8px;
+}
+
+.explore-trending-chips span,
+.explore-trending-chips button,
+.smart-suggestion-scroll button,
+.explore-category-pills button {
+  flex: 0 0 auto;
+}
+
+.explore-ai-search .explore-search-input {
+  display: flex !important;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.explore-search-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.explore-search-main input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.explore-search-actions {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.explore-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.explore-filter-grid + .explore-filter-grid {
+  margin-top: 10px;
+}
+
+.explore-filter-selects {
+  display: contents;
+}
+
+.explore-select-wrap,
+.explore-location-field {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.explore-select-wrap select,
+.explore-location-field input {
+  min-width: 0;
+  width: 100%;
+}
+
+.explore-search-results,
+.smart-suggestions-bar,
+.explore-content-layout {
+  position: relative;
+  z-index: 1;
+  clear: both;
+}
+
+.explore-content-layout {
+  margin-top: 0;
+}
+
+.startup-rank-list {
+  gap: 14px;
+}
+
+.startup-rank-list article {
+  padding: 16px;
+  border-radius: 16px;
+  min-width: 0;
+}
+
+.startup-rank-list article > div {
+  min-width: 0;
+}
+
+.startup-rank-list strong,
+.startup-rank-list p {
+  overflow-wrap: anywhere;
+}
+
+.trend-metric {
+  min-width: 80px;
+}
+
+.explore-sparkline {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .explore-page.active #exploreDockBody {
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
+  }
+
+  .explore-future-shell {
+    padding: 10px 10px 0;
+  }
+
+  .explore-future-shell.explore-future-hero {
+    padding: 14px;
+  }
+
+  .explore-filter-sticky-wrap,
+  .explore-results-flow {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .explore-filter-sticky-wrap {
+    top: 0;
+    margin-bottom: 18px;
+    padding: 7px 0;
+  }
+
+  .explore-sticky-filters {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .explore-category-pills {
+    display: flex;
+  }
+
+  .explore-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .explore-ai-search .explore-search-input {
+    min-height: 62px;
+    border-radius: 999px;
+    padding: 8px 10px 8px 12px;
+  }
+
+  .explore-ai-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 6px;
+  }
+
+  .explore-typewriter {
+    left: 38px;
+    max-width: calc(100% - 44px);
+  }
+
+  .explore-search-actions {
+    gap: 2px;
+  }
+
+  .explore-search-actions button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .explore-search-actions button[aria-label="Toggle fullscreen search"] {
+    display: none;
+  }
+
+  .explore-trending-chips {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .startup-rank-list article {
+    grid-template-columns: 32px 44px minmax(0, 1fr);
+    padding: 15px;
+    gap: 11px;
+  }
+
+  .startup-rank-list .stage-badge,
+  .startup-rank-list .trend-metric,
+  .startup-rank-list article > button {
+    margin-top: 2px;
+  }
+
+  .trend-metric {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .explore-sparkline {
+    width: 62px;
+    height: 26px;
+  }
+}
+
+/* Final Explore flow guard: keep the hero in normal document flow before sticky filters. */
+html,
+body,
+.app-container {
+  max-width: 100%;
+}
+
+.app-container {
+  width: 100%;
+  inline-size: 100vw;
+  max-inline-size: 100vw;
+  overflow-x: clip;
+}
+
+.explore-page.active .explore-future-shell.explore-future-hero {
+  min-height: 330px !important;
+}
+
+@media (max-width: 900px) {
+  .explore-page.active .explore-future-shell.explore-future-hero {
+    min-height: 600px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .explore-page.active .explore-future-shell.explore-future-hero {
+    min-height: 610px !important;
+  }
+}

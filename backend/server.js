@@ -1678,6 +1678,16 @@ async function handleApi(req, res) {
     const db = publicDB();
     return sendCachedExploreJson(res, "explore-trending", 5 * 60 * 1000, async () => exploreTrendingPayload(db, req));
   }
+  if (route === "/api/explore/filters/meta" && req.method === "GET") {
+    return sendJson(res, 200, {
+      success: true,
+      categories: ["All", "Startups", "Founders", "Investors", "Jobs", "Events"],
+      stages: ["All Stages", "Idea", "Pre-seed", "Seed", "Series A", "Series B", "Growth"],
+      sectors: ["All Sectors", "FinTech", "HealthTech", "EdTech", "SaaS", "D2C", "Deeptech", "AgriTech", "Cleantech"],
+      sortOptions: ["Relevance", "Most Recent", "Top Funded", "Trending"],
+      accent: "#00E6B4"
+    });
+  }
   if (route === "/api/explore/suggestions" && req.method === "GET") {
     const db = publicDB();
     const cacheKey = `explore-suggestions:${url.searchParams.toString()}:${auth?.email || auth?.name || "guest"}`;
