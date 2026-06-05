@@ -12,7 +12,7 @@ const AppUX = (() => {
   let avatarLongPressTimer = null;
   let avatarLongPressOpened = false;
   let exploreSearchRequestId = 0;
-  let exploreFilters = { role: "", location: "", skills: "", company: "" };
+  let exploreFilters = { role: "", location: "", skills: "", company: "", category: "all", stage: "", sector: "", sort: "relevance" };
   let currentMessageTab = "focused";
   let currentNotificationTab = "all";
   let visibleNotificationIds = [];
@@ -1050,28 +1050,60 @@ const AppUX = (() => {
     if (!body) return;
     const q = String(query || "").toLowerCase();
     const user = getCurrentUser?.() || {};
+    if (!exploreFilters.location) exploreFilters.location = user.city || user.location?.city || "";
+    const db = getDB();
     const allItems = exploreItems();
     const recents = recentExploreProfiles(allItems);
     const suggestions = exploreSuggestions(user);
+    const localResults = localPeopleSearch(query).slice(0, 8);
+    const panels = buildExplorePanels(db, user, localResults);
+    const activity = buildExploreActivity(db, user);
     body.innerHTML = `
-      <div class="explore-search-shell">
-        <button class="explore-round-action" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
-        <div class="explore-search-input google-style ${q ? "has-value" : ""}">
-          <div class="explore-search-main">
-            <i data-lucide="search"></i>
-            <input id="exploreSearch" value="${escapeHTML(query)}" placeholder="Ask ConnectHub" oninput="AppUX.filterExplore(this.value)" dir="auto">
+      <div class="explore-future-shell">
+        <section class="explore-future-hero">
+          <div class="explore-hero-grid"></div>
+          <button class="explore-round-action explore-back" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+          <div class="explore-hero-copy">
+            <span class="explore-kicker"><i data-lucide="sparkles"></i> AI Explore</span>
+            <h2>Discover India's Startup Ecosystem</h2>
+            <p>Search startups, founders, investors, events & ideas</p>
           </div>
-          <div class="explore-search-actions">
-            <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Add image or attachment"><i data-lucide="plus"></i></button>
-            <button type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
-            <button type="button" onclick="AppUX.pickExploreImage('camera')" aria-label="Scan profile QR code"><i data-lucide="scan-line"></i></button>
+          <div class="explore-search-shell explore-ai-search">
+            <div class="explore-search-input google-style ${q ? "has-value" : ""}" role="combobox" aria-expanded="${q ? "true" : "false"}" aria-controls="exploreResults">
+              <div class="explore-search-main">
+                <span class="explore-ai-icon" aria-hidden="true">
+                  <i data-lucide="search"></i>
+                  <i data-lucide="cpu"></i>
+                  <i data-lucide="users"></i>
+                  <i data-lucide="trending-up"></i>
+                </span>
+                <span class="explore-typewriter ${q ? "hidden" : ""}">Search startups, founders, investors, events...</span>
+                <input id="exploreSearch" value="${escapeHTML(query)}" placeholder="Ask ConnectHub" oninput="AppUX.filterExplore(this.value)" dir="auto" autocomplete="off">
+              </div>
+              <div class="explore-search-actions">
+                <button type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
+                <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Add image or attachment"><i data-lucide="plus"></i></button>
+                <button type="button" onclick="AppUX.pickExploreImage('camera')" aria-label="Scan profile QR code"><i data-lucide="scan-line"></i></button>
+                <button type="button" onclick="AppUX.toggleExploreFullscreen()" aria-label="Toggle fullscreen search"><i data-lucide="maximize-2"></i></button>
+                <button type="button" onclick="AppUX.useLocationForExplore()" aria-label="Use current location"><i data-lucide="map-pin"></i></button>
+              </div>
+            </div>
           </div>
-        </div>
-        <button class="explore-round-action" type="button" onclick="AppUX.useLocationForExplore()" title="Use current location"><i data-lucide="map-pin"></i></button>
-      </div>
-      <div class="explore-filter-row">
-        ${["role", "location", "skills", "company"].map(key => `<button type="button" class="${exploreFilters[key] ? "active" : ""}" onclick="AppUX.openExploreFilter('${key}')">${key[0].toUpperCase() + key.slice(1)}${exploreFilters[key] ? `: ${escapeHTML(exploreFilters[key])}` : ""}</button>`).join("")}
-      </div>
+          <div class="explore-trending-chips"><span>Trending:</span>${["fintech startups", "series A", "AI founders", "Bangalore tech", "SaaS B2B"].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item}')">${item}</button>`).join("")}</div>
+          <section class="explore-recents glass-card">
+            <div class="explore-section-title"><strong>Recently viewed</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
+            <div class="explore-recent-row">${recents.map(renderExploreRecent).join("") || panels.founders.slice(0, 5).map(renderExploreRecentProfile).join("") || '<p>No recent profiles yet.</p>'}</div>
+          </section>
+        </section>
+        <nav class="explore-filter-row explore-sticky-filters" aria-label="Explore filters">
+          <div class="explore-category-pills">${["all", "startups", "founders", "investors", "jobs", "events", "ideas"].map(key => `<button type="button" class="${exploreFilters.category === key ? "active" : ""}" onclick="AppUX.setExploreCategory('${key}')">${key[0].toUpperCase() + key.slice(1)}</button>`).join("")}</div>
+          <div class="explore-filter-selects">
+            ${renderExploreSelect("stage", "Stage", ["", "Idea", "Pre-seed", "Seed", "Series A", "Series B", "Growth"], exploreFilters.stage)}
+            ${renderExploreSelect("sector", "Sector", ["", "FinTech", "HealthTech", "EdTech", "SaaS", "D2C", "Deeptech", "AgriTech", "Cleantech", "Gaming", "Other"], exploreFilters.sector)}
+            ${renderExploreSelect("sort", "Sort", ["relevance", "Most Recent", "Most Active", "Top Funded", "Trending"], exploreFilters.sort)}
+            <label class="explore-location-field"><i data-lucide="map-pin"></i><input value="${escapeHTML(exploreFilters.location || "")}" placeholder="Location" oninput="AppUX.setExploreFilter('location', this.value)"></label>
+          </div>
+        </nav>
       <input id="exploreGalleryInput" type="file" accept="image/*" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <input id="exploreCameraInput" type="file" accept="image/*" capture="environment" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <div id="exploreVoicePanel" class="explore-voice-panel" hidden>
@@ -1089,21 +1121,26 @@ const AppUX = (() => {
           <button type="button" onclick="AppUX.pickExploreImage('gallery')"><i data-lucide="images"></i><span><strong>Upload from Gallery/Media</strong><small>Choose an image from your phone</small></span></button>
         </div>
       </div>
-      ${!q ? `<section class="explore-recents">
-        <div class="explore-section-title"><strong>Recent</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
-        <div class="explore-recent-row">${recents.map(renderExploreRecent).join("") || '<p>No recent profiles yet.</p>'}</div>
-      </section>
-      <section class="explore-suggestions">
-        <h3>Try searching for</h3>
-        ${suggestions.map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item.replace(/'/g, "\\'")}')"><i data-lucide="search"></i><span>${item}</span></button>`).join("")}
-      </section>
-      <section class="explore-news">
-        <h3>Today&apos;s opportunities</h3>
-        <button type="button" onclick="AppUX.applyExploreSuggestion('startups near me')"><span>Startups near me from ConnectHub profiles</span><i data-lucide="map-pin"></i></button>
-      </section>` : ""}
-      <div id="exploreResultsSummary" class="explore-results-summary"></div>
-      <div id="exploreResults" class="explore-directory">
-        ${skeletonLoader(4)}
+        ${q ? `<section class="explore-search-results glass-card">
+          <div id="exploreResultsSummary" class="explore-results-summary">Searching ConnectHub intelligence...</div>
+          <div id="exploreResults" class="explore-directory">${skeletonLoader(4)}</div>
+        </section>` : `<div id="exploreResultsSummary" class="explore-results-summary" hidden></div><div id="exploreResults" class="explore-directory" hidden></div>`}
+        <section class="smart-suggestions-bar glass-card">
+          <div><i data-lucide="cpu"></i><strong>AI Picks for You</strong></div>
+          <div class="smart-suggestion-scroll">${suggestions.map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item.replace(/'/g, "\\'")}')"><span>${item}</span><i data-lucide="arrow-up-right"></i></button>`).join("")}</div>
+        </section>
+        <div class="explore-content-layout">
+          <main class="explore-masonry-grid">
+            ${renderTrendingStartupsPanel(panels.startups)}
+            ${renderActiveInvestorsPanel(panels.investors)}
+            ${renderFeaturedFoundersPanel(panels.founders)}
+            ${renderUpcomingEventsPanel(panels.events)}
+            ${renderTrendingTopicsPanel(panels.topics)}
+          </main>
+          <aside class="explore-activity-sidebar">
+            ${renderExploreActivitySidebar(activity, panels.stats)}
+          </aside>
+        </div>
       </div>
     `;
     const input = document.getElementById("exploreSearch");
@@ -1112,7 +1149,237 @@ const AppUX = (() => {
       input.setSelectionRange(input.value.length, input.value.length);
     }
     if (window.lucide) window.lucide.createIcons();
-    loadExplorePeopleResults(query);
+    if (q) loadExplorePeopleResults(query);
+    loadExploreBackendPanels(query);
+  }
+
+  function renderExploreSelect(key, label, options, value) {
+    return `<label class="explore-select-wrap"><span>${label}</span><select onchange="AppUX.setExploreFilter('${key}', this.value)">${options.map(option => {
+      const display = option || `All ${label}s`;
+      return `<option value="${escapeHTML(option)}" ${String(value || "") === String(option) ? "selected" : ""}>${escapeHTML(display)}</option>`;
+    }).join("")}</select><i data-lucide="chevron-down"></i></label>`;
+  }
+
+  function buildExplorePanels(db, user, localResults = []) {
+    const startups = buildTrendingStartups(db);
+    const people = mergePeopleResults(localResults, localPeopleSearch("")).slice(0, 40);
+    const investors = people.filter(person => /investor|angel|vc|sponsor|partner/i.test([person.role, person.title].join(" "))).slice(0, 6);
+    const founders = people.filter(person => !investors.some(investor => investor.id === person.id)).slice(0, 8);
+    const events = buildExploreEvents(db, user);
+    const topics = buildTrendingTopics(db, people);
+    const stats = {
+      connections: (db.connections || []).filter(item => [item.from, item.to].includes(user.name)).length,
+      views: Number(user.profileViews || user.views || 24),
+      messages: (db.messages || []).filter(item => [item.from, item.to].includes(user.name)).length,
+      opportunities: (db.jobs || []).length + (db.freelancerAds || []).length
+    };
+    return { startups, investors, founders, events, topics, stats };
+  }
+
+  function buildTrendingStartups(db) {
+    const startups = (db.startups || []).map((startup, index) => {
+      const jobs = (db.jobs || []).filter(job => job.startupId === startup.id);
+      const posts = (db.startupPromotions || []).filter(post => post.startupName === startup.name);
+      const views = Array.isArray(startup.views) ? startup.views.reduce((sum, value) => sum + Number(value || 0), 0) : 40 + index * 12;
+      const connections = Number(startup.connections || startup.engagement?.at?.(-1) || jobs.length * 3 || index + 3);
+      const postCount = posts.length + jobs.length;
+      const trendingScore = Math.round((views * 0.3) + (connections * 0.5) + (postCount * 18 * 0.2));
+      return {
+        ...startup,
+        city: startup.city || ["Bengaluru", "Hyderabad", "Mumbai", "Delhi", "Chennai"][index % 5],
+        score: trendingScore,
+        change: Math.max(8, Math.min(72, Math.round((startup.engagement?.at?.(-1) || index + 4) * 4))),
+        spark: startup.views || [12, 19, 16, 28, 34]
+      };
+    });
+    const filler = exploreItems().filter(item => /startup/i.test([item.type, item.role].join(" "))).map((item, index) => ({
+      id: `startup-extra-${index}`,
+      name: item.name,
+      sector: item.sector || "SaaS",
+      stage: item.stage || "Seed",
+      city: item.city || "India",
+      logoInitials: initialsForName(item.name || "CH"),
+      logoColor: "#0f766e",
+      score: 40 - index,
+      change: 14 + index * 3,
+      spark: [8, 12, 18, 16, 24]
+    }));
+    return mergeByName([...startups, ...filler], "name").sort((a, b) => b.score - a.score).slice(0, 5);
+  }
+
+  function buildExploreEvents(db, user) {
+    const realEvents = (db.events || []).map((event, index) => ({
+      ...event,
+      city: event.city || user.city || "Hyderabad",
+      type: event.type || (event.isOnline ? "Virtual" : "In-person"),
+      attendees: event.rsvpCount || event.attendees || 60 + index * 12,
+      date: event.date || new Date(Date.now() + (index + 1) * 86400000).toISOString()
+    }));
+    const generated = [
+      ["Founder Hiring Mixer", "Hybrid", user.city || "Hyderabad", 96],
+      ["AI SaaS Demo Night", "Virtual", "Bengaluru", 180],
+      ["Investor Office Hours", "In-person", "Mumbai", 72],
+      ["D2C Growth Circle", "Hybrid", "Delhi", 88]
+    ].map((item, index) => ({
+      id: `event-generated-${index}`,
+      title: item[0],
+      type: item[1],
+      city: item[2],
+      organizer: "ConnectHub India",
+      attendees: item[3],
+      date: new Date(Date.now() + (index + 1) * 43200000).toISOString()
+    }));
+    return mergeByName([...realEvents, ...generated], "title").slice(0, 4);
+  }
+
+  function buildTrendingTopics(db, people) {
+    const terms = [
+      ...(db.jobs || []).flatMap(job => job.tags || []),
+      ...(db.freelancerAds || []).flatMap(ad => ad.tags || []),
+      ...(db.profilePosts || []).flatMap(post => post.hashtags || post.tags || []),
+      ...people.flatMap(person => person.skills || []),
+      "AIinIndia", "SeedFunding", "FounderHiring", "BharatSaaS"
+    ].filter(Boolean);
+    const counts = terms.reduce((map, raw) => {
+      const key = String(raw).replace(/^#/, "").replace(/\s+/g, "");
+      map[key] = (map[key] || 0) + 1;
+      return map;
+    }, {});
+    return Object.entries(counts)
+      .map(([tag, count], index) => ({ tag, count: count * 120 + 300 + index * 17, change: Math.round(12 + count * 9 + index * 2), contributors: people.slice(index, index + 3) }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }
+
+  function buildExploreActivity(db, user) {
+    const people = allRecentPeopleForExplore().slice(0, 8);
+    const events = buildExploreEvents(db, user);
+    const startups = buildTrendingStartups(db);
+    return [
+      ...people.slice(0, 3).map(person => `${person.name} just joined from ${person.city || "India"}`),
+      ...startups.slice(0, 3).map(startup => `${startup.name} is trending in ${startup.sector || "startup"}`),
+      ...events.slice(0, 3).map(event => `${event.title} starts soon in ${event.city}`)
+    ].slice(0, 9);
+  }
+
+  function allRecentPeopleForExplore() {
+    return mergePeopleResults(getAllProfiles(), localPeopleSearch("")).filter(person => person.name);
+  }
+
+  function mergeByName(items, key) {
+    const map = new Map();
+    items.filter(Boolean).forEach(item => {
+      const name = String(item[key] || item.id || "").toLowerCase();
+      if (!name) return;
+      map.set(name, { ...(map.get(name) || {}), ...item });
+    });
+    return Array.from(map.values());
+  }
+
+  function sparkline(points = []) {
+    const values = points.length ? points.map(Number) : [10, 20, 14, 26, 32];
+    const max = Math.max(...values, 1);
+    const min = Math.min(...values, 0);
+    const coords = values.map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 66;
+      const y = 28 - ((value - min) / Math.max(max - min, 1)) * 24;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    return `<svg class="explore-sparkline" viewBox="0 0 68 30" aria-hidden="true"><polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`;
+  }
+
+  function roleChip(role = "") {
+    const bucket = /investor|angel|vc|sponsor/i.test(role) ? "investor" : /founder|startup|owner/i.test(role) ? "founder" : "freelancer";
+    const label = bucket === "founder" ? "Founder" : bucket === "investor" ? "Investor" : "Freelancer";
+    return `<small class="explore-role-badge ${bucket}">${label}</small>`;
+  }
+
+  function renderTrendingStartupsPanel(startups) {
+    return `<section class="explore-panel trending-startups-panel glass-card">
+      <header><div><h3>Trending Startups</h3><span class="panel-subtitle">Ranked by views, connections and posts</span></div><span class="week-badge">This Week</span><button type="button" onclick="AppUX.applyExploreSuggestion('trending startups')">View all <i data-lucide="arrow-right"></i></button></header>
+      <div class="startup-rank-list">${startups.map((startup, index) => `<article>
+        <span class="rank">#${index + 1}</span>
+        <span class="startup-logo" style="background:${escapeHTML(startup.logoColor || "#0f766e")}">${escapeHTML(startup.logoInitials || initialsForName(startup.name || "CH"))}</span>
+        <div><strong>${escapeHTML(startup.name || "Startup")}</strong><p><span>${escapeHTML(startup.sector || "SaaS")}</span><i data-lucide="map-pin"></i>${escapeHTML(startup.city || "India")}</p></div>
+        <span class="stage-badge">${escapeHTML(startup.stage || "Seed")}</span>
+        <div class="trend-metric">${sparkline(startup.spark)}<b>+${startup.change}%</b></div>
+        <button type="button" onclick="AppUX.applyExploreSuggestion('${String(startup.name || "startup").replace(/'/g, "\\'")}')">Connect</button>
+      </article>`).join("")}</div>
+    </section>`;
+  }
+
+  function renderActiveInvestorsPanel(investors) {
+    const rows = investors.length ? investors : allRecentPeopleForExplore().filter(person => /investor|partner|angel/i.test([person.role, person.title].join(" "))).slice(0, 4);
+    return `<section class="explore-panel active-investors-panel glass-card">
+      <header><div><h3>Active Investors</h3><span class="panel-subtitle">Angel, VC and sponsor signals</span></div><div class="mini-toggle"><span>Angel</span><span>VC</span></div></header>
+      <div class="investor-list">${rows.slice(0, 4).map((person, index) => `<article>${avatarMarkup(person, "user-avatar")}<div><a href="${profileUrl(person)}" onclick="AppUX.saveExploreRecent('${userIdFor(person)}')"><strong>${escapeHTML(person.name || "Investor")}</strong></a><p>${escapeHTML(person.companyName || person.title || "Angel Network")}</p><small>${(person.skills || person.sectors || []).slice(0, 2).map(escapeHTML).join(" · ") || "Seed · India"}</small><em>${12 + index * 4} investments</em></div><button onclick="connectUsers('${String(person.name || "").replace(/'/g, "\\'")}')">Follow</button></article>`).join("")}</div>
+    </section>`;
+  }
+
+  function renderFeaturedFoundersPanel(founders) {
+    return `<section class="explore-panel featured-founders-panel glass-card">
+      <header><div><h3>Featured Founders</h3><span class="panel-subtitle">People hiring and building now</span></div><button type="button" onclick="AppUX.applyExploreSuggestion('founders hiring')">Hiring</button></header>
+      <div class="founder-mini-grid">${founders.slice(0, 6).map(person => {
+        const safeName = String(person.name || "").replace(/'/g, "\\'");
+        return `<article>${avatarMarkup(person, "user-avatar")}<a href="${profileUrl(person)}" onclick="AppUX.saveExploreRecent('${person.id || person.handle || userIdFor(person)}')"><strong>${escapeHTML(person.name || "Founder")}</strong></a><p>${escapeHTML(person.companyName || person.startupName || person.role || "Builder")}</p><div>${(person.skills || []).slice(0, 3).map(skill => `<span>${escapeHTML(skill)}</span>`).join("")}</div><footer><button onclick="connectUsers('${safeName}')"><i data-lucide="user-plus"></i></button><button onclick="AppUX.openMessageTo('${safeName}')"><i data-lucide="message-circle"></i></button></footer></article>`;
+      }).join("")}</div>
+    </section>`;
+  }
+
+  function renderUpcomingEventsPanel(events) {
+    return `<section class="explore-panel upcoming-events-panel glass-card">
+      <header><div><h3>Upcoming Events</h3><span class="panel-subtitle">Meetups, demo days and circles</span></div><i data-lucide="calendar-days"></i></header>
+      <div class="event-list">${events.map((event, index) => {
+        const date = new Date(event.date || Date.now());
+        return `<article class="${index === 0 ? "today" : ""}"><time><b>${date.toLocaleString("en-IN", { day: "2-digit" })}</b><span>${date.toLocaleString("en-IN", { month: "short" })}</span></time><div><strong>${escapeHTML(event.title || "Startup event")}</strong><p>${escapeHTML(event.organizer || "ConnectHub")} · ${Number(event.attendees || 60)} attending</p></div><span>${escapeHTML(event.type || "Hybrid")}</span><button onclick="AppUX.showToast('RSVP saved')">RSVP</button></article>`;
+      }).join("")}</div>
+    </section>`;
+  }
+
+  function renderTrendingTopicsPanel(topics) {
+    return `<section class="explore-panel trending-topics-panel glass-card">
+      <header><div><h3>What India's Startup Ecosystem is Talking About</h3><span class="panel-subtitle">Hashtags and idea velocity</span></div></header>
+      <div class="topic-scroll">${topics.map(topic => `<article><strong>#${escapeHTML(topic.tag)}</strong><p>${formatCompactNumber(topic.count)} posts</p><span><i data-lucide="trending-up"></i> +${topic.change}%</span><div class="avatar-stack">${(topic.contributors || []).slice(0, 3).map(person => avatarMarkup(person, "user-avatar")).join("")}</div><button onclick="AppUX.applyExploreSuggestion('${String(topic.tag).replace(/'/g, "\\'")}')">Explore</button></article>`).join("")}</div>
+    </section>`;
+  }
+
+  function renderExploreActivitySidebar(activity, stats) {
+    return `<section class="activity-card glass-card"><h3><span class="live-dot"></span> Live Activity</h3><div class="activity-marquee">${activity.concat(activity).map(text => `<p>${escapeHTML(text)}</p>`).join("")}</div></section>
+      <section class="activity-card glass-card"><h3>Your Network Stats</h3><div class="network-stat-grid">${Object.entries(stats).map(([key, value]) => `<span><b data-count="${value}">${value}</b><small>${escapeHTML(key)}</small></span>`).join("")}</div></section>
+      <section class="activity-card glass-card"><h3>Quick Actions</h3><div class="quick-action-grid">${[["Post Idea", "lightbulb"], ["Add Startup", "building-2"], ["Share Event", "calendar-plus"], ["Find Co-founder", "users"]].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item[0]}')"><i data-lucide="${item[1]}"></i><span>${item[0]}</span></button>`).join("")}</div></section>`;
+  }
+
+  function renderExploreRecentProfile(profile) {
+    const id = userIdFor(profile);
+    return `<a class="explore-recent" href="${profileUrl(profile)}" onclick="AppUX.saveExploreRecent('${id}')">${avatarMarkup(profile, "user-avatar")}<span>${escapeHTML(profile.name || "Member")}</span>${roleChip(profile.role || profile.title)}</a>`;
+  }
+
+  function formatCompactNumber(value) {
+    const n = Number(value || 0);
+    if (n >= 10000000) return `${(n / 10000000).toFixed(1)}Cr`;
+    if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return String(n);
+  }
+
+  async function loadExploreBackendPanels(query = "") {
+    try {
+      const params = new URLSearchParams({
+        q: query || "",
+        type: exploreFilters.category || "all",
+        stage: exploreFilters.stage || "",
+        sector: exploreFilters.sector || "",
+        location: exploreFilters.location || "",
+        sort: exploreFilters.sort || "relevance",
+        limit: "5"
+      });
+      const data = await apiRequest(`/api/explore/search?${params.toString()}`);
+      const summary = document.getElementById("exploreResultsSummary");
+      const visibleCards = document.querySelectorAll(".people-search-card").length;
+      if (query && summary && data.total !== undefined) summary.textContent = `${Math.max(Number(data.total || 0), visibleCards)} ecosystem results for "${query}"`;
+    } catch {
+      // Local-first Explore remains usable while free Render backend wakes up.
+    }
   }
 
   function filterExplore(query) {
@@ -1191,13 +1458,34 @@ const AppUX = (() => {
       return { ...profile, id, handle: id, role, location, companyName, skills, mutualConnections: currentConnections.has(profile.name) ? 1 : 0, profileUrl: profileUrl(profile), score };
     }).filter(profile => {
       if (profile.score < 0) return false;
+      const category = String(exploreFilters.category || "all").toLowerCase();
+      if (category && category !== "all") {
+        const categoryText = [profile.role, profile.roleType, profile.title, profile.companyName, profile.searchText, profile.sector].join(" ").toLowerCase();
+        const categoryMap = {
+          startups: ["startup", "founder", "owner"],
+          founders: ["founder", "co-founder", "startup owner"],
+          investors: ["investor", "angel", "vc", "sponsor"],
+          jobs: ["job", "hiring", "gig", "opportunity"],
+          events: ["event", "meetup", "webinar"],
+          ideas: ["idea", "innovation", "builder"]
+        };
+        const terms = categoryMap[category] || [category];
+        if (!terms.some(term => categoryText.includes(term))) return false;
+      }
+      if (exploreFilters.stage && !String([profile.stage, profile.searchText, profile.companyName].join(" ")).toLowerCase().includes(exploreFilters.stage.toLowerCase())) return false;
+      if (exploreFilters.sector && !String([profile.sector, profile.skills?.join(" "), profile.searchText, profile.companyName].join(" ")).toLowerCase().includes(exploreFilters.sector.toLowerCase())) return false;
       if (exploreFilters.role && !String(profile.role || profile.roleType || "").toLowerCase().includes(exploreFilters.role.toLowerCase())) return false;
       if (exploreFilters.location && !String(profile.location || "").toLowerCase().includes(exploreFilters.location.toLowerCase())) return false;
       if (exploreFilters.skills && !String(profile.skills || "").toLowerCase().includes(exploreFilters.skills.toLowerCase())) return false;
       if (exploreFilters.company && !String(profile.companyName || "").toLowerCase().includes(exploreFilters.company.toLowerCase())) return false;
       return true;
     });
-    return people.sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)));
+    const sort = String(exploreFilters.sort || "relevance").toLowerCase();
+    return people.sort((a, b) => {
+      if (sort.includes("recent")) return new Date(b.createdAt || b.joinedAt || 0) - new Date(a.createdAt || a.joinedAt || 0) || b.score - a.score;
+      if (sort.includes("active") || sort.includes("trending")) return Number(b.mutualConnections || 0) - Number(a.mutualConnections || 0) || b.score - a.score;
+      return b.score - a.score || String(a.name).localeCompare(String(b.name));
+    });
   }
 
   function enrichLocalProfileForSearch(profile, db) {
@@ -1823,6 +2111,22 @@ const AppUX = (() => {
 
   function applyExploreSuggestion(query) {
     renderExploreDirectory(query);
+  }
+
+  function setExploreCategory(category = "all") {
+    exploreFilters.category = category || "all";
+    renderExploreDirectory(document.getElementById("exploreSearch")?.value || "");
+  }
+
+  function setExploreFilter(key, value = "") {
+    exploreFilters[key] = String(value || "").trim();
+    clearTimeout(networkSearchTimer);
+    networkSearchTimer = setTimeout(() => renderExploreDirectory(document.getElementById("exploreSearch")?.value || ""), key === "location" ? 300 : 0);
+  }
+
+  function toggleExploreFullscreen() {
+    document.getElementById("exploreDock")?.classList.toggle("fullscreen-search");
+    showToast(document.getElementById("exploreDock")?.classList.contains("fullscreen-search") ? "Expanded Explore search" : "Compact Explore search");
   }
 
   function clearExploreRecents() {
@@ -4195,6 +4499,6 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();
 window.AppUX = AppUX;

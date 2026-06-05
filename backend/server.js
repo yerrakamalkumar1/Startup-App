@@ -34,6 +34,7 @@ try {
   aiService = null;
 }
 let socketIO = null;
+const exploreCache = new Map();
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -943,6 +944,355 @@ function searchPostsInDB(db, { query = "", page = 1, limit = 20 } = {}) {
   };
 }
 
+function getExploreCache(key) {
+  const cached = exploreCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    exploreCache.delete(key);
+    return null;
+  }
+  return cached.data;
+}
+
+function setExploreCache(key, ttlMs, data) {
+  exploreCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  if (exploreCache.size > 120) {
+    const oldest = exploreCache.keys().next().value;
+    if (oldest) exploreCache.delete(oldest);
+  }
+  return data;
+}
+
+async function sendCachedExploreJson(res, key, ttlMs, producer) {
+  const cached = getExploreCache(key);
+  if (cached) return sendJson(res, 200, { ...cached, cached: true });
+  const data = await producer();
+  setExploreCache(key, ttlMs, data);
+  return sendJson(res, 200, { ...data, cached: false });
+}
+
+function roleMatchesExploreCategory(item, category = "all") {
+  const type = String(category || "all").toLowerCase();
+  if (!type || type === "all") return true;
+  const text = normalizeSearchText([item.role, item.roleType, item.title, item.sector, item.companyName, item.type, item.searchText].join(" "));
+  const map = {
+    startups: ["startup", "founder", "owner", "company"],
+    founders: ["founder", "co founder", "startup owner"],
+    investors: ["investor", "angel", "vc", "sponsor", "partner"],
+    jobs: ["job", "gig", "hiring", "opportunity"],
+    events: ["event", "meetup", "webinar"],
+    ideas: ["idea", "innovation", "builder"]
+  };
+  return (map[type] || [type]).some(term => text.includes(term));
+}
+
+function compactNumber(value) {
+  const n = Number(value || 0);
+  if (n >= 10000000) return `${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function seededIndianPeople() {
+  return [
+    { name: "Aarav Malhotra", role: "Startup Founder", title: "Founder, FinLedger AI", city: "Bengaluru", state: "Karnataka", sector: "FinTech", companyName: "FinLedger AI", skills: ["AI", "FinTech", "B2B SaaS"], stage: "Seed" },
+    { name: "Priya Sharma", role: "Founder", title: "Founder, GreenEats", city: "Hyderabad", state: "Telangana", sector: "Food & Hospitality", companyName: "GreenEats", skills: ["D2C", "Operations", "Marketing"], stage: "Pre-seed" },
+    { name: "Rahul Mehta", role: "Startup Owner", title: "Founder, TechNova", city: "Bengaluru", state: "Karnataka", sector: "SaaS & Technology", companyName: "TechNova", skills: ["CRM", "SaaS", "Hiring"], stage: "Seed" },
+    { name: "Sunita Rao", role: "Investor", title: "Angel Investor", city: "Bengaluru", state: "Karnataka", sector: "EdTech", companyName: "Rao Angel Network", skills: ["Seed", "EdTech", "Consumer"], stage: "Seed" },
+    { name: "Arjun Kapoor", role: "Freelancer", title: "Full-stack Developer", city: "Delhi", state: "Delhi", sector: "SaaS", companyName: "", skills: ["React", "Node.js", "AI"], stage: "" },
+    { name: "Meera Nair", role: "Freelancer", title: "Frontend Developer", city: "Bengaluru", state: "Karnataka", sector: "SaaS", companyName: "", skills: ["React", "Tailwind", "UI"], stage: "" },
+    { name: "Sneha Patel", role: "Investor", title: "Partner, Bharat Ventures", city: "Mumbai", state: "Maharashtra", sector: "D2C", companyName: "Bharat Ventures", skills: ["D2C", "Series A", "Retail"], stage: "Series A" }
+  ];
+}
+
+function explorePeoplePool(db, req) {
+  const existing = allPeople(db).map(profile => ({
+    ...profile,
+    roleType: roleBucket(profile.role),
+    type: roleBucket(profile.role),
+    profileUrl: profileUrlFor(profile, req),
+    avatarInitials: profile.avatarInitials || initialsFor(profile.name || "CH"),
+    location: [profile.city, profile.state].filter(Boolean).join(", ")
+  }));
+  const seeded = seededIndianPeople().map(profile => ({
+    ...profile,
+    email: `${profile.name.toLowerCase().replace(/[^a-z0-9]+/g, ".")}@connecthub.in`,
+    handle: profileHandle(profile),
+    roleType: roleBucket(profile.role),
+    type: roleBucket(profile.role),
+    avatarInitials: initialsFor(profile.name),
+    location: [profile.city, profile.state].filter(Boolean).join(", "),
+    profileUrl: profileUrlFor(profile, req)
+  }));
+  const seen = new Set();
+  return [...existing, ...seeded].filter(profile => {
+    const key = String(profile.email || profile.handle || profile.name).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function scoreExploreEntity(entity, query = "") {
+  const q = normalizeSearchText(query);
+  if (!q) return Number(entity.trendingScore || entity.score || 1);
+  const terms = q.split(/\s+/).filter(Boolean);
+  const name = normalizeSearchText(entity.name || entity.title || "");
+  const role = normalizeSearchText([entity.role, entity.title, entity.type].join(" "));
+  const location = normalizeSearchText([entity.city, entity.state, entity.location].join(" "));
+  const skills = normalizeSearchText([...(entity.skills || []), ...(entity.tags || []), entity.sector].join(" "));
+  const company = normalizeSearchText(entity.companyName || entity.startupName || "");
+  const text = normalizeSearchText([name, role, location, skills, company, entity.description, entity.bio, entity.searchText].join(" "));
+  let score = 0;
+  if (name === q) score += 120;
+  if (name.startsWith(q)) score += 100;
+  if (name.includes(q)) score += 80;
+  if (company.includes(q)) score += 66;
+  if (role.includes(q)) score += 54;
+  if (skills.includes(q)) score += 46;
+  if (location.includes(q)) score += 38;
+  if (text.includes(q)) score += 24;
+  terms.forEach(term => {
+    if (name.split(/\s+/).some(word => word.startsWith(term) || term.startsWith(word))) score += 18;
+    if (skills.includes(term)) score += 12;
+    if (role.includes(term)) score += 10;
+    if (location.includes(term)) score += 8;
+    if (!text.includes(term) && text.split(/\s+/).some(word => word.length > 3 && editDistance(word, term) <= 2)) score += 6;
+  });
+  return score;
+}
+
+function trendingScoreForStartup(startup, db, index = 0) {
+  const views = Array.isArray(startup.views)
+    ? startup.views.reduce((sum, item) => sum + Number(item || 0), 0)
+    : Number(startup.views || startup.profileViews || 60 + index * 15);
+  const connections = (db.connections || []).filter(item => [item.from, item.to].includes(startup.name)).length + Number(startup.connections || 0);
+  const posts = (db.jobs || []).filter(job => job.startupId === startup.id).length +
+    (db.startupPromotions || []).filter(post => post.startupName === startup.name).length +
+    (db.profilePosts || []).filter(post => post.companyName === startup.name || post.authorName === startup.name).length;
+  return Math.round((views * 0.3) + (connections * 0.5) + (Math.max(posts, 1) * 18 * 0.2));
+}
+
+function exploreTrendingStartups(db, req) {
+  const startups = [
+    ...(db.startups || []),
+    ...seededIndianPeople().filter(item => /founder|startup/i.test(item.role)).map((item, index) => ({
+      id: `seed-startup-${index}`,
+      name: item.companyName || item.name,
+      sector: item.sector,
+      stage: item.stage || "Seed",
+      city: item.city,
+      state: item.state,
+      description: `${item.companyName || item.name} is building in ${item.sector} for Indian businesses.`,
+      logoInitials: initialsFor(item.companyName || item.name),
+      logoColor: "#0f766e",
+      views: [42, 58, 63, 82, 99],
+      engagement: [4, 6, 7, 9, 12]
+    }))
+  ];
+  return startups.map((startup, index) => ({
+    ...startup,
+    type: "startup",
+    profileUrl: `/profile/${profileHandle({ name: startup.name })}`,
+    trendingScore: trendingScoreForStartup(startup, db, index),
+    scoreLabel: `${Math.min(98, Math.max(62, trendingScoreForStartup(startup, db, index)))}%`,
+    change: Math.max(8, Math.min(74, Number(startup.engagement?.slice(-1)[0] || index + 4) * 5)),
+    sparkline: startup.views || [15, 21, 18, 31, 44]
+  })).sort((a, b) => b.trendingScore - a.trendingScore).slice(0, 10);
+}
+
+function exploreFacets(results) {
+  const count = key => results.reduce((map, item) => {
+    const values = Array.isArray(item[key]) ? item[key] : [item[key]];
+    values.filter(Boolean).forEach(value => {
+      const label = String(value);
+      map[label] = (map[label] || 0) + 1;
+    });
+    return map;
+  }, {});
+  return {
+    roles: count("roleType"),
+    locations: count("city"),
+    skills: results.reduce((map, item) => {
+      [...(item.skills || []), ...(item.tags || [])].filter(Boolean).forEach(value => {
+        const label = String(value);
+        map[label] = (map[label] || 0) + 1;
+      });
+      return map;
+    }, {}),
+    companies: count("companyName"),
+    sectors: count("sector")
+  };
+}
+
+function exploreSearchPayload(db, url, req, auth) {
+  const q = sanitizePostQuery(url.searchParams.get("q") || "");
+  const category = String(url.searchParams.get("type") || url.searchParams.get("category") || "all").toLowerCase();
+  const stage = normalizeSearchText(url.searchParams.get("stage") || "");
+  const sector = normalizeSearchText(url.searchParams.get("sector") || "");
+  const location = normalizeSearchText(url.searchParams.get("location") || "");
+  const sort = normalizeSearchText(url.searchParams.get("sort") || "relevance");
+  const limit = Math.max(1, Math.min(50, Number(url.searchParams.get("limit") || 12)));
+  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const people = explorePeoplePool(db, req);
+  const posts = allSearchablePosts(db).map(post => ({
+    ...post,
+    name: post.title,
+    type: post.type,
+    role: post.type === "gig" ? "Opportunity" : "Post",
+    roleType: post.type,
+    city: post.location,
+    companyName: post.companyName,
+    skills: post.tags || [],
+    description: post.content,
+    profileUrl: post.type === "gig" ? "/" : `/profile/${profileHandle({ name: post.authorName })}`
+  }));
+  const events = exploreEventsPayload(db, url, auth).events.map(event => ({
+    ...event,
+    name: event.title,
+    type: "event",
+    role: "Event",
+    roleType: "event",
+    skills: [event.type, event.city].filter(Boolean),
+    profileUrl: event.url || "/"
+  }));
+  let results = [...people, ...posts, ...events]
+    .filter(item => roleMatchesExploreCategory(item, category))
+    .filter(item => !stage || normalizeSearchText([item.stage, item.description, item.searchText].join(" ")).includes(stage))
+    .filter(item => !sector || normalizeSearchText([item.sector, item.skills?.join(" "), item.tags?.join(" "), item.description].join(" ")).includes(sector))
+    .filter(item => !location || normalizeSearchText([item.city, item.state, item.location].join(" ")).includes(location))
+    .map(item => ({ ...item, score: scoreExploreEntity(item, q) }))
+    .filter(item => !q || item.score > 0);
+  if (sort.includes("recent")) results.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0) || b.score - a.score);
+  else if (sort.includes("active") || sort.includes("trend")) results.sort((a, b) => Number(b.trendingScore || b.score || 0) - Number(a.trendingScore || a.score || 0));
+  else results.sort((a, b) => b.score - a.score || String(a.name || a.title).localeCompare(String(b.name || b.title)));
+  const start = (page - 1) * limit;
+  const sliced = results.slice(start, start + limit);
+  return {
+    success: true,
+    q,
+    page,
+    limit,
+    total: results.length,
+    results: sliced.map(item => ({
+      id: item.id || item.handle || profileHandle(item),
+      name: item.name || item.title,
+      handle: item.handle || profileHandle(item),
+      role: item.title || item.role || item.type,
+      roleType: item.roleType || item.type,
+      location: item.location || [item.city, item.state].filter(Boolean).join(", "),
+      city: item.city,
+      state: item.state,
+      sector: item.sector,
+      stage: item.stage,
+      companyName: item.companyName || item.startupName || "",
+      skills: item.skills || item.tags || [],
+      description: item.description || item.bio || item.content || "",
+      avatarInitials: item.avatarInitials || initialsFor(item.name || item.title || "CH"),
+      avatarPhoto: item.avatarPhoto || null,
+      mutualConnections: mutualConnectionCount(db, auth?.name || "", item.name || item.authorName || ""),
+      score: item.score,
+      matchPercent: Math.min(98, Math.max(52, Math.round((item.score || 1) / Math.max(q ? 1.2 : 1, q ? 1 : 1)))),
+      profileUrl: item.profileUrl || profileUrlFor(item, req)
+    })),
+    facets: exploreFacets(results),
+    suggestions: results.length ? [] : [
+      `Try ${q || "AI"} founder`,
+      `Search ${location || "Bengaluru"} startups`,
+      "video editor",
+      "seed investors"
+    ]
+  };
+}
+
+function exploreSuggestionsPayload(db, url, auth) {
+  const user = profileForAuth(auth || {}, db, readJson(USERS_FILE, {})) || {};
+  const city = url.searchParams.get("city") || user.city || "Hyderabad";
+  const skills = (user.skills || ["AI", "Design", "Marketing"]).slice(0, 4);
+  const startups = exploreTrendingStartups(db).slice(0, 3);
+  const suggestions = [
+    ...skills.map(skill => ({ type: "skill", title: `${skill} opportunities near ${city}`, query: `${skill} ${city}`, reason: "Based on your profile skills" })),
+    ...startups.map(startup => ({ type: "startup", title: `${startup.name} is trending`, query: startup.name, reason: `${startup.sector} activity is rising this week` })),
+    { type: "network", title: `Founders hiring near ${city}`, query: `founders hiring ${city}`, reason: "Local startup demand signal" }
+  ].slice(0, 8);
+  return { success: true, city, suggestions };
+}
+
+function exploreRecentActivityPayload(db) {
+  const people = explorePeoplePool(db).slice(0, 8);
+  const startups = exploreTrendingStartups(db).slice(0, 5);
+  const jobs = (db.jobs || []).slice(-5).reverse();
+  const activity = [
+    ...people.map(person => ({ type: "profile", text: `${person.name} updated a profile in ${person.city || "India"}`, timeAgo: "just now", profile: person.handle })),
+    ...startups.map(startup => ({ type: "trending", text: `${startup.name} reached ${compactNumber(startup.trendingScore * 120)} trend points`, timeAgo: "2 min ago", query: startup.name })),
+    ...jobs.map(job => ({ type: "job", text: `${job.title} is open for applications`, timeAgo: "5 min ago", query: job.title }))
+  ].slice(0, 20);
+  return { success: true, activity };
+}
+
+function exploreEventsPayload(db, url, auth) {
+  const city = url?.searchParams?.get("city") || profileForAuth(auth || {}, db, readJson(USERS_FILE, {}))?.city || "Hyderabad";
+  const generated = [
+    ["Founder Hiring Mixer", "Hybrid", city, 96],
+    ["AI SaaS Demo Night", "Virtual", "Bengaluru", 180],
+    ["Investor Office Hours", "In-person", "Mumbai", 72],
+    ["D2C Growth Circle", "Hybrid", "Delhi", 88],
+    ["Women Founders Breakfast", "In-person", "Chennai", 64],
+    ["Bharat SaaS Build Week", "Virtual", "India", 220]
+  ].map((item, index) => ({
+    id: `event-${index + 1}`,
+    title: item[0],
+    type: item[1],
+    city: item[2],
+    organizer: "ConnectHub India",
+    attendees: item[3],
+    date: new Date(Date.now() + (index + 1) * 43200000).toISOString(),
+    url: "/"
+  }));
+  const events = mergeById(db.events || [], generated).sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+  return { success: true, city, events };
+}
+
+function exploreTrendingTopicsPayload(db) {
+  const people = explorePeoplePool(db);
+  const terms = [
+    ...(db.jobs || []).flatMap(job => job.tags || []),
+    ...(db.freelancerAds || []).flatMap(ad => ad.tags || []),
+    ...(db.profilePosts || []).flatMap(post => post.hashtags || post.tags || []),
+    ...people.flatMap(person => person.skills || []),
+    "AIinIndia", "SeedFunding", "FounderHiring", "BharatSaaS", "D2C", "FinTech"
+  ].filter(Boolean);
+  const counts = terms.reduce((map, raw) => {
+    const tag = String(raw).replace(/^#/, "").replace(/\s+/g, "");
+    map[tag] = (map[tag] || 0) + 1;
+    return map;
+  }, {});
+  const topics = Object.entries(counts)
+    .map(([tag, count], index) => ({
+      tag,
+      count: count * 120 + 300 + index * 17,
+      change: Math.round(10 + count * 8 + index),
+      contributors: people.slice(index, index + 3).map(person => ({ name: person.name, avatarInitials: person.avatarInitials || initialsFor(person.name) }))
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12);
+  return { success: true, topics };
+}
+
+function exploreTrendingPayload(db, req) {
+  const people = explorePeoplePool(db, req);
+  const investors = people.filter(person => /investor|angel|vc|sponsor|partner/i.test([person.role, person.title].join(" "))).slice(0, 8);
+  const founders = people.filter(person => /founder|startup|owner|developer|designer/i.test([person.role, person.title].join(" "))).slice(0, 10);
+  return {
+    success: true,
+    startups: exploreTrendingStartups(db, req),
+    investors,
+    founders,
+    topics: exploreTrendingTopicsPayload(db).topics
+  };
+}
+
 function authUserKey(auth) {
   return normalizeEmail(auth?.email) || String(auth?.name || auth?.id || "").trim().toLowerCase();
 }
@@ -1307,7 +1657,7 @@ async function handleApi(req, res) {
     const settings = persistUserSettings(auth, patch);
     return sendJson(res, 200, { success: true, settings });
   }
-  if (route === "/api/users/search" && req.method === "GET") {
+  if ((route === "/api/users/search" || route === "/api/people/search") && req.method === "GET") {
     const db = publicDB();
     const results = searchPeople(db, {
       query: url.searchParams.get("q") || "",
@@ -1318,6 +1668,43 @@ async function handleApi(req, res) {
       currentName: auth?.name || ""
     }, req);
     return sendJson(res, 200, { success: true, results: results.slice(0, 30) });
+  }
+  if (route === "/api/explore/search" && req.method === "GET") {
+    const db = publicDB();
+    const cacheKey = `explore-search:${url.searchParams.toString()}:${auth?.email || auth?.name || "guest"}`;
+    return sendCachedExploreJson(res, cacheKey, 90 * 1000, async () => exploreSearchPayload(db, url, req, auth));
+  }
+  if (route === "/api/explore/trending" && req.method === "GET") {
+    const db = publicDB();
+    return sendCachedExploreJson(res, "explore-trending", 5 * 60 * 1000, async () => exploreTrendingPayload(db, req));
+  }
+  if (route === "/api/explore/suggestions" && req.method === "GET") {
+    const db = publicDB();
+    const cacheKey = `explore-suggestions:${url.searchParams.toString()}:${auth?.email || auth?.name || "guest"}`;
+    return sendCachedExploreJson(res, cacheKey, 3 * 60 * 1000, async () => exploreSuggestionsPayload(db, url, auth));
+  }
+  if (route === "/api/explore/recent-activity" && req.method === "GET") {
+    const db = publicDB();
+    return sendCachedExploreJson(res, "explore-activity", 45 * 1000, async () => exploreRecentActivityPayload(db));
+  }
+  if (route === "/api/explore/events" && req.method === "GET") {
+    const db = publicDB();
+    const cacheKey = `explore-events:${url.searchParams.toString()}:${auth?.email || auth?.name || "guest"}`;
+    return sendCachedExploreJson(res, cacheKey, 5 * 60 * 1000, async () => exploreEventsPayload(db, url, auth));
+  }
+  if (route === "/api/explore/topics/trending" && req.method === "GET") {
+    const db = publicDB();
+    return sendCachedExploreJson(res, "explore-topics", 5 * 60 * 1000, async () => exploreTrendingTopicsPayload(db));
+  }
+  if (route === "/api/explore/search/voice" && req.method === "POST") {
+    const body = await readBody(req);
+    const query = sanitizePostQuery(body.transcript || body.q || "");
+    return sendJson(res, 200, {
+      success: true,
+      query,
+      language: body.language || "auto",
+      suggestions: query ? [`${query} near me`, `${query} founders`, `${query} investors`] : ["startups near me", "video editor", "seed investors"]
+    });
   }
   if ((route === "/api/v1/posts/search" || route === "/api/posts/search") && req.method === "GET") {
     const db = publicDB();
