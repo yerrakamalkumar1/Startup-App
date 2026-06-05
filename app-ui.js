@@ -3495,30 +3495,161 @@ const AppUX = (() => {
   }
 
   async function openActiveSessions() {
-    openSettingsModal("Active sessions", `<div class="settings-smart-loading"><span></span>Loading sessions...</div>`);
-    let sessions = [];
+    openSettingsModal("Active sessions", `
+      <div class="settings-session-shell">
+        <div class="settings-smart-loading"><span></span>Loading sessions...</div>
+        <div class="settings-session-skeleton"></div>
+        <div class="settings-session-skeleton short"></div>
+      </div>`, { wide: true });
+    let data = { sessions: [], loginHistory: [], securityScore: 92 };
     try {
-      const data = await apiRequest("/api/sessions");
-      sessions = data.sessions || [];
+      data = await apiRequest("/api/sessions");
     } catch {
-      sessions = [{ sessionId: "current", device: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Desktop browser", city: "Current device", lastActive: new Date().toISOString(), isCurrent: true }];
+      data.sessions = [{ sessionId: "current", device: navigator.userAgent.includes("Mobile") ? "Mobile browser" : "Desktop browser", city: "Current device", lastActive: new Date().toISOString(), isCurrent: true }];
+      data.loginHistory = data.sessions;
     }
+    renderSettingsSessions(data);
+  }
+
+  function settingsTimeAgo(value) {
+    const time = new Date(value || Date.now()).getTime();
+    const diff = Math.max(0, Date.now() - time);
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} day${days > 1 ? "s" : ""} ago`;
+    return new Date(value || Date.now()).toLocaleDateString("en-IN");
+  }
+
+  function settingsMaskIP(ip) {
+    const value = String(ip || "");
+    if (!value || value === "Unknown") return "Unknown";
+    if (value.includes(":")) return value.split(":").slice(0, 2).join(":") + ":****";
+    const parts = value.split(".");
+    if (parts.length !== 4) return value;
+    return `${parts[0]}.${parts[1]}.*.${parts[3]}`;
+  }
+
+  function settingsDeviceIcon(session = {}) {
+    const label = `${session.deviceType || ""} ${session.device || ""}`.toLowerCase();
+    if (label.includes("mobile") || label.includes("phone")) return "smartphone";
+    if (label.includes("tablet") || label.includes("ipad")) return "tablet";
+    return "monitor-smartphone";
+  }
+
+  function renderSettingsSecurityBanner(score = 92, sessions = []) {
+    const otherCount = sessions.filter(session => !session.isCurrent).length;
+    const status = score >= 85 ? "strong" : score >= 65 ? "attention" : "risk";
+    const title = status === "strong" ? "Your account looks secure" : status === "attention" ? "Review your active devices" : "Security attention needed";
+    const detail = otherCount ? `${otherCount} other device${otherCount > 1 ? "s" : ""} can access this account.` : "Only this device is currently active.";
+    return `
+      <div class="settings-security-banner ${status}">
+        <i data-lucide="${status === "risk" ? "shield-alert" : "shield-check"}"></i>
+        <span><b>${title}</b><small>${detail}</small></span>
+        <strong>${Math.round(score)}%</strong>
+      </div>`;
+  }
+
+  function renderSettingsSessionDetails(session = {}) {
+    return `
+      <div id="session-details-${escapeAttr(session.sessionId)}" class="settings-session-details" hidden>
+        <dl>
+          <div><dt>IP address</dt><dd>${escapeHTML(settingsMaskIP(session.ipAddress || session.ip))}</dd></div>
+          <div><dt>Browser</dt><dd>${escapeHTML(session.browser || "Browser")}</dd></div>
+          <div><dt>Operating system</dt><dd>${escapeHTML(session.os || "Unknown OS")}</dd></div>
+          <div><dt>Signed in</dt><dd>${escapeHTML(new Date(session.createdAt || Date.now()).toLocaleString("en-IN"))}</dd></div>
+        </dl>
+        <p>${escapeHTML(String(session.userAgent || "No browser fingerprint available.").slice(0, 180))}</p>
+      </div>`;
+  }
+
+  function renderSettingsSessionCard(session = {}) {
+    const id = session.sessionId || session._id || "current";
+    const isCurrent = Boolean(session.isCurrent || id === "current");
+    return `
+      <article class="settings-session-card enhanced" id="settings-session-${escapeAttr(id)}">
+        <i data-lucide="${settingsDeviceIcon(session)}"></i>
+        <span>
+          <b>${escapeHTML(session.device || "Browser session")}</b>
+          <small>${escapeHTML(session.city || session.location || "Unknown location")} - ${escapeHTML(isCurrent ? "Active now" : settingsTimeAgo(session.lastActive))}</small>
+        </span>
+        <div class="settings-session-actions">
+          ${isCurrent ? `<em>This device</em>` : `<button class="btn btn-secondary danger-soft" type="button" onclick="AppUX.revokeSettingsSession('${escapeAttr(id)}')">Sign out</button>`}
+          <button class="settings-mini-action" type="button" onclick="AppUX.toggleSettingsSessionDetails('${escapeAttr(id)}')">Details</button>
+        </div>
+        ${renderSettingsSessionDetails({ ...session, sessionId: id })}
+      </article>`;
+  }
+
+  function renderSettingsLoginHistory(history = []) {
+    if (!history.length) return "";
+    return `
+      <div class="settings-login-history" id="settingsLoginHistory" hidden>
+        <h4>Login history</h4>
+        ${history.map(session => `
+          <div class="settings-history-row">
+            <i data-lucide="${settingsDeviceIcon(session)}"></i>
+            <span><b>${escapeHTML(session.device || "Browser session")}</b><small>${escapeHTML(session.city || session.location || "Unknown")} - ${escapeHTML(settingsTimeAgo(session.createdAt || session.lastActive))}</small></span>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function renderSettingsSecurityTips() {
+    return `
+      <div class="settings-security-tips">
+        <b>Security tips</b>
+        <span><i data-lucide="check-circle"></i>Sign out devices you do not recognize.</span>
+        <span><i data-lucide="check-circle"></i>Use a passcode that is not used on other apps.</span>
+        <span><i data-lucide="check-circle"></i>Keep your email and WhatsApp number updated for recovery.</span>
+      </div>`;
+  }
+
+  function renderSettingsSessions(data = {}) {
+    const sessions = data.sessions || [];
     const modalBody = document.querySelector("#settingsModal .settings-modal-body");
     if (!modalBody) return;
+    const current = sessions.find(session => session.isCurrent) || sessions[0];
+    const others = sessions.filter(session => session !== current && !session.isCurrent);
     modalBody.innerHTML = `
-      <div class="settings-session-list">
-        ${sessions.map(session => `
-          <article class="settings-session-card">
-            <i data-lucide="${session.isCurrent || session.sessionId === "current" ? "monitor-dot" : "monitor-smartphone"}"></i>
-            <span><b>${escapeHTML(session.device || session.deviceType || "Browser session")}</b><small>${escapeHTML(session.city || session.location || session.ip || "Current network")} - ${escapeHTML(new Date(session.lastActive || Date.now()).toLocaleString("en-IN"))}</small></span>
-            <button class="btn btn-secondary" type="button" onclick="AppUX.revokeSettingsSession('${escapeAttr(session.sessionId || "current")}')" ${session.isCurrent || session.sessionId === "current" ? "disabled" : ""}>${session.isCurrent || session.sessionId === "current" ? "Current" : "Remove"}</button>
-          </article>`).join("")}
+      ${renderSettingsSecurityBanner(data.securityScore || 92, sessions)}
+      <section class="settings-session-section">
+        <div class="settings-session-heading"><b>This device</b><small>Used for the current login</small></div>
+        ${current ? renderSettingsSessionCard({ ...current, isCurrent: true }) : ""}
+      </section>
+      <section class="settings-session-section">
+        <div class="settings-session-heading">
+          <b>Other devices</b>
+          <small>${others.length ? `${others.length} active` : "No other active sessions"}</small>
+        </div>
+        ${others.length ? others.map(renderSettingsSessionCard).join("") : `<div class="settings-empty-state compact"><b>No other devices</b><span>Your account is only active on this browser.</span></div>`}
+      </section>
+      <div class="settings-modal-actions spread">
+        <button class="btn btn-secondary" type="button" onclick="AppUX.toggleSettingsSessionHistory()"><i data-lucide="history"></i>Login history</button>
+        <button class="btn btn-secondary danger-soft" type="button" onclick="AppUX.revokeOtherSettingsSessions()" ${others.length ? "" : "disabled"}><i data-lucide="log-out"></i>Sign out others</button>
       </div>
-      <button class="btn btn-secondary danger-soft full" type="button" onclick="AppUX.revokeOtherSettingsSessions()"><i data-lucide="log-out"></i>Remove other sessions</button>`;
+      ${renderSettingsLoginHistory(data.loginHistory || sessions)}
+      ${renderSettingsSecurityTips()}`;
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function toggleSettingsSessionDetails(id) {
+    const details = document.getElementById(`session-details-${id}`);
+    if (!details) return;
+    details.hidden = !details.hidden;
+  }
+
+  function toggleSettingsSessionHistory() {
+    const history = document.getElementById("settingsLoginHistory");
+    if (!history) return;
+    history.hidden = !history.hidden;
+  }
+
   async function revokeSettingsSession(id) {
+    if (!id || id === "current") return;
+    if (!window.confirm("Sign out this device?")) return;
     try {
       await apiRequest(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
       showToast("Session removed");
@@ -3529,6 +3660,7 @@ const AppUX = (() => {
   }
 
   async function revokeOtherSettingsSessions() {
+    if (!window.confirm("Sign out all other devices?")) return;
     try {
       await apiRequest("/api/sessions/all/others", { method: "DELETE" });
       showToast("Other sessions removed");
@@ -3947,5 +4079,5 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();

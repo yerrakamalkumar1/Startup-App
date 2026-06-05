@@ -7616,6 +7616,202 @@ body.dark {
   gap: 0.7rem;
 }
 
+.settings-session-shell {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-session-skeleton {
+  min-height: 84px;
+  border-radius: 1rem;
+  background: linear-gradient(90deg, var(--bg-primary), rgba(15, 118, 110, 0.08), var(--bg-primary));
+  background-size: 220% 100%;
+  animation: chSkeletonPulse 1.2s ease-in-out infinite;
+}
+
+.settings-session-skeleton.short {
+  min-height: 54px;
+}
+
+.settings-security-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  background: var(--bg-primary);
+}
+
+.settings-security-banner.strong {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: rgba(15, 118, 110, 0.09);
+}
+
+.settings-security-banner.attention {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.settings-security-banner.risk {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.settings-security-banner svg,
+.settings-history-row svg,
+.settings-security-tips svg {
+  color: #0F766E;
+  flex-shrink: 0;
+}
+
+.settings-security-banner span,
+.settings-session-heading,
+.settings-history-row span,
+.settings-security-tips {
+  display: grid;
+  min-width: 0;
+}
+
+.settings-security-banner b,
+.settings-session-heading b,
+.settings-login-history h4,
+.settings-security-tips b {
+  color: var(--text-primary);
+}
+
+.settings-security-banner small,
+.settings-session-heading small,
+.settings-history-row small,
+.settings-security-tips span {
+  color: var(--text-secondary);
+}
+
+.settings-security-banner strong {
+  color: #0F766E;
+  font-size: 1.35rem;
+}
+
+.settings-session-section {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.settings-session-heading {
+  gap: 0.15rem;
+}
+
+.settings-session-card.enhanced {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.settings-session-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.settings-session-actions em {
+  padding: 0.36rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.1);
+  color: #0F766E;
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.settings-mini-action {
+  min-height: 36px;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.settings-session-details {
+  flex: 0 0 100%;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0.85rem;
+  background: var(--bg-primary);
+}
+
+.settings-session-details dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.settings-session-details dl div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.settings-session-details dt {
+  color: var(--text-muted);
+  font-weight: 900;
+}
+
+.settings-session-details dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.settings-session-details p {
+  margin: 0.65rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.settings-modal-actions.spread {
+  justify-content: space-between;
+  margin: 1rem 0;
+}
+
+.settings-login-history,
+.settings-security-tips {
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  background: var(--bg-primary);
+}
+
+.settings-history-row,
+.settings-security-tips span {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.settings-history-row + .settings-history-row {
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-empty-state.compact {
+  padding: 1rem;
+}
+
+@keyframes chSkeletonPulse {
+  to {
+    background-position: -220% 0;
+  }
+}
+
 .settings-info-card,
 .settings-empty-state,
 .settings-danger-panel,

@@ -33,6 +33,7 @@ try {
 } catch {
   aiService = null;
 }
+let socketIO = null;
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -272,6 +273,196 @@ function authFromRequest(req) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   return verifyToken(token);
+}
+
+function tokenFromRequest(req) {
+  const header = req.headers.authorization || "";
+  return header.startsWith("Bearer ") ? header.slice(7) : "";
+}
+
+function getRealIP(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const raw = forwarded || req.headers["x-real-ip"] || req.socket?.remoteAddress || "";
+  return String(raw || "Unknown").replace(/^::ffff:/, "");
+}
+
+function isPrivateIP(ip) {
+  const value = String(ip || "");
+  return !value ||
+    value === "Unknown" ||
+    value === "::1" ||
+    value === "127.0.0.1" ||
+    value.startsWith("10.") ||
+    value.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(value);
+}
+
+function parseDeviceInfo(userAgent = "") {
+  const ua = String(userAgent || "");
+  const browser = /Edg\//.test(ua) ? "Microsoft Edge"
+    : /OPR\//.test(ua) ? "Opera"
+      : /Chrome\//.test(ua) ? "Chrome"
+        : /Firefox\//.test(ua) ? "Firefox"
+          : /Safari\//.test(ua) ? "Safari"
+            : "Browser";
+  const os = /Android/i.test(ua) ? "Android"
+    : /iPhone|iPad|iPod/i.test(ua) ? "iOS"
+      : /Windows/i.test(ua) ? "Windows"
+        : /Mac OS/i.test(ua) ? "macOS"
+          : /Linux/i.test(ua) ? "Linux"
+            : "Unknown OS";
+  const deviceType = /iPad|Tablet/i.test(ua) ? "Tablet"
+    : /Mobi|Android|iPhone|iPod/i.test(ua) ? "Mobile"
+      : "Desktop";
+  return {
+    browser,
+    os,
+    deviceType,
+    label: `${deviceType} - ${browser} on ${os}`
+  };
+}
+
+function deviceFingerprint(req) {
+  const raw = [
+    req.headers["user-agent"] || "",
+    req.headers["accept-language"] || "",
+    req.headers["sec-ch-ua-platform"] || "",
+    req.headers["sec-ch-ua-mobile"] || ""
+  ].join("|");
+  return crypto.createHash("sha256").update(raw || "connecthub-device").digest("hex");
+}
+
+function fetchIpLocation(ip) {
+  if (isPrivateIP(ip)) {
+    return Promise.resolve("Local Network");
+  }
+  return new Promise(resolve => {
+    const request = https.get(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, response => {
+      let body = "";
+      response.on("data", chunk => {
+        body += chunk;
+        if (body.length > 64 * 1024) request.destroy();
+      });
+      response.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          if (data.error) return resolve("Unknown Location");
+          const parts = [data.city, data.region, data.country_name].filter(Boolean);
+          resolve(parts.join(", ") || "Unknown Location");
+        } catch {
+          resolve("Unknown Location");
+        }
+      });
+    });
+    request.setTimeout(2500, () => {
+      request.destroy();
+      resolve("Unknown Location");
+    });
+    request.on("error", () => resolve("Unknown Location"));
+  });
+}
+
+function normalizeSession(session = {}, currentFingerprint = "") {
+  const current = Boolean(session.isCurrent || session.fingerprint === currentFingerprint || session.sessionId === "current");
+  return {
+    _id: session.sessionId || session._id || "current",
+    sessionId: session.sessionId || session._id || "current",
+    device: session.device || session.deviceLabel || session.deviceType || "Browser session",
+    deviceType: session.deviceType || "Browser",
+    browser: session.browser || "",
+    os: session.os || "",
+    ip: session.ip || session.ipAddress || "",
+    ipAddress: session.ipAddress || session.ip || "",
+    city: session.city || session.location || "Unknown location",
+    location: session.location || session.city || "Unknown location",
+    userAgent: session.userAgent || "",
+    createdAt: session.createdAt || new Date().toISOString(),
+    lastActive: session.lastActive || session.createdAt || new Date().toISOString(),
+    isCurrent: current
+  };
+}
+
+async function recordLoginSession(auth, token, req) {
+  try {
+    const key = authUserKey(auth);
+    if (!key) return null;
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const currentSettings = db.userSettingsByUser?.[key] || {};
+    const ip = getRealIP(req);
+    const userAgent = req.headers["user-agent"] || "";
+    const device = parseDeviceInfo(userAgent);
+    const fingerprint = deviceFingerprint(req);
+    const sessionId = `sess-${fingerprint.slice(0, 18)}`;
+    const tokenHash = crypto.createHash("sha256").update(token || "").digest("hex");
+    const city = await fetchIpLocation(ip);
+    const now = new Date().toISOString();
+    const previousSessions = Array.isArray(currentSettings.activeSessions) ? currentSettings.activeSessions : [];
+    const previousLocations = previousSessions.map(item => item.city || item.location).filter(Boolean);
+    const existing = previousSessions.find(item => item.fingerprint === fingerprint || item.sessionId === sessionId);
+    const nextSession = {
+      ...(existing || {}),
+      sessionId,
+      tokenHash,
+      fingerprint,
+      device: device.label,
+      deviceType: device.deviceType,
+      browser: device.browser,
+      os: device.os,
+      ip,
+      ipAddress: ip,
+      city,
+      location: city,
+      userAgent,
+      createdAt: existing?.createdAt || now,
+      lastActive: now
+    };
+    let nextSessions = [nextSession, ...previousSessions.filter(item => item.sessionId !== sessionId && item.fingerprint !== fingerprint)]
+      .sort((a, b) => new Date(b.lastActive || 0) - new Date(a.lastActive || 0))
+      .slice(0, 5);
+
+    db.userSettingsByUser = db.userSettingsByUser || {};
+    db.userSettingsByUser[key] = { ...currentSettings, activeSessions: nextSessions };
+    const email = normalizeEmail(auth?.email);
+    if (email && users[email]?.profile) users[email].profile.activeSessions = nextSessions;
+
+    if (!existing && previousLocations.length && !["Local Network", "Unknown Location"].includes(city) && !previousLocations.includes(city)) {
+      createNotification(db, auth.name || auth.email, "security", `New login detected from ${city}.`, {
+        id: `not-login-${sessionId}-${Date.now()}`,
+        from: "ConnectHub Security",
+        sessionId
+      });
+      sendEmailNotification(auth.email, "New ConnectHub login detected", `A new login was detected from ${city} on ${device.label}.`).catch(() => {});
+    }
+
+    writeJson(DB_FILE, db);
+    writeJson(USERS_FILE, users);
+    return nextSession;
+  } catch (error) {
+    console.error("[SessionTracker] Login session tracking failed:", error.message);
+    return null;
+  }
+}
+
+function touchActiveSession(auth, req) {
+  try {
+    const key = authUserKey(auth);
+    if (!key) return;
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const currentSettings = db.userSettingsByUser?.[key];
+    const sessions = currentSettings?.activeSessions;
+    if (!Array.isArray(sessions) || !sessions.length) return;
+    const fingerprint = deviceFingerprint(req);
+    const session = sessions.find(item => item.fingerprint === fingerprint);
+    if (!session) return;
+    const last = new Date(session.lastActive || 0).getTime();
+    if (Date.now() - last < 60 * 1000) return;
+    session.lastActive = new Date().toISOString();
+    session.ip = session.ipAddress = getRealIP(req);
+    writeJson(DB_FILE, db);
+  } catch {
+    // Session freshness must never block normal API requests.
+  }
 }
 
 function registeredProfilesFromUsers() {
@@ -849,6 +1040,11 @@ function createNotification(db, to, type, text, extra = {}) {
   };
   db.notifications = db.notifications || [];
   if (!db.notifications.some(item => item.id === note.id)) db.notifications.push(note);
+  if (socketIO && to) {
+    const room = `user:${String(to).slice(0, 80)}`;
+    socketIO.to(room).emit("notification:new", note);
+    socketIO.to(room).emit("notifications:update", { notification: note });
+  }
   return note;
 }
 
@@ -1036,6 +1232,7 @@ async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const route = url.pathname;
   const auth = authFromRequest(req);
+  if (auth) touchActiveSession(auth, req);
 
   if (route === "/api/health") return sendJson(res, 200, { ok: true });
   if (handleAiHubApi && await handleAiHubApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
@@ -1128,6 +1325,29 @@ async function handleApi(req, res) {
   if ((route === "/api/v1/settings/search" || route === "/api/settings/search") && req.method === "GET") {
     return sendJson(res, 200, searchSettingsFeatures(url.searchParams.get("q") || ""));
   }
+  if ((route.startsWith("/api/v1/posts/save/") || route.startsWith("/api/posts/save/")) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const postId = decodeURIComponent(route.replace(/^\/api(?:\/v1)?\/posts\/save\//, ""));
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const postsById = new Map(allSearchablePosts(db).map(post => [post.id, post]));
+    if (!postsById.has(postId)) return sendJson(res, 404, { success: false, message: "Post not found." });
+    const existing = savedPostsFor(db, users, auth);
+    const wasSaved = existing.some(item => item.postId === postId);
+    const nextSaved = wasSaved
+      ? existing.filter(item => item.postId !== postId)
+      : [{ postId, savedAt: new Date().toISOString() }, ...existing];
+    persistSavedPosts(db, users, auth, nextSaved);
+    writeJson(DB_FILE, db);
+    writeJson(USERS_FILE, users);
+    return sendJson(res, 200, {
+      success: true,
+      saved: !wasSaved,
+      postId,
+      savedCount: nextSaved.length,
+      savedPosts: nextSaved.map(item => ({ ...item, post: postsById.get(item.postId) })).filter(item => item.post)
+    });
+  }
   if ((route === "/api/v1/users/saved" || route === "/api/users/saved") && req.method === "GET") {
     if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
     const db = readJson(DB_FILE, INITIAL_DB);
@@ -1191,9 +1411,24 @@ async function handleApi(req, res) {
   if (route === "/api/posts" && req.method === "POST") {
     const body = await readBody(req);
     const db = readJson(DB_FILE, INITIAL_DB);
-    const post = { id: `post-${Date.now()}`, author: auth?.name || body.author || "ConnectHub member", content: body.content || "", images: body.images || [], hashtags: body.hashtags || [], likes: [], comments: [], saves: [], createdAt: new Date().toISOString() };
+    const post = {
+      id: `post-${Date.now()}`,
+      author: auth?.name || body.author || "ConnectHub member",
+      authorName: auth?.name || body.authorName || body.author || "ConnectHub member",
+      authorEmail: auth?.email || body.authorEmail || "",
+      title: body.title || "",
+      content: body.content || "",
+      images: body.images || body.mediaUrls || [],
+      hashtags: body.hashtags || body.tags || [],
+      likes: [],
+      comments: [],
+      saves: [],
+      shares: [],
+      createdAt: new Date().toISOString()
+    };
     db.profilePosts = [...(db.profilePosts || []), post];
     writeJson(DB_FILE, db);
+    if (socketIO) socketIO.emit("feed:newPost", post);
     return sendJson(res, 200, { success: true, post, db: publicDB() });
   }
   if (route.match(/^\/api\/posts\/[^/]+\/like$/) && req.method === "PUT") {
@@ -1202,8 +1437,14 @@ async function handleApi(req, res) {
     const post = (db.profilePosts || []).find(item => item.id === id);
     if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
     post.likes = post.likes || [];
-    if (!post.likes.includes(auth?.name || "guest")) post.likes.push(auth?.name || "guest");
+    const actor = auth?.name || "guest";
+    if (!post.likes.includes(actor)) {
+      post.likes.push(actor);
+      const owner = post.authorName || post.author;
+      if (owner && owner !== actor) createNotification(db, owner, "like_post", `${actor} liked your post.`, { from: actor, postId: post.id });
+    }
     writeJson(DB_FILE, db);
+    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post });
     return sendJson(res, 200, { success: true, post, db: publicDB() });
   }
   if (route.match(/^\/api\/posts\/[^/]+\/comment$/) && req.method === "POST") {
@@ -1213,8 +1454,27 @@ async function handleApi(req, res) {
     const post = (db.profilePosts || []).find(item => item.id === id);
     if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
     post.comments = post.comments || [];
-    post.comments.push({ user: auth?.name || body.user || "Guest", text: body.text || "", createdAt: new Date().toISOString() });
+    const actor = auth?.name || body.user || "Guest";
+    const comment = { id: `comment-${Date.now()}`, user: actor, text: String(body.text || "").slice(0, 1000), createdAt: new Date().toISOString() };
+    post.comments.push(comment);
+    const owner = post.authorName || post.author;
+    if (owner && owner !== actor) createNotification(db, owner, "comment_post", `${actor} commented on your post.`, { from: actor, postId: post.id, commentId: comment.id });
     writeJson(DB_FILE, db);
+    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post });
+    return sendJson(res, 200, { success: true, post, db: publicDB() });
+  }
+  if (route.match(/^\/api\/posts\/[^/]+\/share$/) && req.method === "POST") {
+    const id = route.split("/")[3];
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const post = (db.profilePosts || []).find(item => item.id === id);
+    if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
+    const actor = auth?.name || "Guest";
+    post.shares = post.shares || [];
+    if (!post.shares.includes(actor)) post.shares.push(actor);
+    const owner = post.authorName || post.author;
+    if (owner && owner !== actor) createNotification(db, owner, "post_share", `${actor} shared your post.`, { from: actor, postId: post.id });
+    writeJson(DB_FILE, db);
+    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post });
     return sendJson(res, 200, { success: true, post, db: publicDB() });
   }
   if (route === "/api/reels/feed" && req.method === "GET") return sendJson(res, 200, { success: true, reels: publicDB().reels || [] });
@@ -1254,7 +1514,12 @@ async function handleApi(req, res) {
     const message = { id: `msg-${Date.now()}`, from: body.from, to: body.to, text: body.text, attachment: body.mediaUrl || body.attachment || "", read: false, createdAt: new Date().toISOString() };
     if (!message.from || !message.to || !message.text) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
     db.messages = [...(db.messages || []), message];
+    createNotification(db, message.to, "message", `New message from ${message.from}`, { id: `not-${message.id}`, from: message.from, messageId: message.id });
     writeJson(DB_FILE, db);
+    if (socketIO) {
+      socketIO.to(`user:${message.to}`).emit("message:new", message);
+      socketIO.to(`user:${message.from}`).emit("message:new", message);
+    }
     return sendJson(res, 200, { success: true, message, db: publicDB() });
   }
   if (route === "/api/notifications/read" && req.method === "PUT") {
@@ -1305,6 +1570,18 @@ async function handleApi(req, res) {
     const key = authUserKey(auth);
     const profile = normalizeEmail(auth.email) ? users[normalizeEmail(auth.email)]?.profile : {};
     const prefs = { ...(db.userSettingsByUser?.[key] || {}), ...(profile || {}) };
+    const fingerprint = deviceFingerprint(req);
+    const storedSessions = Array.isArray(prefs.activeSessions) ? prefs.activeSessions : [];
+    const sessions = storedSessions.length
+      ? storedSessions.map(session => normalizeSession(session, fingerprint)).sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || new Date(b.lastActive || 0) - new Date(a.lastActive || 0))
+      : [normalizeSession({
+        sessionId: "current",
+        ...parseDeviceInfo(req.headers["user-agent"] || ""),
+        device: parseDeviceInfo(req.headers["user-agent"] || "").label,
+        ip: getRealIP(req),
+        city: "Current device",
+        lastActive: new Date().toISOString()
+      }, fingerprint)];
     return sendJson(res, 200, {
       success: true,
       security: {
@@ -1312,13 +1589,7 @@ async function handleApi(req, res) {
         messagingPrivacy: prefs.messagingPrivacy || "everyone",
         blockedUsers: prefs.blockedUsers || [],
         mutedUsers: prefs.mutedUsers || [],
-        activeSessions: prefs.activeSessions || [{
-          sessionId: "current",
-          deviceType: req.headers["user-agent"]?.includes("Mobile") ? "Mobile browser" : "Desktop browser",
-          ipAddress: req.socket.remoteAddress || "",
-          location: "Current device",
-          lastActive: new Date().toISOString()
-        }]
+        activeSessions: sessions
       }
     });
   }
@@ -1330,7 +1601,13 @@ async function handleApi(req, res) {
     const key = authUserKey(auth);
     const email = normalizeEmail(auth.email);
     const currentSettings = db.userSettingsByUser?.[key] || {};
-    const nextSessions = sessionId === "all" ? [] : (currentSettings.activeSessions || []).filter(item => item.sessionId !== sessionId);
+    const fingerprint = deviceFingerprint(req);
+    const currentSessions = currentSettings.activeSessions || [];
+    const nextSessions = sessionId === "all"
+      ? []
+      : sessionId === "all/others"
+        ? currentSessions.filter(item => item.fingerprint === fingerprint || item.sessionId === "current")
+        : currentSessions.filter(item => item.sessionId !== sessionId);
     db.userSettingsByUser = db.userSettingsByUser || {};
     db.userSettingsByUser[key] = { ...currentSettings, activeSessions: nextSessions };
     if (email && users[email]?.profile) users[email].profile.activeSessions = nextSessions;
@@ -1364,6 +1641,46 @@ async function handleApi(req, res) {
 
   if (route === "/api/state" && req.method === "GET") {
     return sendJson(res, 200, { db: publicDB() });
+  }
+
+  if ((route === "/api/search" || route === "/api/v1/search") && req.method === "GET") {
+    const db = publicDB();
+    const q = sanitizePostQuery(url.searchParams.get("q") || "");
+    const type = String(url.searchParams.get("type") || "all").toLowerCase();
+    const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+    const limit = Math.max(1, Math.min(30, Number(url.searchParams.get("limit") || 12)));
+    const users = (type === "all" || type === "users" || type === "people")
+      ? searchPeople(db, { query: q, currentName: auth?.name || "" }, req).slice(0, 12)
+      : [];
+    const postSearch = (type === "all" || type === "posts" || type === "gigs")
+      ? searchPostsInDB(db, { query: q, page, limit })
+      : { posts: [], total: 0 };
+    const searchRows = postSearch.results || postSearch.posts || [];
+    const posts = type === "gigs" ? [] : searchRows.filter(item => item.type !== "gig");
+    const gigs = type === "posts" ? [] : searchRows.filter(item => item.type === "gig");
+    const hashtagCounts = new Map();
+    allSearchablePosts(db).forEach(post => (post.tags || []).forEach(tag => {
+      const label = String(tag || "").trim();
+      if (!label) return;
+      if (!q || normalizeSearchText(label).includes(normalizeSearchText(q))) hashtagCounts.set(label, (hashtagCounts.get(label) || 0) + 1);
+    }));
+    const hashtags = Array.from(hashtagCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([tag, count]) => ({ tag, count }));
+    return sendJson(res, 200, {
+      success: true,
+      q,
+      page,
+      limit,
+      total: users.length + posts.length + gigs.length,
+      users,
+      people: users,
+      posts,
+      gigs,
+      hashtags,
+      sources: ["ConnectHub users", "posts", "gigs", "service ads"]
+    });
   }
 
   if (route === "/api/people/search" && req.method === "GET") {
@@ -1411,12 +1728,16 @@ async function handleApi(req, res) {
     const email = normalizeEmail(rawEmail);
     if (DEMO_USERS[email]) {
       const user = { ...DEMO_USERS[email], email };
-      return sendJson(res, 200, { success: true, user, token: signToken({ email, name: user.name, role: user.role }) });
+      const token = signToken({ email, name: user.name, role: user.role });
+      await recordLoginSession({ email, name: user.name, role: user.role }, token, req);
+      return sendJson(res, 200, { success: true, user, token });
     }
     const users = readJson(USERS_FILE, {});
     if (users[email] && verifyPassword(password, users[email])) {
       const user = users[email].profile;
-      return sendJson(res, 200, { success: true, user, token: signToken({ email, name: user.name, role: user.role }) });
+      const token = signToken({ email, name: user.name, role: user.role });
+      await recordLoginSession({ email, name: user.name, role: user.role }, token, req);
+      return sendJson(res, 200, { success: true, user, token });
     }
     return sendJson(res, 401, { success: false, message: "Invalid email or passcode." });
   }
@@ -1436,7 +1757,9 @@ async function handleApi(req, res) {
     const passwordData = hashPassword(body.password);
     users[email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
     writeJson(USERS_FILE, users);
-    return sendJson(res, 200, { success: true, user: profile, token: signToken({ email, name: profile.name, role: profile.role }), db: publicDB() });
+    const token = signToken({ email, name: profile.name, role: profile.role });
+    await recordLoginSession({ email, name: profile.name, role: profile.role }, token, req);
+    return sendJson(res, 200, { success: true, user: profile, token, db: publicDB() });
   }
 
   if (route === "/api/profile/update" && req.method === "POST") {
@@ -1497,16 +1820,34 @@ async function handleApi(req, res) {
     if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
     const db = readJson(DB_FILE, INITIAL_DB);
     const key = authUserKey(auth);
+    const fingerprint = deviceFingerprint(req);
     const stored = db.userSettingsByUser?.[key]?.activeSessions || [];
-    const current = {
+    const fallbackDevice = parseDeviceInfo(req.headers["user-agent"] || "");
+    const sessions = (stored.length ? stored : [{
       sessionId: "current",
-      device: req.headers["user-agent"]?.includes("Mobile") ? "Mobile browser" : "Desktop browser",
-      ip: req.socket.remoteAddress || "",
+      fingerprint,
+      device: fallbackDevice.label,
+      deviceType: fallbackDevice.deviceType,
+      browser: fallbackDevice.browser,
+      os: fallbackDevice.os,
+      ip: getRealIP(req),
+      ipAddress: getRealIP(req),
       city: "Current device",
-      lastActive: new Date().toISOString(),
-      isCurrent: true
-    };
-    return sendJson(res, 200, { success: true, sessions: stored.length ? stored : [current] });
+      location: "Current device",
+      userAgent: req.headers["user-agent"] || "",
+      createdAt: new Date().toISOString(),
+      lastActive: new Date().toISOString()
+    }])
+      .map(session => normalizeSession(session, fingerprint))
+      .sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || new Date(b.lastActive || 0) - new Date(a.lastActive || 0));
+    const oldOtherSessions = sessions.filter(session => !session.isCurrent && Date.now() - new Date(session.lastActive || 0).getTime() > 7 * 24 * 60 * 60 * 1000).length;
+    const securityScore = Math.max(45, 100 - Math.max(0, sessions.length - 1) * 8 - oldOtherSessions * 15);
+    return sendJson(res, 200, {
+      success: true,
+      sessions,
+      securityScore,
+      loginHistory: [...sessions].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 10)
+    });
   }
 
   if ((route.startsWith("/api/sessions/") || route.startsWith("/api/v1/auth/sessions/")) && req.method === "DELETE") {
@@ -1515,7 +1856,13 @@ async function handleApi(req, res) {
     const db = readJson(DB_FILE, INITIAL_DB);
     const key = authUserKey(auth);
     const currentSettings = db.userSettingsByUser?.[key] || {};
-    const nextSessions = sessionId === "all" || sessionId === "all/others" ? [] : (currentSettings.activeSessions || []).filter(item => item.sessionId !== sessionId);
+    const fingerprint = deviceFingerprint(req);
+    const currentSessions = currentSettings.activeSessions || [];
+    const nextSessions = sessionId === "all"
+      ? []
+      : sessionId === "all/others"
+        ? currentSessions.filter(item => item.fingerprint === fingerprint || item.sessionId === "current")
+        : currentSessions.filter(item => item.sessionId !== sessionId);
     db.userSettingsByUser = db.userSettingsByUser || {};
     db.userSettingsByUser[key] = { ...currentSettings, activeSessions: nextSessions };
     writeJson(DB_FILE, db);
@@ -1619,8 +1966,12 @@ async function handleApi(req, res) {
     const db = readJson(DB_FILE, INITIAL_DB);
     db.messages = db.messages || [];
     if (!db.messages.some(item => item.id === message.id)) db.messages.push(message);
-    createNotification(db, to, "message", `New message from ${from}`, { id: `not-${message.id}`, messageId: message.id });
+    createNotification(db, to, "message", `New message from ${from}`, { id: `not-${message.id}`, from, messageId: message.id });
     writeJson(DB_FILE, db);
+    if (socketIO) {
+      socketIO.to(`user:${to}`).emit("message:new", message);
+      socketIO.to(`user:${from}`).emit("message:new", message);
+    }
     const recipient = profileByName(to);
     sendEmailNotification(recipient?.email, "New Connect Hub message", `${from}: ${text}`).catch(() => {});
     return sendJson(res, 200, { success: true, message, db: publicDB() });
@@ -1696,6 +2047,15 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, tab, notifications });
   }
 
+  if (route === "/api/notifications/unread-count" && req.method === "GET") {
+    const db = publicDB();
+    const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
+    const companyName = String(url.searchParams.get("company") || "").trim();
+    const names = [userName, companyName].filter(Boolean);
+    const unreadCount = (db.notifications || []).filter(note => names.includes(note.to) && !note.read).length;
+    return sendJson(res, 200, { success: true, unreadCount });
+  }
+
   if (route === "/api/notifications/mark-read" && req.method === "POST") {
     const body = await readBody(req);
     const ids = new Set((body.ids || []).map(String));
@@ -1706,6 +2066,33 @@ async function handleApi(req, res) {
     });
     writeJson(DB_FILE, db);
     return sendJson(res, 200, { success: true, db: publicDB() });
+  }
+
+  if ((route === "/api/notifications/read-all" || route === "/api/notifications/mark-read") && req.method === "PUT") {
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
+    const companyName = String(url.searchParams.get("company") || "").trim();
+    const names = [userName, companyName].filter(Boolean);
+    db.notifications = db.notifications || [];
+    db.notifications.forEach(note => {
+      if (!names.length || names.includes(note.to)) {
+        note.read = true;
+        note.readAt = new Date().toISOString();
+      }
+    });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, db: publicDB() });
+  }
+
+  if (route.match(/^\/api\/notifications\/[^/]+\/read$/) && req.method === "PUT") {
+    const id = decodeURIComponent(route.split("/")[3]);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const note = (db.notifications || []).find(item => String(item.id) === id);
+    if (!note) return sendJson(res, 404, { success: false, message: "Notification not found." });
+    note.read = true;
+    note.readAt = new Date().toISOString();
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, notification: note });
   }
 
   if (route === "/api/connections" && req.method === "POST") {
@@ -1732,6 +2119,9 @@ async function handleApi(req, res) {
     const connection = (db.connections || []).find(item => item.id === id);
     if (!connection) return sendJson(res, 404, { success: false, message: "Connection request not found." });
     connection.status = status === "Accepted" ? "Accepted" : "Declined";
+    if (connection.status === "Accepted") {
+      createNotification(db, connection.from, "connection_accepted", `${connection.to} accepted your connection request.`, { from: connection.to, connectionId: connection.id });
+    }
     writeJson(DB_FILE, db);
     return sendJson(res, 200, { success: true, connection, db: publicDB() });
   }
@@ -1774,6 +2164,138 @@ async function handleApi(req, res) {
     createNotification(db, to, "review", `${from} rated you ${rating}/5.`, { reviewId: review.id });
     writeJson(DB_FILE, db);
     return sendJson(res, 200, { success: true, review, db: publicDB() });
+  }
+
+  if (route === "/api/stories/feed" && req.method === "GET") {
+    const db = publicDB();
+    const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
+    const now = Date.now();
+    const stories = (db.stories || [])
+      .filter(story => new Date(story.expiresAt || 0).getTime() > now)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const grouped = new Map();
+    stories.forEach(story => {
+      const author = story.author || "ConnectHub member";
+      const bucket = grouped.get(author) || {
+        author,
+        avatarInitials: initialsFor(author),
+        hasUnread: false,
+        stories: []
+      };
+      const viewed = (story.viewers || []).includes(userName);
+      bucket.hasUnread = bucket.hasUnread || !viewed;
+      bucket.stories.push({ ...story, isViewed: viewed });
+      grouped.set(author, bucket);
+    });
+    return sendJson(res, 200, { success: true, stories: Array.from(grouped.values()) });
+  }
+
+  if (route === "/api/stories" && req.method === "POST") {
+    const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const author = String(auth?.name || body.author || "ConnectHub member").slice(0, 80);
+    const mediaUrl = body.mediaUrl || body.media || body.image || body.dataUrl || "";
+    const story = {
+      id: `story-${Date.now()}`,
+      author,
+      mediaUrl,
+      mediaType: String(body.mediaType || (String(mediaUrl).includes("video") ? "video" : "image")).slice(0, 20),
+      caption: String(body.caption || "").slice(0, 200),
+      viewers: [],
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+    db.stories = [story, ...(db.stories || [])];
+    writeJson(DB_FILE, db);
+    if (socketIO) socketIO.emit("story:new", story);
+    return sendJson(res, 201, { success: true, story, db: publicDB() });
+  }
+
+  if (route.match(/^\/api\/stories\/[^/]+\/view$/) && req.method === "POST") {
+    const id = decodeURIComponent(route.split("/")[3]);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const story = (db.stories || []).find(item => String(item.id) === id);
+    if (!story) return sendJson(res, 404, { success: false, message: "Story not found." });
+    const viewer = String(auth?.name || "Guest").slice(0, 80);
+    story.viewers = story.viewers || [];
+    if (!story.viewers.includes(viewer)) story.viewers.push(viewer);
+    if (story.author && story.author !== viewer) createNotification(db, story.author, "story_view", `${viewer} viewed your story.`, { from: viewer, storyId: story.id });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, story });
+  }
+
+  if (route === "/api/gigs/ai-match" && req.method === "GET") {
+    const db = publicDB();
+    const profile = profileForAuth(auth, db) || {};
+    const skills = [...(profile.skills || []), profile.title, profile.sector].filter(Boolean).map(item => normalizeSearchText(item));
+    const gigs = (db.jobs || []).map(gig => {
+      const gigText = normalizeSearchText([gig.title, gig.description, ...(gig.tags || []), gig.category].join(" "));
+      const matchedSkills = skills.filter(skill => skill && gigText.includes(skill.split(/\s+/)[0]));
+      const score = Math.min(100, Math.round((matchedSkills.length / Math.max(skills.length, 1)) * 85 + (matchedSkills.length ? 15 : 0)));
+      return { ...gig, matchScore: score, matchedSkills };
+    })
+      .filter(gig => gig.matchScore > 0 || !skills.length)
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 10);
+    return sendJson(res, 200, { success: true, gigs, matchCount: gigs.length });
+  }
+
+  if (route.match(/^\/api\/gigs\/[^/]+\/apply$/) && req.method === "POST") {
+    const id = decodeURIComponent(route.split("/")[3]);
+    const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const gig = (db.jobs || []).find(item => String(item.id) === id);
+    if (!gig) return sendJson(res, 404, { success: false, message: "Gig not found." });
+    const applicantName = String(auth?.name || body.name || body.candidateName || "Applicant").slice(0, 80);
+    gig.applicantRecords = Array.isArray(gig.applicantRecords) ? gig.applicantRecords : [];
+    if (gig.applicantRecords.some(item => item.user === applicantName)) return sendJson(res, 409, { success: false, message: "Already applied." });
+    const application = {
+      id: `app-${Date.now()}`,
+      user: applicantName,
+      proposal: String(body.proposal || body.note || "").slice(0, 800),
+      rate: String(body.rate || body.proposedRate || "").slice(0, 80),
+      status: "pending",
+      appliedAt: new Date().toISOString()
+    };
+    gig.applicantRecords.push(application);
+    gig.applicants = typeof gig.applicants === "number" ? gig.applicants + 1 : gig.applicantRecords.length;
+    const startup = (db.startups || []).find(item => item.id === gig.startupId);
+    db.applications = db.applications || [];
+    db.applications.push({
+      id: application.id,
+      jobId: gig.id,
+      startupName: startup?.name || gig.startupName || "Startup",
+      jobTitle: gig.title,
+      proposedRate: application.rate,
+      appliedDate: new Date().toISOString(),
+      status: "Pending",
+      candidateName: applicantName,
+      proposal: application.proposal
+    });
+    const recipient = startup?.name || gig.postedBy || gig.startupName;
+    if (recipient) createNotification(db, recipient, "gig_application", `${applicantName} applied to ${gig.title}.`, { from: applicantName, gigId: gig.id, applicationId: application.id });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, message: "Application submitted.", application, gig, db: publicDB() });
+  }
+
+  if (route.match(/^\/api\/gigs\/[^/]+\/applicants\/[^/]+\/status$/) && req.method === "PUT") {
+    const parts = route.split("/");
+    const gigId = decodeURIComponent(parts[3]);
+    const userId = decodeURIComponent(parts[5]);
+    const body = await readBody(req);
+    const status = String(body.status || "").toLowerCase() === "accepted" ? "accepted" : "rejected";
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const gig = (db.jobs || []).find(item => String(item.id) === gigId);
+    if (!gig) return sendJson(res, 404, { success: false, message: "Gig not found." });
+    const applicant = (gig.applicantRecords || []).find(item => item.user === userId || profileHandle({ name: item.user }) === userId);
+    if (!applicant) return sendJson(res, 404, { success: false, message: "Applicant not found." });
+    applicant.status = status;
+    (db.applications || []).forEach(item => {
+      if (item.id === applicant.id || (item.jobId === gig.id && item.candidateName === applicant.user)) item.status = status === "accepted" ? "Accepted" : "Rejected";
+    });
+    createNotification(db, applicant.user, status === "accepted" ? "gig_accepted" : "gig_rejected", `${auth?.name || "Startup"} ${status === "accepted" ? "accepted" : "updated"} your application for ${gig.title}.`, { from: auth?.name || "Startup", gigId: gig.id, applicationId: applicant.id });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, applicant, gig, db: publicDB() });
   }
 
   if (route === "/api/admin/summary" && req.method === "GET") {
@@ -1844,6 +2366,7 @@ const server = http.createServer((req, res) => {
 
 if (Server) {
   const io = new Server(server, { cors: { origin: "*" } });
+  socketIO = io;
   const onlineUsers = new Map();
   try {
     const { registerAiHubSocket } = require("./services/socketService");
@@ -1856,7 +2379,23 @@ if (Server) {
       if (!safeName) return;
       socket.data.name = safeName;
       onlineUsers.set(safeName, socket.id);
+      socket.join(`user:${safeName}`);
       io.emit("presence:update", Array.from(onlineUsers.keys()));
+    });
+
+    socket.on("conversation:join", conversationId => {
+      const id = String(conversationId || "").slice(0, 120);
+      if (id) socket.join(`conversation:${id}`);
+    });
+
+    socket.on("conversation:leave", conversationId => {
+      const id = String(conversationId || "").slice(0, 120);
+      if (id) socket.leave(`conversation:${id}`);
+    });
+
+    socket.on("message:typing", payload => {
+      const to = String(payload?.recipientId || payload?.to || "").slice(0, 80);
+      if (to) socket.to(`user:${to}`).emit("message:typing", { ...payload, from: socket.data.name });
     });
 
     socket.on("message:send", message => {
@@ -1879,22 +2418,12 @@ if (Server) {
       if (!db.messages.some(item => item.id === safeMessage.id)) {
         db.messages.push(safeMessage);
       }
-      const notificationId = `not-${safeMessage.id}`;
-      if (!db.notifications.some(item => item.id === notificationId)) {
-        db.notifications.push({
-          id: notificationId,
-          to: safeMessage.to,
-          type: "message",
-          text: `New message from ${safeMessage.from}`,
-          read: false,
-          createdAt: safeMessage.createdAt
-        });
-      }
+      createNotification(db, safeMessage.to, "message", `New message from ${safeMessage.from}`, { id: `not-${safeMessage.id}`, from: safeMessage.from, messageId: safeMessage.id, createdAt: safeMessage.createdAt });
       writeJson(DB_FILE, db);
 
       socket.emit("message:new", safeMessage);
-      const targetSocket = onlineUsers.get(safeMessage.to);
-      if (targetSocket) io.to(targetSocket).emit("message:new", safeMessage);
+      io.to(`user:${safeMessage.to}`).emit("message:new", safeMessage);
+      io.to(`conversation:${[safeMessage.from, safeMessage.to].sort().join("__")}`).emit("message:new", safeMessage);
     });
 
     socket.on("disconnect", () => {
