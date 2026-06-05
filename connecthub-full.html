@@ -6,29 +6,81 @@
   <title>Connect Hub - Indian Startup Network</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <style>
     :root {
       --saffron: #ff6b00;
+      --saffron-hover: #e55f00;
+      --saffron-light: #fff0e6;
+      --saffron-mid: #ffb380;
+      --saffron-glow: rgba(255, 107, 0, 0.15);
       --green: #138808;
+      --india-green: #138808;
+      --india-green-light: #e6f5e6;
+      --india-green-mid: #4caf50;
       --teal: #0f766e;
       --teal-2: #0d9488;
       --indigo: #6366f1;
       --navy: #1a2340;
+      --navy-mid: #2d3a5e;
+      --navy-light: #e8ebf4;
+      --navy-glow: rgba(26, 35, 64, 0.08);
+      --white: #ffffff;
+      --off-white: #fafaf8;
       --slate-900: #0f172a;
+      --slate-800: #1a202c;
+      --slate-700: #2d3748;
       --slate-600: #475569;
       --slate-500: #64748b;
+      --slate-400: #9ba3ba;
+      --slate-300: #c8cedf;
+      --slate-200: #e2e6f0;
       --slate-100: #f1f5f9;
+      --slate-50: #f8f9fc;
       --bg: #f4f5f8;
       --card: #ffffff;
+      --surface-1: #ffffff;
+      --surface-2: #fafaf8;
+      --surface-3: #f4f5f8;
+      --surface-4: #eceef5;
       --line: #e2e8f0;
       --danger: #dc2626;
+      --danger-light: #fee2e2;
       --amber: #d97706;
+      --warning: #d97706;
+      --warning-light: #fef3c7;
+      --success: #138808;
+      --success-light: #e6f5e6;
+      --info: #2563eb;
+      --info-light: #eff6ff;
       --shadow: 0 18px 45px rgba(15, 23, 42, 0.11);
       --soft-shadow: 0 8px 25px rgba(15, 23, 42, 0.08);
+      --shadow-xs: 0 1px 2px rgba(26, 35, 64, 0.04);
+      --shadow-sm: 0 2px 8px rgba(26, 35, 64, 0.06), 0 1px 2px rgba(26, 35, 64, 0.04);
+      --shadow-md: 0 4px 16px rgba(26, 35, 64, 0.08), 0 2px 4px rgba(26, 35, 64, 0.04);
+      --shadow-lg: 0 8px 32px rgba(26, 35, 64, 0.1), 0 4px 8px rgba(26, 35, 64, 0.06);
+      --shadow-xl: 0 16px 48px rgba(26, 35, 64, 0.12), 0 8px 16px rgba(26, 35, 64, 0.08);
+      --shadow-saffron: 0 4px 20px rgba(255, 107, 0, 0.25);
+      --shadow-navy: 0 4px 20px rgba(26, 35, 64, 0.2);
       --radius: 22px;
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --radius-2xl: 20px;
+      --radius-full: 9999px;
       --header-h: 72px;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      --dur-instant: 80ms;
+      --dur-fast: 150ms;
+      --dur-normal: 250ms;
+      --dur-slow: 400ms;
+      --dur-slower: 600ms;
     }
 
     * { box-sizing: border-box; }
@@ -48,11 +100,21 @@
     body.dark {
       --bg: #0f0f0f;
       --card: #1a1a1a;
+      --surface-1: #1a1a1a;
+      --surface-2: #121212;
+      --surface-3: #1e1e1e;
+      --surface-4: #27272a;
       --line: #374151;
       --slate-900: #ffffff;
+      --slate-800: #f8fafc;
+      --slate-700: #f3f4f6;
       --slate-600: #e5e7eb;
       --slate-500: #cbd5e1;
       --slate-100: #1e1e1e;
+      --slate-50: #111827;
+      --saffron-light: rgba(255, 107, 0, 0.14);
+      --india-green-light: rgba(19, 136, 8, 0.16);
+      --navy-light: #172033;
       --shadow: 0 18px 45px rgba(0, 0, 0, 0.34);
       --soft-shadow: 0 8px 25px rgba(0, 0, 0, 0.26);
     }
@@ -273,6 +335,8 @@
       backdrop-filter: blur(14px);
     }
     body.dark .top-nav { background: rgba(26, 26, 26, 0.9); }
+    .top-nav.scrolled { box-shadow: var(--shadow-sm); background: rgba(255, 255, 255, 0.98); }
+    body.dark .top-nav.scrolled { background: rgba(26, 26, 26, 0.96); }
     .top-search {
       display: flex;
       align-items: center;
@@ -353,8 +417,18 @@
       min-height: 48px;
       color: var(--slate-600);
       background: transparent;
+      animation: sidebarItemIn 260ms var(--ease-out) both;
+      animation-delay: calc(var(--nav-index, 0) * 38ms);
     }
     .nav-link.active { color: var(--teal); background: rgba(13, 148, 136, 0.11); }
+    .left-sidebar .nav-link:nth-of-type(2) { --nav-index: 1; }
+    .left-sidebar .nav-link:nth-of-type(3) { --nav-index: 2; }
+    .left-sidebar .nav-link:nth-of-type(4) { --nav-index: 3; }
+    .left-sidebar .nav-link:nth-of-type(5) { --nav-index: 4; }
+    .left-sidebar .nav-link:nth-of-type(6) { --nav-index: 5; }
+    .left-sidebar .nav-link:nth-of-type(7) { --nav-index: 6; }
+    .left-sidebar .nav-link:nth-of-type(8) { --nav-index: 7; }
+    .left-sidebar .nav-link:nth-of-type(9) { --nav-index: 8; }
     .portal-card { padding: 16px; }
     .portal-card small { color: var(--slate-500); }
     .right-sidebar { display: grid; align-content: start; gap: 16px; }
@@ -684,12 +758,335 @@
     .bottom-nav button.active { color: var(--teal); background: rgba(13, 148, 136, 0.12); }
     .bottom-nav i { font-size: 22px; }
 
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-8px); } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideInRight { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
+    @keyframes slideInLeft { from { opacity: 0; transform: translateX(-100%); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideOutLeft { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-100%); } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+    @keyframes scaleOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.94); } }
+    @keyframes scaleInSpring { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: scale(1); } }
     @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-    @keyframes scaleIn { from { transform: scale(1.02); opacity: 0.7; } to { transform: scale(1); opacity: 1; } }
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
-    @keyframes bounce { 0% { transform: scale(0.5); } 70% { transform: scale(1.18); } 100% { transform: scale(1); } }
-    @keyframes heart { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-8px); } 30% { transform: translateX(7px); } 45% { transform: translateX(-6px); } 60% { transform: translateX(5px); } 75% { transform: translateX(-3px); } 90% { transform: translateX(2px); } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.86; } }
+    @keyframes pulseDot { 0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(19, 136, 8, 0.42); } 50% { transform: scale(1.18); opacity: 0.9; box-shadow: 0 0 0 6px rgba(19, 136, 8, 0); } }
+    @keyframes heartbeat { 0%, 70%, 100% { transform: scale(1); } 14% { transform: scale(1.3); } 28% { transform: scale(1); } 42% { transform: scale(1.2); } }
+    @keyframes heart { 0% { transform: scale(1); } 50% { transform: scale(1.28); } 100% { transform: scale(1); } }
+    @keyframes ripple { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0.55; } 100% { transform: translate(-50%, -50%) scale(28); opacity: 0; } }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes spinSlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes bounce { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-6px) scale(1.06); } 60% { transform: translateY(-3px) scale(1.03); } }
+    @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+    @keyframes skeletonWave { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    @keyframes drawCircle { from { stroke-dashoffset: 157; } to { stroke-dashoffset: 0; } }
+    @keyframes drawTick { from { stroke-dashoffset: 50; } to { stroke-dashoffset: 0; } }
+    @keyframes progressFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes capacityGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes countUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes notifBounce { 0%, 100% { transform: rotate(0deg); } 20% { transform: rotate(-15deg); } 40% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 80% { transform: rotate(8deg); } }
+    @keyframes typewriter { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+    @keyframes blinkCursor { 0%, 100% { border-right-color: var(--saffron); } 50% { border-right-color: transparent; } }
+    @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    @keyframes floatUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    @keyframes glow { 0%, 100% { box-shadow: 0 0 8px rgba(255, 107, 0, 0.26); } 50% { box-shadow: 0 0 20px rgba(255, 107, 0, 0.48); } }
+    @keyframes staggerFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes cardRise { from { opacity: 0; transform: translateY(20px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes morphButton { 0% { border-radius: 14px; transform: scale(1); } 50% { border-radius: var(--radius-full); transform: scale(0.96); } 100% { border-radius: var(--radius-full); transform: scale(1); } }
+    @keyframes successCheck { 0% { stroke-dashoffset: 100; } 100% { stroke-dashoffset: 0; } }
+    @keyframes badgeAppear { 0% { transform: scale(0); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+    @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes drawerSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(110%); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(110%); } }
+    @keyframes pillPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+    @keyframes sidebarItemIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes tabIndicator { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes accentSlide { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+    @keyframes checkboxClip { from { clip-path: circle(0% at 50% 50%); } to { clip-path: circle(75% at 50% 50%); } }
+    @keyframes chatInLeft { from { opacity: 0; transform: translateX(-14px) translateY(4px); } to { opacity: 1; transform: translateX(0) translateY(0); } }
+    @keyframes chatInRight { from { opacity: 0; transform: translateX(14px) translateY(4px); } to { opacity: 1; transform: translateX(0) translateY(0); } }
+    @keyframes bellShake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 50% { transform: rotate(10deg); } 75% { transform: rotate(-6deg); } }
+    @keyframes navFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+    @keyframes avatarHover { from { transform: scale(1); } to { transform: scale(1.06); } }
+    @keyframes sectionShift { from { opacity: 0; transform: translateY(12px) scale(0.995); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes tagPop { from { opacity: 0; transform: scale(0.86); } to { opacity: 1; transform: scale(1); } }
+    @keyframes dotJump { 0%, 100% { transform: translateY(0); opacity: 0.45; } 50% { transform: translateY(-6px); opacity: 1; } }
+    @keyframes savePop { 0% { transform: scale(1); } 45% { transform: scale(1.18) rotate(-4deg); } 100% { transform: scale(1); } }
+
+    .motion-enter { animation: fadeInUp var(--dur-normal) var(--ease-out) both; animation-delay: var(--motion-delay, 0ms); }
+    .motion-left { animation: fadeInLeft var(--dur-normal) var(--ease-out) both; animation-delay: var(--motion-delay, 0ms); }
+    .motion-right { animation: fadeInRight var(--dur-normal) var(--ease-out) both; animation-delay: var(--motion-delay, 0ms); }
+    .motion-scale { animation: scaleInSpring var(--dur-slow) var(--ease-spring) both; animation-delay: var(--motion-delay, 0ms); }
+    .motion-observed { opacity: 0; transform: translateY(18px); }
+    .motion-observed.is-visible { animation: fadeInUp var(--dur-slow) var(--ease-out) both; }
+
+    button, .btn, .chip, .search-hit, .composer-trigger {
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    }
+    button:focus-visible, .btn:focus-visible, .chip:focus-visible, .search-hit:focus-visible {
+      outline: 3px solid var(--saffron-glow);
+      outline-offset: 2px;
+    }
+    button:disabled, .btn:disabled { cursor: not-allowed; opacity: 0.72; transform: none !important; }
+    .ripple {
+      position: absolute;
+      left: var(--ripple-x, 50%);
+      top: var(--ripple-y, 50%);
+      z-index: 0;
+      width: 10px;
+      height: 10px;
+      pointer-events: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.45);
+      animation: ripple 600ms var(--ease-out) forwards;
+    }
+    body.dark .ripple { background: rgba(255, 255, 255, 0.26); }
+    .btn > *, button > * { position: relative; z-index: 1; }
+    .btn.is-morphing { animation: morphButton 280ms var(--ease-spring) both; }
+    .btn.is-loading { pointer-events: none; opacity: 0.86; }
+    .btn.is-loading i { animation: spin 800ms linear infinite; }
+    .btn.is-success { color: #fff; background: var(--india-green); border-color: var(--india-green); animation: scaleInSpring 220ms var(--ease-spring) both; }
+
+    .skeleton {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-sm);
+      background: var(--slate-100);
+    }
+    .skeleton::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.48), transparent);
+      animation: skeletonWave 1.35s ease-in-out infinite;
+    }
+    body.dark .skeleton::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent); }
+    .skeleton-text { height: 14px; width: 100%; margin-bottom: 8px; }
+    .skeleton-text.short { width: 60%; }
+    .skeleton-text.medium { width: 80%; }
+    .skeleton-avatar { width: 42px; height: 42px; border-radius: 50%; }
+    .skeleton-card { height: 130px; border-radius: var(--radius); }
+    .skeleton-badge { width: 68px; height: 24px; border-radius: var(--radius-full); }
+
+    .post-card, .person-card, .gig-card, .event-card, .side-card, .search-section {
+      position: relative;
+      overflow: hidden;
+      will-change: transform, opacity;
+    }
+    .post-card::before, .person-card::before, .gig-card::before, .event-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 3px;
+      transform: scaleY(0);
+      transform-origin: bottom;
+      border-radius: 0 8px 8px 0;
+      background: var(--saffron);
+      transition: transform 220ms var(--ease-out);
+    }
+    .post-card:hover::before, .person-card:hover::before, .gig-card:hover::before, .event-card:hover::before {
+      transform: scaleY(1);
+    }
+    .person-card::after {
+      content: "";
+      position: absolute;
+      top: -20px;
+      right: -20px;
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: var(--saffron);
+      opacity: 0.07;
+      pointer-events: none;
+    }
+    .chip { animation: tagPop 220ms var(--ease-spring) both; }
+    .stage-badge, .type-badge, .badge-count.active { animation: badgeAppear 280ms var(--ease-spring) both; }
+    .online-dot { animation: pulseDot 2s ease-in-out infinite; }
+    #notificationBtn.has-new i { animation: bellShake 600ms var(--ease-out); }
+
+    .comments {
+      display: block;
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      padding-top: 0;
+      padding-bottom: 0;
+      transition: max-height var(--dur-slow) var(--ease-out), opacity var(--dur-fast) var(--ease-out), padding var(--dur-fast) var(--ease-out);
+    }
+    .comments.active {
+      max-height: 640px;
+      opacity: 1;
+      padding: 12px;
+    }
+    .comment-row { animation: fadeInUp 200ms var(--ease-out) both; }
+
+    .filter-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .filter-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-full);
+      color: var(--slate-600);
+      background: var(--card);
+      font-weight: 850;
+      cursor: pointer;
+      transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+    }
+    .filter-check:hover { transform: translateY(-1px); border-color: var(--saffron); background: var(--saffron-light); }
+    .filter-check input { position: absolute; opacity: 0; pointer-events: none; }
+    .filter-check .checkmark {
+      width: 18px;
+      height: 18px;
+      display: inline-grid;
+      place-items: center;
+      border: 2px solid var(--slate-300);
+      border-radius: 6px;
+      background: var(--card);
+      transition: border-color var(--dur-fast) var(--ease-out);
+    }
+    .filter-check .checkmark::after {
+      content: "\2713";
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      clip-path: circle(0% at 50% 50%);
+      color: #fff;
+      border-radius: 4px;
+      background: var(--saffron);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .filter-check input:checked + .checkmark { border-color: var(--saffron); }
+    .filter-check input:checked + .checkmark::after { animation: checkboxClip var(--dur-fast) var(--ease-out) forwards; }
+
+    .capacity-track {
+      height: 8px;
+      border-radius: var(--radius-full);
+      background: var(--slate-100);
+      overflow: hidden;
+    }
+    .capacity-fill {
+      display: block;
+      height: 100%;
+      width: var(--capacity, 0%);
+      transform-origin: left center;
+      transform: scaleX(0);
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--saffron), var(--india-green));
+    }
+    .capacity-fill.is-visible { animation: capacityGrow 800ms var(--ease-out) forwards; }
+
+    .ai-response.is-typing { position: relative; }
+    .ai-response.is-typing::after {
+      content: "";
+      display: inline-block;
+      width: 1px;
+      height: 1.1em;
+      margin-left: 3px;
+      border-right: 2px solid var(--saffron);
+      vertical-align: text-bottom;
+      animation: blinkCursor 900ms step-end infinite;
+    }
+
+    .message-bubble.sent { animation: chatInRight 200ms var(--ease-out) both; }
+    .message-bubble.received { animation: chatInLeft 200ms var(--ease-out) both; }
+    .conversation-item { animation: fadeInLeft 220ms var(--ease-out) both; animation-delay: var(--motion-delay, 0ms); }
+
+    .profile-cover {
+      background-size: 200% 200% !important;
+      animation: fadeIn 400ms var(--ease-out) both, gradientShift 7s ease infinite;
+    }
+    .profile-main .avatar { animation: scaleInSpring 500ms var(--ease-spring) both; animation-delay: 180ms; }
+    .stat-row div { animation: fadeInUp 300ms var(--ease-out) both; animation-delay: var(--motion-delay, 0ms); }
+    .stat-row b { display: inline-block; font-family: "JetBrains Mono", monospace; animation: countUp 260ms var(--ease-out) both; }
+    .profile-tabs::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      right: 75%;
+      bottom: 6px;
+      height: 3px;
+      border-radius: var(--radius-full);
+      background: var(--saffron);
+      animation: tabIndicator 240ms var(--ease-out) both;
+    }
+
+    .success-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(15, 20, 40, 0.5);
+      backdrop-filter: blur(10px);
+      animation: overlayFadeIn 220ms var(--ease-out) both;
+    }
+    .success-overlay.leaving { animation: fadeOut 240ms var(--ease-in-out) forwards; }
+    .success-card {
+      width: min(420px, 100%);
+      padding: 28px;
+      text-align: center;
+      border-radius: 28px;
+      color: var(--slate-900);
+      background: var(--card);
+      box-shadow: var(--shadow-xl);
+      animation: scaleInSpring 420ms var(--ease-spring) both;
+    }
+    .success-card svg { width: 88px; height: 88px; margin-bottom: 12px; }
+    .success-card circle {
+      fill: none;
+      stroke: var(--teal);
+      stroke-width: 4;
+      stroke-dasharray: 157;
+      stroke-dashoffset: 157;
+      animation: drawCircle 600ms var(--ease-out) forwards;
+    }
+    .success-card path {
+      fill: none;
+      stroke: var(--saffron);
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 50;
+      stroke-dashoffset: 50;
+      animation: drawTick 420ms var(--ease-out) 560ms forwards;
+    }
+    .success-card h2 { animation: fadeInUp 300ms var(--ease-out) 920ms both; }
+    .success-card p { animation: fadeInUp 300ms var(--ease-out) 1020ms both; }
+
+    .toast { animation: toastIn 320ms var(--ease-spring) both; }
+    .modal-backdrop.active { animation: overlayFadeIn 220ms var(--ease-out) both; }
+    .modal-card { animation: modalIn 280ms var(--ease-spring) both; }
+    .bottom-nav { animation: slideUp 320ms var(--ease-out) both; }
+    .bottom-nav button.active { animation: navFloat 1.8s ease-in-out infinite; }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--slate-400); }
+    * { scrollbar-color: var(--slate-300) transparent; scrollbar-width: thin; }
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -884,11 +1281,13 @@
         messages: { conversations: [], activeMessages: [] },
         ui: { notificationPanelOpen: false, composerOpen: false, profileModalOpen: false }
       };
+      let motionObserver = null;
       window.ConnectHubFullApp = { appState, registerTestUser, setSection, createGigFromTest, sendTestMessage, seedDatabase };
 
       seedDatabase();
       bindAuth();
       bindAppEvents();
+      initMotionSystem();
       const session = read(KEYS.session, null);
       if (session) {
         appState.currentUser = session;
@@ -971,6 +1370,153 @@
           clearTimeout(timer);
           timer = setTimeout(() => fn(...args), wait);
         };
+      }
+      function initMotionSystem() {
+        if (document.body.dataset.motionReady === "true") return;
+        document.body.dataset.motionReady = "true";
+        setupMotionObserver();
+        document.addEventListener("mousedown", event => {
+          const target = event.target.closest("button, .btn, .chip, .search-hit, .composer-trigger");
+          if (target && !target.disabled) rippleEffect(target, event);
+        }, { passive: true });
+        document.addEventListener("touchstart", event => {
+          const target = event.target.closest("button, .btn, .chip, .search-hit, .composer-trigger");
+          if (target && !target.disabled) rippleEffect(target, event.touches[0] || event);
+        }, { passive: true });
+        window.addEventListener("scroll", () => {
+          document.querySelector(".top-nav")?.classList.toggle("scrolled", window.scrollY > 10);
+        }, { passive: true });
+      }
+      function animateIn(element, animationName = "fadeInUp", duration = 280, delay = 0) {
+        if (!element) return null;
+        element.style.willChange = "transform, opacity";
+        element.style.animation = `${animationName} ${duration}ms var(--ease-out) ${delay}ms both`;
+        const cleanup = () => {
+          element.style.willChange = "";
+          element.removeEventListener("animationend", cleanup);
+        };
+        element.addEventListener("animationend", cleanup);
+        return element;
+      }
+      function staggerChildren(parent, animationName = "staggerFadeIn", delayStep = 60, selector = null) {
+        if (!parent) return [];
+        const children = [...(selector ? parent.querySelectorAll(selector) : parent.children)];
+        children.forEach((child, index) => {
+          const delay = Math.min(index * delayStep, 520);
+          child.style.setProperty("--motion-delay", `${delay}ms`);
+          animateIn(child, animationName, 300, delay);
+        });
+        return children;
+      }
+      function countUp(element, target, duration = 800) {
+        if (!element || element.dataset.countDone === "true") return;
+        const numeric = Number(String(target).replace(/[^\d.]/g, ""));
+        if (!Number.isFinite(numeric)) return;
+        element.dataset.countDone = "true";
+        const suffix = String(target).replace(/[\d.]/g, "");
+        const start = performance.now();
+        const step = now => {
+          const progress = Math.min(1, (now - start) / duration);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          const value = numeric % 1 ? (numeric * eased).toFixed(1) : Math.round(numeric * eased);
+          element.textContent = `${value}${suffix}`;
+          if (progress < 1) requestAnimationFrame(step);
+          else element.textContent = String(target);
+        };
+        requestAnimationFrame(step);
+      }
+      function typewriterEffect(element, text, speed = 15) {
+        if (!element) return;
+        const clean = String(text || "");
+        element.textContent = "";
+        element.classList.add("is-typing");
+        let index = 0;
+        let last = 0;
+        const tick = timestamp => {
+          if (!last) last = timestamp;
+          if (timestamp - last >= speed) {
+            index += Math.max(1, Math.floor((timestamp - last) / speed));
+            element.textContent = clean.slice(0, index);
+            last = timestamp;
+          }
+          if (index < clean.length) requestAnimationFrame(tick);
+          else element.classList.remove("is-typing");
+        };
+        requestAnimationFrame(tick);
+      }
+      function rippleEffect(button, event) {
+        if (!button) return;
+        const rect = button.getBoundingClientRect();
+        const ripple = document.createElement("span");
+        ripple.className = "ripple";
+        ripple.style.setProperty("--ripple-x", `${(event?.clientX || rect.left + rect.width / 2) - rect.left}px`);
+        ripple.style.setProperty("--ripple-y", `${(event?.clientY || rect.top + rect.height / 2) - rect.top}px`);
+        button.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 650);
+      }
+      function morphButton(button, state = "loading") {
+        if (!button) return;
+        const original = button.dataset.originalHtml || button.innerHTML;
+        button.dataset.originalHtml = original;
+        button.classList.add("is-morphing");
+        if (state === "loading") {
+          button.classList.add("is-loading");
+          button.disabled = true;
+          button.innerHTML = `<i class="ti ti-loader-2"></i> Working`;
+        } else if (state === "success") {
+          button.classList.remove("is-loading");
+          button.classList.add("is-success");
+          button.disabled = true;
+          button.innerHTML = `<i class="ti ti-check"></i> Pending`;
+        } else {
+          button.classList.remove("is-loading", "is-success", "is-morphing");
+          button.disabled = false;
+          button.innerHTML = original;
+        }
+      }
+      function skeletonLoad(container, count = 3, type = "card") {
+        if (!container) return;
+        const block = Array.from({ length: count }).map(() => {
+          if (type === "row") return `<div class="card motion-enter" style="padding:14px;margin-bottom:12px;"><div class="entity-head"><span class="skeleton skeleton-avatar"></span><div style="flex:1;"><div class="skeleton skeleton-text medium"></div><div class="skeleton skeleton-text short"></div></div></div></div>`;
+          return `<div class="card motion-enter" style="padding:16px;margin-bottom:14px;"><div class="skeleton skeleton-text short"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text medium"></div><div class="skeleton skeleton-card"></div></div>`;
+        }).join("");
+        container.innerHTML = block;
+      }
+      function setupMotionObserver() {
+        if (!("IntersectionObserver" in window)) return;
+        motionObserver = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            const el = entry.target;
+            el.classList.add("is-visible");
+            if (el.classList.contains("js-count")) countUp(el, el.dataset.countTarget || el.textContent, 850);
+            motionObserver.unobserve(el);
+          });
+        }, { threshold: 0.3 });
+      }
+      function applySectionMotion(root) {
+        if (!root) return;
+        requestAnimationFrame(() => {
+          staggerChildren(root, "cardRise", 60, ".post-card, .person-card, .gig-card, .event-card");
+          staggerChildren(root, "fadeInLeft", 35, ".conversation-item");
+          staggerChildren(root, "fadeInRight", 70, ".ai-category-list .btn, .ai-panel .chip, .search-hit");
+          root.querySelectorAll(".stat-row div").forEach((node, index) => {
+            node.style.setProperty("--motion-delay", `${Math.min(index * 60, 360)}ms`);
+          });
+          root.querySelectorAll(".stat-row b").forEach(node => {
+            const target = node.textContent.trim();
+            if (!/^\d/.test(target)) return;
+            node.dataset.countTarget = target;
+            node.textContent = "0";
+            node.classList.add("js-count", "motion-observed");
+            if (motionObserver) motionObserver.observe(node);
+            else countUp(node, target, 850);
+          });
+          root.querySelectorAll(".capacity-fill").forEach(node => {
+            if (motionObserver) motionObserver.observe(node);
+            else node.classList.add("is-visible");
+          });
+        });
       }
       function createRealtime() {
         if ("BroadcastChannel" in window) {
@@ -1223,7 +1769,7 @@
         });
         if (!user) return;
         toast("Registered successfully");
-        showApp();
+        showRegistrationSuccess(showApp);
       }
 
       function registerTestUser(data) {
@@ -1280,6 +1826,21 @@
         updateChrome();
         setupRealtime();
         renderAll();
+        applySectionMotion(document.getElementById("mainContent"));
+      }
+
+      function showRegistrationSuccess(done) {
+        const overlay = document.createElement("div");
+        overlay.className = "success-overlay";
+        overlay.innerHTML = `<div class="success-card"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="25"></circle><path d="M20 33.5 28 41 45 23"></path></svg><h2>Welcome to Connect Hub</h2><p>Your profile is live. Opening your dashboard now.</p></div>`;
+        document.body.appendChild(overlay);
+        setTimeout(() => {
+          overlay.classList.add("leaving");
+          setTimeout(() => {
+            overlay.remove();
+            done?.();
+          }, 260);
+        }, 1450);
       }
 
       function updateChrome() {
@@ -1321,7 +1882,7 @@
         if (type === "share-post") return sharePost(id);
         if (type === "save-post") return saveItem("post", id);
         if (type === "network-tab") return setNetworkTab(tab);
-        if (type === "connect") return connectTo(userId);
+        if (type === "connect") return connectTo(userId, action);
         if (type === "accept") return respondConnection(id, "accepted");
         if (type === "decline") return respondConnection(id, "declined");
         if (type === "cancel") return cancelConnection(id);
@@ -1354,6 +1915,9 @@
         if (section === "saved") renderSaved();
         if (section === "settings") renderSettings();
         if (section === "profile") renderProfile(appState.currentUser.id, true);
+        const active = document.getElementById(`section-${section}`);
+        animateIn(active, "sectionShift", 260, 0);
+        applySectionMotion(active);
       }
 
       function renderAll() {
@@ -1398,6 +1962,7 @@
           <div class="card" style="padding:16px;margin-bottom:16px;"><strong>Suggested for you</strong><div class="tag-list">${posts.filter(post => sameSectorScore(getUser(post.authorId) || {}) || getUser(post.authorId)?.city === appState.currentUser.city).slice(0, 3).map(post => `<span class="chip">${esc((getUser(post.authorId) || {}).startupName || "Startup")} · ${esc(post.tags[0] || "Update")}</span>`).join("") || '<span class="muted">More suggestions appear as your network grows.</span>'}</div></div>
           ${posts.slice(0, 20).map(renderPost).join("")}`;
         root.querySelectorAll("[data-action='feed-filter']").forEach(button => button.addEventListener("click", () => { appState.feed.filter = button.dataset.value; renderFeed(); }));
+        applySectionMotion(root);
       }
 
       function renderPost(post) {
@@ -1519,6 +2084,7 @@
         document.getElementById("networkSort").addEventListener("change", event => { appState.network.sort = event.target.value; renderNetworkBody(); });
         root.querySelectorAll("[data-network-filter]").forEach(button => button.addEventListener("click", () => { appState.network.filter = button.dataset.networkFilter; renderNetwork(); }));
         renderNetworkBody();
+        applySectionMotion(root);
       }
 
       function setNetworkTab(tab) {
@@ -1544,6 +2110,7 @@
           const near = appState.network.nearby.length ? appState.network.nearby : getDiscoverPeople();
           body.innerHTML = `<div class="people-grid">${near.slice(0, 20).map(renderPersonCard).join("")}</div>`;
         }
+        applySectionMotion(body);
       }
 
       function getDiscoverPeople() {
@@ -1601,16 +2168,22 @@
         return section("Received", received, "received") + section("Sent", sent, "sent");
       }
 
-      function connectTo(userId) {
+      function connectTo(userId, sourceButton = null) {
         const conns = read(KEYS.connections, []);
         if (conns.some(c => c.requesterId === appState.currentUser.id && c.receiverId === userId)) return;
+        morphButton(sourceButton, "loading");
         const conn = { id: uid("conn"), requesterId: appState.currentUser.id, receiverId: userId, status: "pending", createdAt: Date.now() };
         conns.push(conn);
         write(KEYS.connections, conns);
         createNotification(userId, "connection_request", conn.id, `${appState.currentUser.name} sent you a connection request`);
         rt.send("connection_update", conn);
         toast("Connection request sent");
-        renderNetwork();
+        if (sourceButton) {
+          setTimeout(() => morphButton(sourceButton, "success"), 320);
+          setTimeout(renderNetwork, 820);
+        } else {
+          renderNetwork();
+        }
       }
 
       function respondConnection(id, status) {
@@ -1679,6 +2252,7 @@
           toast("API key saved for this session");
         });
         document.getElementById("aiQuestion").addEventListener("input", event => document.getElementById("aiCount").textContent = event.target.value.length);
+        applySectionMotion(root);
       }
 
       function setAICategory(category) {
@@ -1722,6 +2296,7 @@
         if (!answer) answer = await callAI(question);
         appState.aiHub.currentResponse = answer;
         typewriter(responseBox, formatAI(answer));
+        animateIn(responseBox, "fadeInUp", 300, 0);
         const history = read(KEYS.ai, []);
         history.push({ id: uid("ai"), userId: appState.currentUser.id, category: appState.aiHub.category, question, response: answer, createdAt: Date.now() });
         write(KEYS.ai, history);
@@ -1763,15 +2338,8 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
       }
 
       function typewriter(node, html) {
-        node.innerHTML = "";
         const text = html.replace(/<br>/g, "\\n").replace(/<[^>]+>/g, "");
-        let i = 0;
-        const tick = () => {
-          node.textContent = text.slice(0, i);
-          i += 3;
-          if (i <= text.length) requestAnimationFrame(tick);
-        };
-        tick();
+        typewriterEffect(node, text, 15);
       }
 
       function formatAI(text) {
@@ -1782,12 +2350,15 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
         const root = document.getElementById("section-gigs");
         const gigs = read(KEYS.gigs, [])
           .filter(g => !appState.gigs.query || [g.title, g.description, g.skills.join(" "), g.type].join(" ").toLowerCase().includes(appState.gigs.query.toLowerCase()))
+          .filter(g => !appState.gigs.filter.remote || g.remote)
           .sort((a, b) => b.createdAt - a.createdAt);
         root.innerHTML = `
           <div class="section-title"><div><h2>StartGigs</h2><p>Opportunities, co-founder roles, contracts and startup work.</p></div><button class="btn btn-saffron" data-action="open-gig-modal"><i class="ti ti-plus"></i> Post a Gig</button></div>
-          <div class="card" style="padding:14px;margin-bottom:16px;"><div class="grid-2"><label class="control"><i class="ti ti-search"></i><input id="gigSearch" placeholder="Search title, skills, type..." value="${esc(appState.gigs.query)}"></label><label class="control"><i class="ti ti-map-pin"></i><select id="gigCity"><option value="">All cities</option>${Object.keys(cityCoords).map(city => `<option>${city}</option>`).join("")}</select></label></div></div>
+          <div class="card" style="padding:14px;margin-bottom:16px;"><div class="grid-2"><label class="control"><i class="ti ti-search"></i><input id="gigSearch" placeholder="Search title, skills, type..." value="${esc(appState.gigs.query)}"></label><label class="control"><i class="ti ti-map-pin"></i><select id="gigCity"><option value="">All cities</option>${Object.keys(cityCoords).map(city => `<option>${city}</option>`).join("")}</select></label></div><div class="filter-checks"><label class="filter-check"><input id="gigRemoteFilter" type="checkbox" ${appState.gigs.filter.remote ? "checked" : ""}><span class="checkmark"></span><span>Remote only</span></label><label class="filter-check"><input id="gigStartupFilter" type="checkbox"><span class="checkmark"></span><span>Startup friendly</span></label></div></div>
           <div class="gig-grid">${gigs.slice(0, 20).map(renderGigCard).join("")}</div>`;
         document.getElementById("gigSearch").addEventListener("input", debounce(event => { appState.gigs.query = event.target.value; renderGigs(); }, 300));
+        document.getElementById("gigRemoteFilter").addEventListener("change", event => { appState.gigs.filter.remote = event.target.checked; renderGigs(); });
+        applySectionMotion(root);
       }
 
       function renderGigCard(gig) {
@@ -1877,8 +2448,9 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
             const going = event.rsvpList.includes(appState.currentUser.id);
             const pct = Math.min(100, Math.round((event.rsvpCount / event.capacity) * 100));
             const date = new Date(event.date);
-            return `<article class="event-card"><div class="entity-head"><div class="avatar" style="background:var(--saffron)">${date.getDate()}</div><div class="meta"><span class="type-badge">${esc(event.type)}</span><h3>${esc(event.title)}</h3><p>${esc(event.city)} · ${event.isOnline ? "Online" : esc(event.venue)} · ${esc(event.time)}</p></div></div><p>${esc(event.description)}</p><div class="tag-list">${event.tags.map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}</div><p class="muted">Capacity ${event.rsvpCount}/${event.capacity}</p><div style="height:8px;border-radius:999px;background:var(--slate-100);overflow:hidden;"><span style="display:block;height:100%;width:${pct}%;background:var(--teal);"></span></div><div class="card-actions"><button data-action="rsvp" data-id="${event.id}">${going ? "You're Going ✓" : "RSVP"}</button><button data-action="calendar" data-id="${event.id}">Add to Calendar</button></div></article>`;
+            return `<article class="event-card"><div class="entity-head"><div class="avatar" style="background:var(--saffron)">${date.getDate()}</div><div class="meta"><span class="type-badge">${esc(event.type)}</span><h3>${esc(event.title)}</h3><p>${esc(event.city)} · ${event.isOnline ? "Online" : esc(event.venue)} · ${esc(event.time)}</p></div></div><p>${esc(event.description)}</p><div class="tag-list">${event.tags.map(tag => `<span class="chip">${esc(tag)}</span>`).join("")}</div><p class="muted">Capacity ${event.rsvpCount}/${event.capacity}</p><div class="capacity-track"><span class="capacity-fill" style="--capacity:${pct}%;"></span></div><div class="card-actions"><button data-action="rsvp" data-id="${event.id}">${going ? "You're Going ✓" : "RSVP"}</button><button data-action="calendar" data-id="${event.id}">Add to Calendar</button></div></article>`;
           }).join("")}</div>`;
+        applySectionMotion(root);
       }
 
       function setEventFilter(filter) {
@@ -1931,6 +2503,7 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
           const list = document.getElementById("messageList");
           if (list) list.scrollTop = list.scrollHeight;
         }, 20);
+        applySectionMotion(root);
       }
 
       function renderMessageBubble(message) {
@@ -1996,12 +2569,16 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
         const saved = read(KEYS.saved, {})[appState.currentUser.id] || [];
         const posts = read(KEYS.feed, []).filter(p => saved.some(s => s.type === "post" && s.id === p.id));
         const gigs = read(KEYS.gigs, []).filter(g => saved.some(s => s.type === "gig" && s.id === g.id));
-        document.getElementById("section-saved").innerHTML = `<div class="section-title"><div><h2>Saved</h2><p>Your saved posts, gigs and AI answers.</p></div></div>${posts.map(renderPost).join("")}${gigs.map(renderGigCard).join("") || '<div class="card" style="padding:24px;"><p class="muted">No saved items yet.</p></div>'}`;
+        const root = document.getElementById("section-saved");
+        root.innerHTML = `<div class="section-title"><div><h2>Saved</h2><p>Your saved posts, gigs and AI answers.</p></div></div>${posts.map(renderPost).join("")}${gigs.map(renderGigCard).join("") || '<div class="card" style="padding:24px;"><p class="muted">No saved items yet.</p></div>'}`;
+        applySectionMotion(root);
       }
 
       function renderSettings() {
-        document.getElementById("section-settings").innerHTML = `<div class="section-title"><div><h2>Settings</h2><p>Account, appearance, privacy and app controls.</p></div></div><div class="card" style="padding:18px;"><button class="btn btn-secondary auth-submit" id="settingsTheme">Toggle dark/light mode</button><button class="btn btn-secondary auth-submit" data-action="logout">Sign out</button><p class="muted">Anthropic API keys are session-only and never saved here.</p></div>`;
+        const root = document.getElementById("section-settings");
+        root.innerHTML = `<div class="section-title"><div><h2>Settings</h2><p>Account, appearance, privacy and app controls.</p></div></div><div class="card" style="padding:18px;"><button class="btn btn-secondary auth-submit" id="settingsTheme">Toggle dark/light mode</button><button class="btn btn-secondary auth-submit" data-action="logout">Sign out</button><p class="muted">Anthropic API keys are session-only and never saved here.</p></div>`;
         document.getElementById("settingsTheme").addEventListener("click", toggleTheme);
+        applySectionMotion(root);
       }
 
       function renderProfile(userId, own = false) {
@@ -2016,15 +2593,23 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
         const gigs = read(KEYS.gigs, []).filter(gig => gig.posterId === user.id);
         const events = read(KEYS.events, []).filter(event => event.organizerId === user.id);
         const html = `<div class="card"><div class="profile-cover" style="background:linear-gradient(135deg,${esc(user.color)},var(--teal));"></div><div class="profile-main">${avatar(user, "lg")}<h2>${esc(user.name)}</h2><p>${esc(user.role)} · ${esc(user.startupName)} ${stageBadge(user.stage)}</p><p>${esc(user.bio)}</p><p><i class="ti ti-map-pin"></i> ${esc(user.city)} ${user.dpiit ? ` · <span class="chip">DPIIT ${esc(user.dpiit)}</span>` : ""}</p><div class="stat-row"><div><b>${user.connections}</b><br><span>Connections</span></div><div><b>${user.profileViews}</b><br><span>Views</span></div><div><b>${posts.length}</b><br><span>Posts</span></div><div><b>${gigs.length}</b><br><span>Gigs</span></div></div><div class="tag-list">${user.skills.map(skill => `<span class="chip">${esc(skill)}</span>`).join("")}${user.lookingFor.map(item => `<span class="chip active">${esc(item)}</span>`).join("")}</div>${own ? '<button class="btn btn-primary auth-submit" data-action="edit-profile">Edit Profile</button>' : `<div class="card-actions"><button data-action="connect" data-user-id="${user.id}">Connect</button><button data-action="message-user" data-user-id="${user.id}">Message</button></div>`}<div class="profile-tabs" style="margin-top:16px;"><button class="active">Posts</button><button>Gigs</button><button>Events</button><button>About</button></div><div style="margin-top:14px;">${posts.slice(0, 4).map(renderPost).join("") || '<p class="muted">No posts yet.</p>'}</div></div></div>`;
-        if (own) document.getElementById("section-profile").innerHTML = html;
-        else openModal(user.name, html);
+        if (own) {
+          const root = document.getElementById("section-profile");
+          root.innerHTML = html;
+          applySectionMotion(root);
+        } else {
+          openModal(user.name, html);
+          applySectionMotion(document.querySelector(".modal-card"));
+        }
       }
       function openProfile(userId) { renderProfile(userId, false); }
 
       function renderRightSidebar() {
         const people = getDiscoverPeople().slice(0, 4);
         const events = read(KEYS.events, []).slice(0, 3);
-        document.getElementById("rightSidebar").innerHTML = `<div class="side-card"><h3>Who to Connect</h3>${people.map(user => `<button class="search-hit" data-action="profile-user" data-user-id="${user.id}">${esc(user.name)}<br><small>${esc(user.startupName)} · ${esc(user.city)}</small></button>`).join("")}</div><div class="side-card"><h3>Trending</h3><div class="tag-list">${["#FinTech", "#DPIIT", "#AIIndia", "#Hiring", "#SeedRound"].map(t => `<span class="chip">${t}</span>`).join("")}</div></div><div class="side-card"><h3>Upcoming Events</h3>${events.map(e => `<p><strong>${esc(e.title)}</strong><br><span class="muted">${esc(e.city)} · ${esc(e.date)}</span></p>`).join("")}</div>`;
+        const root = document.getElementById("rightSidebar");
+        root.innerHTML = `<div class="side-card"><h3>Who to Connect</h3>${people.map(user => `<button class="search-hit" data-action="profile-user" data-user-id="${user.id}">${esc(user.name)}<br><small>${esc(user.startupName)} · ${esc(user.city)}</small></button>`).join("")}</div><div class="side-card"><h3>Trending</h3><div class="tag-list">${["#FinTech", "#DPIIT", "#AIIndia", "#Hiring", "#SeedRound"].map(t => `<span class="chip">${t}</span>`).join("")}</div></div><div class="side-card"><h3>Upcoming Events</h3>${events.map(e => `<p><strong>${esc(e.title)}</strong><br><span class="muted">${esc(e.city)} · ${esc(e.date)}</span></p>`).join("")}</div>`;
+        applySectionMotion(root);
       }
 
       function renderGlobalSearch(query) {
@@ -2034,6 +2619,7 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
           const recent = read("ch_recent_searches", []);
           overlay.innerHTML = `<div class="search-results"><div class="search-section"><h4>Recent searches</h4>${recent.map(item => `<button class="search-hit">${esc(item)}</button>`).join("") || '<p class="muted">Start typing to search.</p>'}<button class="btn btn-secondary" id="clearRecent">Clear recent</button></div></div>`;
           overlay.classList.add("active");
+          applySectionMotion(overlay);
           document.getElementById("clearRecent")?.addEventListener("click", () => { write("ch_recent_searches", []); renderGlobalSearch(""); });
           return;
         }
@@ -2046,6 +2632,7 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
         const events = read(KEYS.events, []).filter(e => [e.title, e.city, e.type].join(" ").toLowerCase().includes(q)).slice(0, 5);
         overlay.innerHTML = `<div class="search-results">${searchGroup("People", people.map(u => `<button class="search-hit" data-action="profile-user" data-user-id="${u.id}">${esc(u.name)}<br><small>${esc(u.startupName)} · ${esc(u.city)}</small></button>`))}${searchGroup("Gigs", gigs.map(g => `<button class="search-hit" data-action="apply-gig" data-id="${g.id}">${esc(g.title)}<br><small>${esc(g.type)} · ${esc(g.city)}</small></button>`))}${searchGroup("Posts", posts.map(p => `<a class="search-hit" href="#post-${p.id}">${esc(p.content.slice(0, 70))}</a>`))}${searchGroup("Events", events.map(e => `<button class="search-hit" data-action="event-filter" data-value="${e.type}">${esc(e.title)}<br><small>${esc(e.city)}</small></button>`))}${searchGroup("AI Suggestions", [`<button class="search-hit" data-action="ai-suggest" data-value="Tell me about ${esc(appState.searchQuery)} in India">Ask AI about "${esc(appState.searchQuery)}"</button>`])}</div>`;
         overlay.classList.add("active");
+        applySectionMotion(overlay);
       }
       function searchGroup(title, items) {
         return `<div class="search-section"><h4>${title}</h4>${items.join("") || `<p class="muted">No ${title.toLowerCase()} found.</p>`}<small class="muted">See all ${title.toLowerCase()}</small></div>`;
@@ -2100,6 +2687,11 @@ Tailor all advice specifically for India, Indian regulations, Indian investors, 
         if (!el) return;
         el.textContent = count;
         el.classList.toggle("active", count > 0);
+        if (id === "notifBadge" && count > 0) {
+          const bell = document.getElementById("notificationBtn");
+          bell?.classList.remove("has-new");
+          requestAnimationFrame(() => bell?.classList.add("has-new"));
+        }
       }
       function openNotifications() {
         const notes = read(KEYS.notifications, []).filter(n => n.userId === appState.currentUser.id).sort((a, b) => b.createdAt - a.createdAt);
