@@ -918,7 +918,8 @@ function scorePostSearch(post, query) {
     if (author.includes(term)) score += 10;
     if (content.includes(term)) score += 8;
     if (!haystack.includes(term)) {
-      const close = haystack.split(/\s+/).some(word => word.length > 3 && editDistance(word, term) <= 2);
+      const maxDistance = term.length >= 7 ? 2 : 1;
+      const close = haystack.split(/\s+/).some(word => word.length > 3 && editDistance(word, term) <= maxDistance);
       if (close) score += 6;
     }
   });
@@ -1058,7 +1059,10 @@ function scoreExploreEntity(entity, query = "") {
     if (skills.includes(term)) score += 12;
     if (role.includes(term)) score += 10;
     if (location.includes(term)) score += 8;
-    if (!text.includes(term) && text.split(/\s+/).some(word => word.length > 3 && editDistance(word, term) <= 2)) score += 6;
+    if (!text.includes(term)) {
+      const maxDistance = term.length >= 7 ? 2 : 1;
+      if (text.split(/\s+/).some(word => word.length > 3 && editDistance(word, term) <= maxDistance)) score += 6;
+    }
   });
   return score;
 }
@@ -1201,6 +1205,195 @@ function exploreSearchPayload(db, url, req, auth) {
       `Try ${q || "AI"} founder`,
       `Search ${location || "Bengaluru"} startups`,
       "video editor",
+      "seed investors"
+    ]
+  };
+}
+
+function publicSearchTypeGroup(type = "all") {
+  const value = String(type || "all").toLowerCase();
+  return {
+    value,
+    wantsUsers: ["all", "users", "people", "founders", "investors", "jobs"].includes(value),
+    wantsStartups: ["all", "startups", "founders", "jobs"].includes(value),
+    wantsGigs: ["all", "jobs", "gigs", "opportunities"].includes(value)
+  };
+}
+
+function publicSearchStartupPool(db, req) {
+  const existing = (db.startups || []).map((startup, index) => ({
+    ...startup,
+    type: "startup",
+    name: startup.name,
+    tagline: startup.tagline || startup.description || `${startup.sector || "Startup"} company on ConnectHub`,
+    industry: startup.industry || startup.sector || "",
+    location: startup.location || [startup.city, startup.state].filter(Boolean).join(", "),
+    tags: [...new Set([...(startup.tags || []), startup.sector, startup.stage].filter(Boolean).map(String))],
+    logo: startup.logo || startup.logoUrl || startup.logoPhoto?.dataUrl || "",
+    logoInitials: startup.logoInitials || initialsFor(startup.name || "CH"),
+    foundedYear: startup.foundedYear || "",
+    profileUrl: `/profile/${profileHandle({ name: startup.name })}`,
+    trendingScore: trendingScoreForStartup(startup, db, index)
+  }));
+  const seeded = seededIndianPeople()
+    .filter(item => /founder|startup/i.test([item.role, item.title].join(" ")))
+    .map((item, index) => ({
+      id: `seed-startup-${index}`,
+      type: "startup",
+      name: item.companyName || item.name,
+      tagline: `${item.title || "Founder"} building in ${item.sector || "Indian startups"}`,
+      description: `${item.companyName || item.name} is an Indian startup signal in ${item.city}.`,
+      industry: item.sector || "",
+      sector: item.sector || "",
+      stage: item.stage || "Seed",
+      city: item.city,
+      state: item.state,
+      location: [item.city, item.state].filter(Boolean).join(", "),
+      tags: [item.sector, item.stage, ...(item.skills || [])].filter(Boolean),
+      logo: "",
+      logoInitials: initialsFor(item.companyName || item.name || "CH"),
+      foundedYear: "",
+      profileUrl: profileUrlFor({ name: item.companyName || item.name }, req),
+      trendingScore: 80 - index
+    }));
+  const seen = new Set();
+  return [...existing, ...seeded].filter(startup => {
+    const key = String(startup.id || startup.name || "").toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mapPublicUser(user, db, req, auth) {
+  const roleType = user.roleType || roleBucket(user.role);
+  return {
+    id: user.id || user.handle || profileHandle(user),
+    _id: user.id || user.handle || profileHandle(user),
+    name: user.name,
+    email: user.email || "",
+    username: user.handle || profileHandle(user),
+    handle: user.handle || profileHandle(user),
+    avatar: user.avatarPhoto?.dataUrl || "",
+    avatarPhoto: user.avatarPhoto || null,
+    avatarInitials: user.avatarInitials || initialsFor(user.name || "CH"),
+    role: user.title || user.role || roleType,
+    roleType,
+    bio: user.bio || "",
+    location: user.location || [user.city, user.state].filter(Boolean).join(", "),
+    city: user.city || "",
+    state: user.state || "",
+    company: user.companyName || "",
+    companyName: user.companyName || "",
+    skills: user.skills || [],
+    mutualConnections: mutualConnectionCount(db, auth?.name || "", user.name || ""),
+    profileUrl: user.profileUrl || profileUrlFor(user, req)
+  };
+}
+
+function mapPublicStartup(startup) {
+  return {
+    id: startup.id || profileHandle({ name: startup.name }),
+    _id: startup.id || profileHandle({ name: startup.name }),
+    name: startup.name,
+    username: profileHandle({ name: startup.name }),
+    handle: profileHandle({ name: startup.name }),
+    role: "Startup",
+    roleType: "startup",
+    tagline: startup.tagline || startup.description || "",
+    description: startup.description || startup.tagline || "",
+    logo: startup.logo || "",
+    logoInitials: startup.logoInitials || initialsFor(startup.name || "CH"),
+    industry: startup.industry || startup.sector || "",
+    sector: startup.sector || startup.industry || "",
+    location: startup.location || [startup.city, startup.state].filter(Boolean).join(", "),
+    city: startup.city || "",
+    state: startup.state || "",
+    stage: startup.stage || "",
+    tags: startup.tags || [],
+    skills: startup.tags || [],
+    foundedYear: startup.foundedYear || "",
+    views: startup.views || 0,
+    profileUrl: startup.profileUrl || `/profile/${profileHandle({ name: startup.name })}`,
+    score: startup.score || startup.trendingScore || 1
+  };
+}
+
+function publicSearchPayload(db, url, req, auth) {
+  const q = sanitizePostQuery(url.searchParams.get("q") || "");
+  const { value: type, wantsUsers, wantsStartups, wantsGigs } = publicSearchTypeGroup(url.searchParams.get("type") || "all");
+  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const limit = Math.max(1, Math.min(30, Number(url.searchParams.get("limit") || 20)));
+  const start = (page - 1) * limit;
+  const people = wantsUsers
+    ? explorePeoplePool(db, req)
+      .filter(item => roleMatchesExploreCategory(item, type === "users" || type === "people" ? "all" : type))
+      .map(item => ({ ...item, score: scoreExploreEntity(item, q) }))
+      .filter(item => !q || item.score > 0)
+      .sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)))
+      .slice(start, start + limit)
+      .map(item => mapPublicUser(item, db, req, auth))
+    : [];
+  const startups = wantsStartups
+    ? publicSearchStartupPool(db, req)
+      .map(item => ({ ...item, score: scoreExploreEntity(item, q) }))
+      .filter(item => !q || item.score > 0)
+      .sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)))
+      .slice(start, start + limit)
+      .map(mapPublicStartup)
+    : [];
+  const postSearch = wantsGigs
+    ? searchPostsInDB(db, { query: q, page, limit })
+    : { results: [], total: 0 };
+  const gigs = wantsGigs
+    ? (postSearch.results || []).filter(item => item.type === "gig").map(item => ({
+      id: item.id,
+      _id: item.id,
+      name: item.title,
+      title: item.title,
+      role: "Opportunity",
+      roleType: "job",
+      description: item.content,
+      companyName: item.companyName || item.authorName || "",
+      location: item.location || "",
+      skills: item.tags || [],
+      tags: item.tags || [],
+      profileUrl: "/",
+      score: item.score || 1
+    }))
+    : [];
+  return {
+    success: true,
+    q,
+    type,
+    page,
+    limit,
+    users: people,
+    people,
+    startups,
+    gigs,
+    total: people.length + startups.length + gigs.length,
+    sources: ["ConnectHub users", "startups", "opportunities"]
+  };
+}
+
+function publicSearchTrendingPayload(db, req) {
+  return {
+    success: true,
+    startups: publicSearchStartupPool(db, req)
+      .sort((a, b) => Number(b.trendingScore || 0) - Number(a.trendingScore || 0))
+      .slice(0, 10)
+      .map(mapPublicStartup),
+    topics: [
+      "fintech startups",
+      "series A",
+      "AI founders",
+      "edtech",
+      "SaaS India",
+      "D2C brands",
+      "healthtech",
+      "video editors",
+      "startup jobs",
       "seed investors"
     ]
   };
@@ -2046,44 +2239,14 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { db: publicDB() });
   }
 
+  if (route === "/api/search/trending" && req.method === "GET") {
+    const db = publicDB();
+    return sendJson(res, 200, publicSearchTrendingPayload(db, req));
+  }
+
   if ((route === "/api/search" || route === "/api/v1/search") && req.method === "GET") {
     const db = publicDB();
-    const q = sanitizePostQuery(url.searchParams.get("q") || "");
-    const type = String(url.searchParams.get("type") || "all").toLowerCase();
-    const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-    const limit = Math.max(1, Math.min(30, Number(url.searchParams.get("limit") || 12)));
-    const users = (type === "all" || type === "users" || type === "people")
-      ? searchPeople(db, { query: q, currentName: auth?.name || "" }, req).slice(0, 12)
-      : [];
-    const postSearch = (type === "all" || type === "posts" || type === "gigs")
-      ? searchPostsInDB(db, { query: q, page, limit })
-      : { posts: [], total: 0 };
-    const searchRows = postSearch.results || postSearch.posts || [];
-    const posts = type === "gigs" ? [] : searchRows.filter(item => item.type !== "gig");
-    const gigs = type === "posts" ? [] : searchRows.filter(item => item.type === "gig");
-    const hashtagCounts = new Map();
-    allSearchablePosts(db).forEach(post => (post.tags || []).forEach(tag => {
-      const label = String(tag || "").trim();
-      if (!label) return;
-      if (!q || normalizeSearchText(label).includes(normalizeSearchText(q))) hashtagCounts.set(label, (hashtagCounts.get(label) || 0) + 1);
-    }));
-    const hashtags = Array.from(hashtagCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
-      .map(([tag, count]) => ({ tag, count }));
-    return sendJson(res, 200, {
-      success: true,
-      q,
-      page,
-      limit,
-      total: users.length + posts.length + gigs.length,
-      users,
-      people: users,
-      posts,
-      gigs,
-      hashtags,
-      sources: ["ConnectHub users", "posts", "gigs", "service ads"]
-    });
+    return sendJson(res, 200, publicSearchPayload(db, url, req, auth));
   }
 
   if (route === "/api/people/search" && req.method === "GET") {

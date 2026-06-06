@@ -12,6 +12,7 @@ const AppUX = (() => {
   let avatarLongPressTimer = null;
   let avatarLongPressOpened = false;
   let exploreSearchRequestId = 0;
+  let exploreSearchTimer = null;
   let exploreFilters = { role: "", location: "", skills: "", company: "", category: "all", stage: "", sector: "", sort: "relevance" };
   let currentMessageTab = "focused";
   let currentNotificationTab = "all";
@@ -1090,7 +1091,7 @@ const AppUX = (() => {
           </div>
         </nav>
       </div>
-      <section class="explore-future-shell explore-future-hero">
+      ${!q ? `<section class="explore-future-shell explore-future-hero">
           <div class="explore-hero-grid"></div>
           <button class="explore-round-action explore-back" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
           <div class="explore-hero-copy">
@@ -1098,12 +1099,12 @@ const AppUX = (() => {
             <h2>Discover India's Startup Ecosystem</h2>
             <p>Search startups, founders, investors, events & ideas</p>
           </div>
-          <div class="explore-trending-chips" aria-label="Trending searches"><span>Trending:</span>${["fintech startups", "series A", "AI founders", "Bangalore tech", "SaaS B2B", "healthtech"].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item}')">${item}</button>`).join("")}</div>
+          <div class="explore-trending-chips" aria-label="Trending searches"><span>Trending:</span>${["fintech startups", "series A", "AI founders", "Bangalore tech", "SaaS B2B", "healthtech"].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item}', 'startups')">${item}</button>`).join("")}</div>
           <section class="explore-recents glass-card">
             <div class="explore-section-title"><strong>Recently viewed</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
             <div class="explore-recent-row">${recents.map(renderExploreRecent).join("") || panels.founders.slice(0, 5).map(renderExploreRecentProfile).join("") || '<p>No recent profiles yet.</p>'}</div>
           </section>
-      </section>
+      </section>` : ""}
       <div class="explore-results-flow">
       <input id="exploreGalleryInput" type="file" accept="image/*" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <input id="exploreCameraInput" type="file" accept="image/*" capture="environment" hidden onchange="AppUX.handleExploreImageSearch(this)">
@@ -1151,6 +1152,7 @@ const AppUX = (() => {
     }
     if (window.lucide) window.lucide.createIcons();
     if (q) loadExplorePeopleResults(query);
+    else loadExploreTrending();
     loadExploreBackendPanels(query);
   }
 
@@ -1297,16 +1299,42 @@ const AppUX = (() => {
 
   function renderTrendingStartupsPanel(startups) {
     return `<section class="explore-panel trending-startups-panel glass-card">
-      <header><div><h3>Trending Startups</h3><span class="panel-subtitle">Ranked by views, connections and posts</span></div><span class="week-badge">This Week</span><button type="button" onclick="AppUX.applyExploreSuggestion('trending startups')">View all <i data-lucide="arrow-right"></i></button></header>
-      <div class="startup-rank-list">${startups.map((startup, index) => `<article>
+      <header><div><h3>Trending Startups</h3><span class="panel-subtitle">Ranked by views, connections and posts</span></div><span class="week-badge">This Week</span><button type="button" onclick="AppUX.applyExploreSuggestion('trending startups', 'startups')">View all <i data-lucide="arrow-right"></i></button></header>
+      <div class="startup-rank-list">${startups.map(renderTrendingStartupRow).join("")}</div>
+    </section>`;
+  }
+
+  function renderTrendingStartupRow(startup, index = 0) {
+    return `<article>
         <span class="rank">#${index + 1}</span>
         <span class="startup-logo" style="background:${escapeHTML(startup.logoColor || "#0f766e")}">${escapeHTML(startup.logoInitials || initialsForName(startup.name || "CH"))}</span>
         <div><strong>${escapeHTML(startup.name || "Startup")}</strong><p><span>${escapeHTML(startup.sector || "SaaS")}</span><i data-lucide="map-pin"></i>${escapeHTML(startup.city || "India")}</p></div>
         <span class="stage-badge">${escapeHTML(startup.stage || "Seed")}</span>
-        <div class="trend-metric">${sparkline(startup.spark)}<b>+${startup.change}%</b></div>
-        <button type="button" onclick="AppUX.applyExploreSuggestion('${String(startup.name || "startup").replace(/'/g, "\\'")}')">Connect</button>
-      </article>`).join("")}</div>
-    </section>`;
+        <div class="trend-metric">${sparkline(startup.spark || startup.sparkline || startup.views || [14, 22, 18, 31, 40])}<b>+${startup.change || 18}%</b></div>
+        <button type="button" onclick="AppUX.applyExploreSuggestion('${String(startup.name || "startup").replace(/'/g, "\\'")}', 'startups')">Connect</button>
+      </article>`;
+  }
+
+  async function loadExploreTrending() {
+    try {
+      const data = await apiRequest("/api/search/trending");
+      const chips = document.querySelector(".explore-trending-chips");
+      if (chips && Array.isArray(data.topics) && data.topics.length) {
+        chips.innerHTML = `<span>Trending:</span>${data.topics.slice(0, 10).map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${String(item).replace(/'/g, "\\'")}', 'startups')">${escapeHTML(item)}</button>`).join("")}`;
+      }
+      const list = document.querySelector(".startup-rank-list");
+      if (list && Array.isArray(data.startups) && data.startups.length) {
+        list.innerHTML = data.startups.slice(0, 5).map((startup, index) => renderTrendingStartupRow({
+          ...startup,
+          logoInitials: startup.logoInitials || initialsForName(startup.name || "CH"),
+          spark: startup.spark || startup.sparkline || [12, 18, 24, 21, 34],
+          change: startup.change || 18
+        }, index)).join("");
+      }
+      if (window.lucide) window.lucide.createIcons();
+    } catch {
+      // Keep the instant local trending panels when the free backend is waking up.
+    }
   }
 
   function renderActiveInvestorsPanel(investors) {
@@ -1340,7 +1368,7 @@ const AppUX = (() => {
   function renderTrendingTopicsPanel(topics) {
     return `<section class="explore-panel trending-topics-panel glass-card">
       <header><div><h3>What India's Startup Ecosystem is Talking About</h3><span class="panel-subtitle">Hashtags and idea velocity</span></div></header>
-      <div class="topic-scroll">${topics.map(topic => `<article><strong>#${escapeHTML(topic.tag)}</strong><p>${formatCompactNumber(topic.count)} posts</p><span><i data-lucide="trending-up"></i> +${topic.change}%</span><div class="avatar-stack">${(topic.contributors || []).slice(0, 3).map(person => avatarMarkup(person, "user-avatar")).join("")}</div><button onclick="AppUX.applyExploreSuggestion('${String(topic.tag).replace(/'/g, "\\'")}')">Explore</button></article>`).join("")}</div>
+      <div class="topic-scroll">${topics.map(topic => `<article><strong>#${escapeHTML(topic.tag)}</strong><p>${formatCompactNumber(topic.count)} posts</p><span><i data-lucide="trending-up"></i> +${topic.change}%</span><div class="avatar-stack">${(topic.contributors || []).slice(0, 3).map(person => avatarMarkup(person, "user-avatar")).join("")}</div><button onclick="AppUX.applyExploreSuggestion('${String(topic.tag).replace(/'/g, "\\'")}', 'startups')">Explore</button></article>`).join("")}</div>
     </section>`;
   }
 
@@ -1384,7 +1412,8 @@ const AppUX = (() => {
   }
 
   function filterExplore(query) {
-    renderExploreDirectory(query);
+    clearTimeout(exploreSearchTimer);
+    exploreSearchTimer = setTimeout(() => renderExploreDirectory(query), String(query || "").trim() ? 300 : 0);
   }
 
   async function loadExplorePeopleResults(query = "") {
@@ -1394,25 +1423,32 @@ const AppUX = (() => {
     const summary = document.getElementById("exploreResultsSummary");
     if (!holder) return;
     const localResults = localPeopleSearch(query);
-    if (summary) summary.textContent = query ? `${localResults.length} people found for "${query}"` : "People you may want to connect with";
+    if (summary) summary.textContent = query ? `${localResults.length} instant matches for "${query}"` : "People and startups you may want to connect with";
     holder.innerHTML = localResults.map(renderPeopleSearchCard).join("") ||
-      `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}' yet. Checking live profiles...</div>`;
+      `<div class="empty-message-state">Searching live ConnectHub profiles for '${escapeHTML(query || "your filters")}'...</div>`;
     if (window.lucide) window.lucide.createIcons();
     try {
       const params = new URLSearchParams({
         q: query || "",
         current: user.name || "",
-        role: exploreFilters.role || "",
+        type: exploreFilters.category || "all",
         location: exploreFilters.location || "",
-        skills: exploreFilters.skills || "",
-        company: exploreFilters.company || ""
+        stage: exploreFilters.stage || "",
+        sector: exploreFilters.sector || "",
+        sort: exploreFilters.sort || "relevance",
+        limit: "30"
       });
-      const data = await apiRequest(`/api/people/search?${params.toString()}`);
+      const data = await apiRequest(`/api/search?${params.toString()}`);
       if (requestId !== exploreSearchRequestId) return;
-      const results = mergePeopleResults(data.results || [], localResults);
-      if (summary) summary.textContent = query ? `${results.length} people found for "${query}"` : "People you may want to connect with";
+      const apiResults = [
+        ...(data.users || data.people || []),
+        ...(data.startups || []),
+        ...(data.gigs || [])
+      ];
+      const results = mergePeopleResults(apiResults, localResults);
+      if (summary) summary.textContent = query ? `${results.length} results found for "${query}"` : "People and startups you may want to connect with";
       holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
-        `<div class="empty-message-state">No people found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, or company.</div>`;
+        `<div class="empty-message-state">No results found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, company, or startup topic.</div>`;
       if (window.lucide) window.lucide.createIcons();
     } catch {
       // Keep the instant local results when Render is waking up or offline.
@@ -2110,7 +2146,8 @@ const AppUX = (() => {
     return false;
   }
 
-  function applyExploreSuggestion(query) {
+  function applyExploreSuggestion(query, category = "") {
+    if (category) exploreFilters.category = category;
     renderExploreDirectory(query);
   }
 
@@ -2121,8 +2158,8 @@ const AppUX = (() => {
 
   function setExploreFilter(key, value = "") {
     exploreFilters[key] = String(value || "").trim();
-    clearTimeout(networkSearchTimer);
-    networkSearchTimer = setTimeout(() => renderExploreDirectory(document.getElementById("exploreSearch")?.value || ""), key === "location" ? 300 : 0);
+    clearTimeout(exploreSearchTimer);
+    exploreSearchTimer = setTimeout(() => renderExploreDirectory(document.getElementById("exploreSearch")?.value || ""), key === "location" ? 300 : 0);
   }
 
   function toggleExploreFullscreen() {
