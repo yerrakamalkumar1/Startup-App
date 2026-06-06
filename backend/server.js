@@ -648,15 +648,32 @@ function allPeople(db = publicDB()) {
         ...relatedPromos.flatMap(post => [post.title, post.description, ...(post.tags || [])]),
         ...relatedJobs.flatMap(job => [job.title, job.description, ...(job.tags || [])])
       ].filter(Boolean);
-      const inferredSkills = searchTerms.filter(term => /design|editor|editing|video|reel|photo|camera|developer|marketing|sales|branding|ai|web|app/i.test(term));
+      const inferredSkills = searchTerms.filter(term => {
+        const text = String(term || "").trim();
+        return text.length <= 42 && /design|editor|editing|video|reel|photo|camera|developer|marketing|sales|branding|ai|web|app/i.test(text);
+      });
+      const skillList = compactStringArray([profile.skills || [], inferredSkills]).slice(0, 12);
+      const tagList = compactStringArray([
+        profile.tags || [],
+        profile.focusSectors || [],
+        startup?.sector,
+        profile.sector,
+        profile.industry,
+        profile.companyName || startup?.name,
+        profile.city || startup?.city,
+        profile.title || profile.role
+      ]).slice(0, 12);
       return {
         ...profile,
         handle: profileHandle(profile),
         companyName: profile.companyName || startup?.name || "",
+        company: profile.company || profile.companyName || startup?.name || "",
         sector: startup?.sector || profile.sector || "",
+        industry: profile.industry || startup?.sector || profile.sector || "",
         city: profile.city || startup?.city || "",
         state: profile.state || startup?.state || "",
-        skills: [...new Set([...(profile.skills || []), ...inferredSkills].map(String))].slice(0, 12),
+        skills: skillList,
+        tags: tagList,
         searchText: searchTerms.join(" ")
       };
     })
@@ -739,13 +756,83 @@ function searchPeople(db, { query = "", role = "", location = "", skills = "", c
       roleType: roleBucket(profile.role),
       location: [profile.city, profile.state].filter(Boolean).join(", "),
       skills: profile.skills || [],
+      tags: profile.tags || [],
+      industry: profile.industry || profile.sector || "",
+      company: profile.company || profile.companyName || "",
       companyName: profile.companyName || "",
       mutualConnections: mutualConnectionCount(db, currentName, profile.name),
       avatarInitials: profile.avatarInitials || initialsFor(profile.name || "CH"),
       avatarPhoto: profile.avatarPhoto || null,
       bio: profile.bio || "",
+      isVerified: Boolean(profile.isVerified || profile.verified),
+      followersCount: Number(profile.followersCount || profile.profileViews || 0),
       profileUrl: profileUrlFor(profile, req)
     }));
+}
+
+function compactStringArray(values = []) {
+  const seen = new Set();
+  const result = [];
+  values.flat().forEach(value => {
+    const clean = String(value || "").replace(/^#/, "").replace(/\s+/g, " ").trim();
+    const key = clean.toLowerCase();
+    if (!clean || seen.has(key)) return;
+    seen.add(key);
+    result.push(clean);
+  });
+  return result;
+}
+
+function networkProfilePayload(profile, db, currentName, req) {
+  const skills = compactStringArray(profile.skills || []);
+  const tags = compactStringArray([
+    profile.tags || [],
+    profile.industry,
+    profile.sector,
+    profile.company || profile.companyName,
+    profile.city,
+    profile.title || profile.role
+  ]).slice(0, 12);
+  return {
+    _id: profile.handle || profileHandle(profile),
+    id: profile.handle || profileHandle(profile),
+    userId: profile.handle || profileHandle(profile),
+    name: profile.name || "ConnectHub member",
+    username: profile.handle || profileHandle(profile),
+    handle: profile.handle || profileHandle(profile),
+    avatar: profile.avatar || profile.avatarPhoto?.dataUrl || "",
+    avatarInitials: profile.avatarInitials || initialsFor(profile.name || "CH"),
+    avatarPhoto: profile.avatarPhoto || null,
+    role: profile.title || roleBucket(profile.role),
+    roleType: roleBucket(profile.role),
+    company: profile.company || profile.companyName || "",
+    companyName: profile.companyName || profile.company || "",
+    industry: profile.industry || profile.sector || "",
+    location: [profile.city, profile.state].filter(Boolean).join(", ") || "India",
+    city: profile.city || "",
+    state: profile.state || "",
+    skills,
+    tags,
+    bio: profile.bio || "",
+    isVerified: Boolean(profile.isVerified || profile.verified),
+    followersCount: Number(profile.followersCount || profile.profileViews || 0),
+    connections: [...connectionNamesFor(db, profile.name || "")],
+    mutualConnections: mutualConnectionCount(db, currentName, profile.name),
+    profileUrl: profileUrlFor(profile, req)
+  };
+}
+
+function findNetworkProfile(db, value) {
+  const needle = String(value || "").replace(/^@/, "").trim().toLowerCase();
+  return allPeople(db).find(profile => {
+    const identifiers = [
+      profile.handle,
+      profile.email,
+      profile.name,
+      profileHandle(profile)
+    ].filter(Boolean).map(item => String(item).toLowerCase());
+    return identifiers.includes(needle);
+  });
 }
 
 function expandPeopleSearchTerms(query) {
@@ -2260,6 +2347,92 @@ async function handleApi(req, res) {
       currentName: auth?.name || url.searchParams.get("current") || ""
     }, req);
     return sendJson(res, 200, { success: true, results });
+  }
+
+  if (route === "/api/network/suggestions" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = publicDB();
+    const current = profileForAuth(auth, db) || { name: auth.name, role: auth.role };
+    const connected = connectionNamesFor(db, current.name);
+    const pending = new Set((db.connections || [])
+      .filter(item => item.status === "Pending" && (item.from === current.name || item.to === current.name))
+      .map(item => item.from === current.name ? item.to : item.from));
+    const currentSkills = compactStringArray(current.skills || []).map(item => item.toLowerCase());
+    const users = allPeople(db)
+      .filter(profile => profile.name && profile.name !== current.name)
+      .filter(profile => !connected.has(profile.name) && !pending.has(profile.name))
+      .map(profile => {
+        const payload = networkProfilePayload(profile, db, current.name, req);
+        const cityScore = payload.city && current.city && payload.city.toLowerCase() === String(current.city).toLowerCase() ? 35 : 0;
+        const skillScore = payload.skills.filter(skill => currentSkills.includes(skill.toLowerCase())).length * 12;
+        const roleScore = roleBucket(current.role) === "freelancer" && payload.roleType === "startup" ? 28 :
+          roleBucket(current.role) === "startup" && payload.roleType === "freelancer" ? 28 :
+          roleBucket(current.role) === "investor" && payload.roleType === "startup" ? 28 : 10;
+        return { ...payload, score: cityScore + skillScore + roleScore + payload.mutualConnections * 8 };
+      })
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+      .slice(0, Number(url.searchParams.get("limit") || 20));
+    return sendJson(res, 200, { success: true, users });
+  }
+
+  if (route === "/api/network/connections" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = publicDB();
+    const currentName = auth.name;
+    const people = allPeople(db);
+    const connections = (db.connections || [])
+      .filter(item => item.status === "Accepted" && (item.from === currentName || item.to === currentName))
+      .map(item => {
+        const otherName = item.from === currentName ? item.to : item.from;
+        const profile = people.find(person => person.name === otherName);
+        return profile ? { ...networkProfilePayload(profile, db, currentName, req), connectedAt: item.updatedAt || item.createdAt || "" } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.connectedAt || 0) - new Date(a.connectedAt || 0) || a.name.localeCompare(b.name));
+    return sendJson(res, 200, { success: true, connections });
+  }
+
+  if (route.match(/^\/api\/network\/connect\/[^/]+$/) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const targetId = decodeURIComponent(route.split("/")[4] || "");
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const target = findNetworkProfile(db, targetId);
+    const from = String(auth.name || "").slice(0, 80);
+    const to = String(target?.name || "").slice(0, 80);
+    if (!from || !to || from === to) return sendJson(res, 400, { success: false, message: "Valid connection users are required." });
+    db.connections = db.connections || [];
+    let connection = db.connections.find(item => [item.from, item.to].includes(from) && [item.from, item.to].includes(to));
+    if (!connection) {
+      connection = { id: `conn-${Date.now()}`, from, to, status: "Pending", createdAt: new Date().toISOString() };
+      db.connections.push(connection);
+      createNotification(db, to, "connection_request", `${from} sent you a connection request.`, { connectionId: connection.id, from });
+      writeJson(DB_FILE, db);
+    }
+    return sendJson(res, 200, { success: true, connection, user: networkProfilePayload(target, db, from, req), db: publicDB() });
+  }
+
+  if (route.match(/^\/api\/network\/save\/[^/]+$/) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const desiredSaved = typeof body.saved === "boolean" ? body.saved : null;
+    const targetId = decodeURIComponent(route.split("/")[4] || "");
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const target = findNetworkProfile(db, targetId);
+    if (!target) return sendJson(res, 404, { success: false, message: "Profile not found." });
+    db.savedProfiles = db.savedProfiles || [];
+    const index = db.savedProfiles.findIndex(item => item.owner === auth.name && (item.userId === target.handle || item.name === target.name));
+    let saved = desiredSaved === null ? true : desiredSaved;
+    if (desiredSaved === false || (desiredSaved === null && index >= 0)) {
+      if (index >= 0) db.savedProfiles.splice(index, 1);
+      saved = false;
+    } else if (desiredSaved === true || desiredSaved === null) {
+      if (index < 0) {
+        db.savedProfiles.push({ id: `saved-profile-${Date.now()}`, owner: auth.name, userId: target.handle, name: target.name, savedAt: new Date().toISOString(), createdAt: new Date().toISOString() });
+      }
+      saved = true;
+    }
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, saved, user: networkProfilePayload(target, db, auth.name, req), db: publicDB() });
   }
 
   if (route === "/api/people/resolve" && req.method === "GET") {

@@ -10206,3 +10206,69 @@ body.dark .explore-location-field input {
     padding: 10px 10px 0 !important;
   }
 }
+
+/* Network keyword chips: real text buttons, never skeleton placeholders. */
+.profile-tag-row {
+  align-items: center;
+}
+
+.profile-tag-row .keyword-tag,
+.network-card .keyword-tag,
+.people-search-card .keyword-tag,
+.network-search-result .keyword-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  padding: 0.34rem 0.68rem !important;
+  border: 1px solid #99f6e4 !important;
+  border-radius: 999px !important;
+  background: #ecfeff !important;
+  background-image: none !important;
+  color: #0f766e !important;
+  font-size: 0.74rem !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+  transform: none !important;
+  animation: none !important;
+  box-shadow: none !important;
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease !important;
+}
+
+.profile-tag-row .keyword-tag:hover,
+.profile-tag-row .keyword-tag:focus-visible {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  outline: none !important;
+}
+
+.skeleton .keyword-tag,
+.keyword-tag.skeleton {
+  color: transparent !important;
+}
+
+body.dark .profile-tag-row .keyword-tag,
+:root[data-theme="dark"] .profile-tag-row .keyword-tag {
+  background: rgba(20, 184, 166, 0.16) !important;
+  border-color: rgba(94, 234, 212, 0.58) !important;
+  color: #ccfbf1 !important;
+}
+
+body.dark .profile-tag-row .keyword-tag:hover,
+body.dark .profile-tag-row .keyword-tag:focus-visible,
+:root[data-theme="dark"] .profile-tag-row .keyword-tag:hover,
+:root[data-theme="dark"] .profile-tag-row .keyword-tag:focus-visible {
+  background: #14b8a6 !important;
+  border-color: #5eead4 !important;
+  color: #06231f !important;
+}

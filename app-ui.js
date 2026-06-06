@@ -22,6 +22,17 @@ const AppUX = (() => {
   let networkRoleFilter = "";
   let settingsSearchTimer = null;
   let settingsSheetSelect = null;
+  const KEYWORD_ROLE_TERMS = new Set([
+    "founder", "founders", "cofounder", "co-founder", "startup owner", "startup founder",
+    "freelancer", "investor", "sponsor", "angel", "mentor", "designer", "developer",
+    "editor", "photographer", "marketer", "consultant", "engineer", "creator"
+  ]);
+  const KEYWORD_INDUSTRY_TERMS = new Set([
+    "commerce", "retail", "food", "hospitality", "property", "infrastructure", "health",
+    "wellness", "education", "training", "finance", "legal", "logistics", "mobility",
+    "saas", "technology", "consumer services", "media", "entertainment", "manufacturing",
+    "hardware", "fintech", "edtech", "healthtech", "foodtech", "proptech"
+  ]);
 
   function unlockAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1482,7 +1493,8 @@ const AppUX = (() => {
       const role = profile.title || (profile.role === "startup_admin" ? "Startup Owner" : profile.role || "Member");
       const companyName = profile.companyName || startup?.name || "";
       const skills = profile.skills || [];
-      const haystack = [profile.name, id, role, location, skills.join(" "), companyName, profile.bio, profile.searchText].join(" ").toLowerCase();
+      const tags = [...new Set([...(profile.tags || []), profile.sector, companyName, profile.city].filter(Boolean).map(String))];
+      const haystack = [profile.name, id, role, location, skills.join(" "), tags.join(" "), companyName, profile.bio, profile.searchText].join(" ").toLowerCase();
       const score = !q ? 1 :
         String(profile.name || "").toLowerCase() === q ? 100 :
         String(profile.name || "").toLowerCase().startsWith(q) ? 90 :
@@ -1492,7 +1504,7 @@ const AppUX = (() => {
         queryTerms.some(term => location.toLowerCase().includes(term)) ? 55 :
         queryTerms.some(term => skills.join(" ").toLowerCase().includes(term)) ? 50 :
         queryTerms.some(term => haystack.includes(term)) ? 20 : -1;
-      return { ...profile, id, handle: id, role, location, companyName, skills, mutualConnections: currentConnections.has(profile.name) ? 1 : 0, profileUrl: profileUrl(profile), score };
+      return { ...profile, id, handle: id, role, location, companyName, skills, tags, mutualConnections: currentConnections.has(profile.name) ? 1 : 0, profileUrl: profileUrl(profile), score };
     }).filter(profile => {
       if (profile.score < 0) return false;
       const category = String(exploreFilters.category || "all").toLowerCase();
@@ -1570,6 +1582,85 @@ const AppUX = (() => {
     ])].filter(term => term.length > 1);
   }
 
+  function normalizeKeywordValue(value) {
+    return String(value || "")
+      .replace(/^#/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function keywordExploreType(keyword) {
+    const value = normalizeKeywordValue(keyword).toLowerCase();
+    if (!value) return "all";
+    if (KEYWORD_INDUSTRY_TERMS.has(value) || [...KEYWORD_INDUSTRY_TERMS].some(term => value.includes(term))) return "startups";
+    if (KEYWORD_ROLE_TERMS.has(value) || [...KEYWORD_ROLE_TERMS].some(term => value.includes(term))) return "founders";
+    return "all";
+  }
+
+  function escapeJS(value) {
+    return String(value || "")
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'")
+      .replace(/\r?\n/g, " ");
+  }
+
+  function keywordButton(keyword) {
+    const clean = normalizeKeywordValue(keyword);
+    if (!clean) return "";
+    return `<button type="button" class="keyword-tag" data-keyword="${escapeAttr(clean)}" onclick="searchByKeyword('${escapeJS(clean)}')">${escapeHTML(clean)}</button>`;
+  }
+
+  function profileKeywords(profile = {}, limit = 4) {
+    const roleLabel = profile.title || profile.roleType || profile.role || "";
+    const items = [
+      ...(Array.isArray(profile.skills) ? profile.skills : []),
+      ...(Array.isArray(profile.tags) ? profile.tags : []),
+      profile.industry,
+      profile.sector,
+      profile.companyName,
+      profile.company,
+      profile.city,
+      roleLabel
+    ];
+    const seen = new Set();
+    const result = [];
+    items.forEach(item => {
+      const clean = normalizeKeywordValue(item);
+      const key = clean.toLowerCase();
+      if (!clean || seen.has(key)) return;
+      seen.add(key);
+      result.push(clean);
+    });
+    if (!result.length) result.push("Open to connect");
+    return result.slice(0, limit);
+  }
+
+  function renderKeywordTags(profile = {}, limit = 4) {
+    return profileKeywords(profile, limit).map(keywordButton).join("");
+  }
+
+  function searchByKeyword(rawKeyword) {
+    const keyword = normalizeKeywordValue(rawKeyword);
+    if (!keyword) return;
+    const type = keywordExploreType(keyword);
+    const fallbackUrl = `/explore?q=${encodeURIComponent(keyword)}&type=${encodeURIComponent(type)}`;
+    try {
+      openExplorePage();
+      exploreFilters.category = type;
+      applyExploreSuggestion(keyword, type);
+      const input = document.getElementById("exploreSearch");
+      if (input) input.value = keyword;
+      if (window.history?.replaceState) {
+        window.history.replaceState(null, "", `${location.pathname}#explore?q=${encodeURIComponent(keyword)}&type=${type}`);
+      }
+      showToast(`Searching ${keyword}`);
+    } catch {
+      window.location.href = fallbackUrl;
+    }
+  }
+
+  window.searchByKeyword = searchByKeyword;
+
   function renderPeopleSearchCard(person) {
     const safeName = String(person.name || "").replace(/'/g, "\\'");
     const profile = { ...person, email: person.email || person.handle, title: person.role };
@@ -1584,7 +1675,7 @@ const AppUX = (() => {
         </div>
       </div>
       <p class="explore-card-bio"><i data-lucide="map-pin"></i> ${escapeHTML(person.location || "India")} · ${Number(person.mutualConnections || 0)} mutual connections</p>
-      <div class="profile-tag-row">${[...(person.skills || []), person.companyName].filter(Boolean).slice(0, 4).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
+      <div class="profile-tag-row">${renderKeywordTags(person, 4)}</div>
       <div class="explore-card-actions">
         <a class="btn btn-secondary" href="${href}" onclick="AppUX.saveExploreRecent('${person.id || person.handle}')">Profile</a>
         <button class="btn btn-secondary" onclick="AppUX.toggleSavedProfile('${safeName}')"><i data-lucide="bookmark"></i>Save</button>
@@ -1690,7 +1781,7 @@ const AppUX = (() => {
         <a href="${profileUrl(profile)}">${avatarMarkup(profile, "user-avatar")}</a>
         <div><a class="profile-name-link" href="${profileUrl(profile)}"><strong>${escapeHTML(profile.name)}</strong></a><p>${escapeHTML(profile.title || profile.role || "ConnectHub member")}</p></div>
       </div>
-      <div class="profile-tag-row">${[...(profile.skills || []), profile.city, profile.companyName].filter(Boolean).slice(0, 3).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>
+      <div class="profile-tag-row">${renderKeywordTags(profile, 4)}</div>
       <div class="network-actions">
         <button class="btn btn-secondary" onclick="AppUX.toggleSavedProfile('${safeName}')"><i data-lucide="${saved ? "bookmark-check" : "bookmark"}"></i>${saved ? "Saved" : "Save"}</button>
         ${mode === "connected" ? `<button class="btn btn-secondary" onclick="AppUX.removeConnection('${safeName}')">Remove</button>` : `<button class="btn btn-secondary" onclick="connectUsers('${safeName}'); AppUX.showToast('Connection request sent'); AppUX.renderNetworkPage(document.getElementById('body'))">Connect</button>`}
@@ -1729,7 +1820,7 @@ const AppUX = (() => {
     try {
       const params = new URLSearchParams({ q: query });
       if (networkRoleFilter) params.set("role", networkRoleFilter);
-      const response = await fetch(`/api/users/search?${params.toString()}`);
+      const response = await fetch(`/api/people/search?${params.toString()}`);
       if (response.ok) {
         const payload = await response.json();
         results = payload.results || [];
@@ -1761,7 +1852,8 @@ const AppUX = (() => {
           profile.city,
           profile.state,
           profile.sector,
-          ...(profile.skills || [])
+          ...(profile.skills || []),
+          ...(profile.tags || [])
         ].filter(Boolean).join(" ").toLowerCase();
         if (roleFilter && !roleText.includes(roleFilter)) return null;
         if (q && !text.includes(q)) return null;
@@ -1772,6 +1864,7 @@ const AppUX = (() => {
           handle: profile.handle || userIdFor(profile),
           roleType: roleText.includes("startup") ? "startup" : roleText.includes("investor") ? "investor" : "freelancer",
           location: [profile.city, profile.state].filter(Boolean).join(", "),
+          tags: [...new Set([...(profile.tags || []), profile.sector, profile.city, profile.companyName].filter(Boolean).map(String))],
           mutualConnections: 0,
           profileUrl: profileUrl(profile),
           score
@@ -1790,6 +1883,7 @@ const AppUX = (() => {
         <a class="profile-name-link" href="${escapeAttr(profile.profileUrl || profileUrl(profile))}"><strong>${escapeHTML(profile.name || "ConnectHub member")}</strong></a>
         <p>${escapeHTML(handle)} · ${escapeHTML(profile.role || profile.title || profile.roleType || "Member")}</p>
         <small>${escapeHTML(profile.location || [profile.city, profile.state].filter(Boolean).join(", ") || "India")} · ${Number(profile.mutualConnections || 0)} mutual connections</small>
+        <div class="profile-tag-row">${renderKeywordTags(profile, 4)}</div>
       </div>
       <button type="button" onclick="connectUsers('${safeName}'); AppUX.showToast('Connection request sent')">Connect</button>
     </article>`;
@@ -1805,16 +1899,25 @@ const AppUX = (() => {
     const user = getCurrentUser?.();
     if (!user || !name) return;
     const db = getDB();
+    const profile = getAllProfiles().find(item => item.name === name || userIdFor(item) === name);
     db.savedProfiles = db.savedProfiles || [];
     const index = db.savedProfiles.findIndex(item => item.owner === user.name && item.name === name);
+    let shouldSave = true;
     if (index >= 0) {
       db.savedProfiles.splice(index, 1);
+      shouldSave = false;
       showToast("Removed from saved profiles");
     } else {
       db.savedProfiles.push({ id: `saved-${Date.now()}`, owner: user.name, name, createdAt: new Date().toISOString() });
       showToast("Profile saved");
     }
     saveDB(db);
+    if (profile && typeof apiRequest === "function") {
+      apiRequest(`/api/network/save/${encodeURIComponent(profile.handle || userIdFor(profile))}`, {
+        method: "POST",
+        body: JSON.stringify({ saved: shouldSave })
+      }).catch(error => console.warn("ConnectHub profile save sync failed:", error.message));
+    }
   }
 
   function respondConnection(id, status) {
