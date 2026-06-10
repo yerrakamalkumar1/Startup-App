@@ -22,6 +22,7 @@ const ActiveSessionSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  username: { type: String, index: true },
   role: { type: String, enum: ["freelancer", "startup_admin", "investor", "admin"], required: true },
   whatsapp: String,
   password: String,
@@ -56,6 +57,7 @@ const UserSchema = new mongoose.Schema({
   ticketSizeMax: Number,
   verified: { type: Boolean, default: false },
   isVerified: { type: Boolean, default: false },
+  isOnline: { type: Boolean, default: false },
   connections: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -82,5 +84,7 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 UserSchema.index({ location: "2dsphere" });
+// Compound text index used by Explore/Search endpoints for fast people lookups.
+UserSchema.index({ name: "text", username: "text", bio: "text", company: "text" });
 
 module.exports = mongoose.models.User || mongoose.model("User", UserSchema);

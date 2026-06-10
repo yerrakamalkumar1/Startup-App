@@ -1066,57 +1066,51 @@ const AppUX = (() => {
   function renderExploreDirectory(query = "") {
     const body = document.getElementById("exploreDockBody");
     if (!body) return;
-    const q = String(query || "").toLowerCase();
+    const rawQuery = String(query || "");
+    const q = rawQuery.trim();
     const user = getCurrentUser?.() || {};
     if (!exploreFilters.location) exploreFilters.location = user.city || user.location?.city || "";
-    const db = getDB();
-    const allItems = exploreItems();
-    const recents = recentExploreProfiles(allItems);
-    const suggestions = exploreSuggestions(user);
-    const localResults = localPeopleSearch(query).slice(0, 8);
-    const panels = buildExplorePanels(db, user, localResults);
-    const activity = buildExploreActivity(db, user);
     body.innerHTML = `
-      <div class="explore-top-search-wrap">
-        <div class="explore-search-shell explore-ai-search">
-          <div class="explore-search-input google-style ${q ? "has-value" : ""}" role="combobox" aria-expanded="${q ? "true" : "false"}" aria-controls="exploreResults">
-            <div class="explore-search-main">
-              <span class="explore-ai-icon" aria-hidden="true"><i data-lucide="search"></i></span>
-              <input id="exploreSearch" value="${escapeHTML(query)}" placeholder="Search startups, founders, investors..." oninput="AppUX.filterExplore(this.value)" dir="auto" autocomplete="off">
-            </div>
-            <div class="explore-search-actions">
-              <button type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
-              <button type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Add image or attachment"><i data-lucide="plus"></i></button>
-              <button type="button" onclick="AppUX.pickExploreImage('camera')" aria-label="Scan profile QR code"><i data-lucide="scan-line"></i></button>
-              <button type="button" onclick="AppUX.useLocationForExplore()" aria-label="Use current location"><i data-lucide="map-pin"></i></button>
-            </div>
+      <div class="explore-wrapper">
+        <section class="explore-search-card">
+          <div class="explore-card-topline">
+            <button class="explore-clean-back" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <span class="ai-badge"><i data-lucide="sparkles"></i> AI Explore</span>
           </div>
-        </div>
-        <nav class="explore-filter-row explore-sticky-filters" aria-label="Explore filters">
-          <div class="explore-filter-scroll-row">
-            <div class="explore-category-pills">${["all", "startups", "founders", "investors", "jobs", "events"].map(key => `<button type="button" class="${exploreFilters.category === key ? "active" : ""}" onclick="AppUX.setExploreCategory('${key}')">${key[0].toUpperCase() + key.slice(1)}</button>`).join("")}</div>
-            ${renderExploreSelect("stage", "Stage", ["", "Idea", "Pre-seed", "Seed", "Series A", "Series B", "Growth"], exploreFilters.stage)}
-            ${renderExploreSelect("sector", "Sector", ["", "FinTech", "HealthTech", "EdTech", "SaaS", "D2C", "Deeptech", "AgriTech", "Cleantech"], exploreFilters.sector)}
-            ${renderExploreSelect("sort", "Sort", ["relevance", "Most Recent", "Top Funded", "Trending"], exploreFilters.sort)}
-            <label class="explore-location-field"><i data-lucide="map-pin"></i><input value="${escapeHTML(exploreFilters.location || "")}" placeholder="Location" oninput="AppUX.setExploreFilter('location', this.value)"></label>
+          <h1 class="explore-title">Discover India's Startup Ecosystem</h1>
+          <p class="explore-sub">Search startups, founders, investors, events and ideas</p>
+
+          <div class="search-input-box">
+            <i class="si-icon" data-lucide="search"></i>
+            <input type="text" id="exploreSearch" value="${escapeHTML(rawQuery)}" placeholder="Search startups, founders..." autocomplete="off" oninput="AppUX.filterExplore(this.value)">
+            <button class="voice-btn" id="voiceBtn" type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
+            <button class="voice-btn" type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Image search"><i data-lucide="scan-line"></i></button>
           </div>
-        </nav>
-      </div>
-      ${!q ? `<section class="explore-future-shell explore-future-hero">
-          <div class="explore-hero-grid"></div>
-          <button class="explore-round-action explore-back" type="button" onclick="AppUX.closeExplore()" aria-label="Back"><i data-lucide="arrow-left"></i></button>
-          <div class="explore-hero-copy">
-            <span class="explore-kicker"><i data-lucide="sparkles"></i> AI Explore</span>
-            <h2>Discover India's Startup Ecosystem</h2>
-            <p>Search startups, founders, investors, events & ideas</p>
+
+          <div class="filter-tabs" id="filterTabs">
+            ${[["all", "All"], ["startups", "Startups"], ["founders", "Founders"], ["investors", "Investors"], ["jobs", "Jobs"]].map(([key, label]) => `<button class="f-tab ${exploreFilters.category === key ? "active" : ""}" type="button" data-filter="${key}" onclick="AppUX.setExploreCategory('${key}')">${label}</button>`).join("")}
           </div>
-          <div class="explore-trending-chips" aria-label="Trending searches"><span>Trending:</span>${["fintech startups", "series A", "AI founders", "Bangalore tech", "SaaS B2B", "healthtech"].map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item}', 'startups')">${item}</button>`).join("")}</div>
-          <section class="explore-recents glass-card">
-            <div class="explore-section-title"><strong>Recently viewed</strong><button type="button" onclick="AppUX.clearExploreRecents()">Clear all</button></div>
-            <div class="explore-recent-row">${recents.map(renderExploreRecent).join("") || panels.founders.slice(0, 5).map(renderExploreRecentProfile).join("") || '<p>No recent profiles yet.</p>'}</div>
-          </section>
-      </section>` : ""}
-      <div class="explore-results-flow">
+
+          <div class="trending-row">
+            <span class="trend-label">Trending:</span>
+            ${["fintech startups", "series A", "AI founders", "edtech"].map(item => `<button class="trend-pill" type="button" onclick="AppUX.applyExploreSuggestion('${item.replace(/'/g, "\\'")}', 'startups')">${item}</button>`).join("")}
+          </div>
+        </section>
+
+        <section class="results-card" id="resultsCard" style="display:${q ? "block" : "none"}">
+          <div class="results-header"><span id="resultCount">Searching...</span></div>
+          <div id="resultsGrid"></div>
+          <div class="no-results-msg" id="noResultsMsg" style="display:none">
+            <i data-lucide="search"></i>
+            <p>No results found. Try a different name or keyword.</p>
+          </div>
+        </section>
+
+        <section class="recent-card" id="recentCard" style="display:${q ? "none" : "block"}">
+          <h3 class="section-title">Recently Joined</h3>
+          <div id="recentGrid">${skeletonLoader(3)}</div>
+        </section>
+
       <input id="exploreGalleryInput" type="file" accept="image/*" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <input id="exploreCameraInput" type="file" accept="image/*" capture="environment" hidden onchange="AppUX.handleExploreImageSearch(this)">
       <div id="exploreVoicePanel" class="explore-voice-panel" hidden>
@@ -1134,26 +1128,6 @@ const AppUX = (() => {
           <button type="button" onclick="AppUX.pickExploreImage('gallery')"><i data-lucide="images"></i><span><strong>Upload from Gallery/Media</strong><small>Choose an image from your phone</small></span></button>
         </div>
       </div>
-        ${q ? `<section class="explore-search-results glass-card">
-          <div id="exploreResultsSummary" class="explore-results-summary">Searching ConnectHub intelligence...</div>
-          <div id="exploreResults" class="explore-directory">${skeletonLoader(4)}</div>
-        </section>` : `<div id="exploreResultsSummary" class="explore-results-summary" hidden></div><div id="exploreResults" class="explore-directory" hidden></div>`}
-        <section class="smart-suggestions-bar glass-card">
-          <div><i data-lucide="cpu"></i><strong>AI Picks for You</strong></div>
-          <div class="smart-suggestion-scroll">${suggestions.map(item => `<button type="button" onclick="AppUX.applyExploreSuggestion('${item.replace(/'/g, "\\'")}')"><span>${item}</span><i data-lucide="arrow-up-right"></i></button>`).join("")}</div>
-        </section>
-        <div class="explore-content-layout">
-          <main class="explore-masonry-grid">
-            ${renderTrendingStartupsPanel(panels.startups)}
-            ${renderActiveInvestorsPanel(panels.investors)}
-            ${renderFeaturedFoundersPanel(panels.founders)}
-            ${renderUpcomingEventsPanel(panels.events)}
-            ${renderTrendingTopicsPanel(panels.topics)}
-          </main>
-          <aside class="explore-activity-sidebar">
-            ${renderExploreActivitySidebar(activity, panels.stats)}
-          </aside>
-        </div>
       </div>
     `;
     const input = document.getElementById("exploreSearch");
@@ -1162,9 +1136,7 @@ const AppUX = (() => {
       input.setSelectionRange(input.value.length, input.value.length);
     }
     if (window.lucide) window.lucide.createIcons();
-    if (q) loadExplorePeopleResults(query);
-    else loadExploreTrending();
-    loadExploreBackendPanels(query);
+    loadExplorePeopleResults(q);
   }
 
   function renderExploreSelect(key, label, options, value) {
@@ -1430,17 +1402,28 @@ const AppUX = (() => {
   async function loadExplorePeopleResults(query = "") {
     const requestId = ++exploreSearchRequestId;
     const user = getCurrentUser?.() || {};
-    const holder = document.getElementById("exploreResults");
-    const summary = document.getElementById("exploreResultsSummary");
-    if (!holder) return;
-    const localResults = localPeopleSearch(query);
-    if (summary) summary.textContent = query ? `${localResults.length} instant matches for "${query}"` : "People and startups you may want to connect with";
-    holder.innerHTML = localResults.map(renderPeopleSearchCard).join("") ||
-      `<div class="empty-message-state">Searching live ConnectHub profiles for '${escapeHTML(query || "your filters")}'...</div>`;
+    const q = String(query || "").trim();
+    const resultsCard = document.getElementById("resultsCard");
+    const recentCard = document.getElementById("recentCard");
+    const resultsGrid = document.getElementById("resultsGrid");
+    const recentGrid = document.getElementById("recentGrid");
+    const noResultsMsg = document.getElementById("noResultsMsg");
+    const resultCount = document.getElementById("resultCount");
+    const target = q ? resultsGrid : recentGrid;
+    if (!target) return;
+    const localResults = localPeopleSearch(q)
+      .filter(item => !user.name || item.name !== user.name)
+      .slice(0, q ? 12 : 10);
+    if (resultsCard) resultsCard.style.display = q ? "block" : "none";
+    if (recentCard) recentCard.style.display = q ? "none" : "block";
+    if (resultCount) resultCount.textContent = q ? `${localResults.length} instant result${localResults.length === 1 ? "" : "s"}` : "Recently joined";
+    target.innerHTML = localResults.map(item => renderExploreSimplePersonCard(item, q)).join("") ||
+      `<div class="empty-message-state">${q ? `Searching live ConnectHub profiles for '${escapeHTML(q)}'...` : "Loading recently joined members..."}</div>`;
+    if (noResultsMsg) noResultsMsg.style.display = "none";
     if (window.lucide) window.lucide.createIcons();
     try {
       const params = new URLSearchParams({
-        q: query || "",
+        q,
         current: user.name || "",
         type: exploreFilters.category || "all",
         location: exploreFilters.location || "",
@@ -1451,15 +1434,26 @@ const AppUX = (() => {
       });
       const data = await apiRequest(`/api/search?${params.toString()}`);
       if (requestId !== exploreSearchRequestId) return;
-      const apiResults = [
+      const apiResults = Array.isArray(data.results) ? data.results : [
         ...(data.users || data.people || []),
         ...(data.startups || []),
         ...(data.gigs || [])
       ];
       const results = mergePeopleResults(apiResults, localResults);
-      if (summary) summary.textContent = query ? `${results.length} results found for "${query}"` : "People and startups you may want to connect with";
-      holder.innerHTML = results.map(renderPeopleSearchCard).join("") ||
-        `<div class="empty-message-state">No results found for '${escapeHTML(query || "your filters")}'. Try a name, @username, role, city, skill, company, or startup topic.</div>`;
+      if (!q) {
+        results.sort((a, b) => new Date(b.createdAt || b.joinedAt || 0) - new Date(a.createdAt || a.joinedAt || 0));
+      }
+      if (resultsCard) resultsCard.style.display = q ? "block" : "none";
+      if (recentCard) recentCard.style.display = q ? "none" : "block";
+      if (resultCount) resultCount.textContent = q ? `${results.length} result${results.length === 1 ? "" : "s"}` : "10 recently joined";
+      if (results.length) {
+        target.innerHTML = results.map(item => renderExploreSimplePersonCard(item, q)).join("");
+        if (noResultsMsg) noResultsMsg.style.display = "none";
+      } else {
+        target.innerHTML = "";
+        if (noResultsMsg) noResultsMsg.style.display = q ? "block" : "none";
+        if (!q) target.innerHTML = '<p style="color:#9ca3af;font-size:13px">No users yet.</p>';
+      }
       if (window.lucide) window.lucide.createIcons();
     } catch {
       // Keep the instant local results when Render is waking up or offline.
@@ -1683,6 +1677,70 @@ const AppUX = (() => {
         <button class="btn btn-primary" onclick="AppUX.openMessageTo('${safeName}')">Message</button>
       </div>
     </article>`;
+  }
+
+  function highlightSearchText(value = "", query = "") {
+    const text = escapeHTML(value);
+    const q = String(query || "").trim();
+    if (!q) return text;
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replace(new RegExp(`(${escaped})`, "gi"), "<strong>$1</strong>");
+  }
+
+  function roleBadgeClass(role = "") {
+    const value = String(role || "").toLowerCase();
+    if (value.includes("investor")) return "role-investor";
+    if (value.includes("founder")) return "role-founder";
+    if (value.includes("startup")) return "role-startup";
+    return "role-freelancer";
+  }
+
+  function renderExploreSimplePersonCard(person, query = "") {
+    const id = person.username || person.handle || person.id || person._id || userIdFor(person);
+    const name = person.name || person.title || "ConnectHub member";
+    const role = person.roleType || person.role || "member";
+    const safeName = escapeJS(name);
+    const safeId = escapeJS(id);
+    const createdAt = new Date(person.createdAt || person.joinedAt || 0).getTime();
+    const isNew = createdAt && Date.now() - createdAt < 7 * 86400000;
+    const avatarUrl = person.avatar || person.avatarPhoto?.dataUrl || "";
+    const avatarHTML = avatarUrl
+      ? `<img src="${escapeAttr(avatarUrl)}" alt="${escapeAttr(name)}" onerror="this.remove();this.parentElement.textContent='${escapeAttr(initialsForName(name).slice(0, 2))}'">`
+      : escapeHTML((person.avatarInitials || initialsForName(name)).slice(0, 2));
+    const meta = [
+      person.company || person.companyName,
+      person.location || [person.city, person.state].filter(Boolean).join(", ")
+    ].filter(Boolean).join(" · ");
+    return `
+      <article class="person-card" onclick="window.location='${escapeAttr(person.profileUrl || profileUrl({ ...person, email: id }))}'">
+        <div class="p-avatar">${avatarHTML}</div>
+        <div class="p-info">
+          <div class="p-name">${highlightSearchText(name, query)} ${isNew ? '<span class="new-tag">NEW</span>' : ""} ${person.isOnline ? '<span class="online-mini-dot"></span>' : ""}</div>
+          <div class="p-meta"><span class="role-badge ${roleBadgeClass(role)}">${escapeHTML(role)}</span>${meta ? ` · ${escapeHTML(meta)}` : ""}</div>
+          ${(person.skills || person.tags || []).length ? `<div class="p-tags">${(person.skills || person.tags || []).slice(0, 3).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>` : ""}
+        </div>
+        <button class="connect-btn" type="button" onclick="AppUX.sendExploreConnect(event,'${safeId}','${safeName}')">Connect</button>
+      </article>`;
+  }
+
+  async function sendExploreConnect(event, userId, name) {
+    event?.stopPropagation?.();
+    const button = event?.currentTarget || event?.target;
+    try {
+      await apiRequest(`/api/network/connect/${encodeURIComponent(userId)}`, { method: "POST" });
+      if (button) {
+        button.textContent = "Sent";
+        button.classList.add("sent");
+      }
+      showToast("Connection request sent");
+    } catch {
+      connectUsers?.(name);
+      if (button) {
+        button.textContent = "Sent";
+        button.classList.add("sent");
+      }
+      showToast("Connection request saved");
+    }
   }
 
   function renderNetworkPage(container) {
@@ -2985,7 +3043,33 @@ const AppUX = (() => {
   }
 
   function renderFeedInsightCards() {
+    const db = getDB();
+    const user = getCurrentUser?.() || {};
+    const feedEvents = buildExploreEvents(db, user).slice(0, 3);
+    const feedStartups = buildTrendingStartups(db).slice(0, 5);
     return `
+      <article class="feed-info-card">
+        <h3><i data-lucide="calendar-days"></i> Upcoming Events</h3>
+        <div class="feed-event-list">
+          ${feedEvents.map(event => {
+            const date = new Date(event.date || Date.now());
+            return `<button type="button" class="event-row" onclick="AppUX.showToast('Event saved')">
+              <span class="event-name">${escapeHTML(event.title || "Startup event")} <small class="event-type">${escapeHTML(event.type || "Meetup")}</small></span>
+              <span class="event-info">${escapeHTML(event.city || event.location || "India")} - ${date.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+            </button>`;
+          }).join("")}
+        </div>
+        <a href="/events" class="fic-see-all">See all events</a>
+      </article>
+      <article class="feed-info-card">
+        <h3><i data-lucide="flame"></i> Trending Startups</h3>
+        <div class="feed-startup-list">
+          ${feedStartups.map(startup => `<a class="startup-row" href="${escapeAttr(startup.profileUrl || profileUrl({ name: startup.name }))}">
+            <span class="s-avatar">${escapeHTML((startup.logoInitials || initialsForName(startup.name || "S")).slice(0, 2))}</span>
+            <span><strong class="s-name">${escapeHTML(startup.name || "Startup")}</strong><small class="s-meta">${escapeHTML(startup.sector || startup.stage || "Startup")}</small></span>
+          </a>`).join("")}
+        </div>
+      </article>
       <article>
         <h3>Trending hashtags</h3>
         <div class="ch-aside-tags">${["startup", "freelance", "SaaS", "seed", "figma", "india"].map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${tag}</button>`).join("")}</div>
@@ -4640,6 +4724,6 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, sendExploreConnect, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();
 window.AppUX = AppUX;

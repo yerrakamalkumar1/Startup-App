@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v48-feed-gig-settings-fix";
+const CACHE_NAME = "connecthub-v49-explore-messages-feed-fix";
 const APP_SHELL = [
   "index.html",
   "index.css",

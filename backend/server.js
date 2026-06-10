@@ -666,6 +666,7 @@ function allPeople(db = publicDB()) {
       return {
         ...profile,
         handle: profileHandle(profile),
+        username: profile.username || profile.handle || profileHandle(profile),
         companyName: profile.companyName || startup?.name || "",
         company: profile.company || profile.companyName || startup?.name || "",
         sector: startup?.sector || profile.sector || "",
@@ -674,6 +675,9 @@ function allPeople(db = publicDB()) {
         state: profile.state || startup?.state || "",
         skills: skillList,
         tags: tagList,
+        isOnline: Boolean(profile.isOnline),
+        createdAt: profile.createdAt || profile.joinedAt || profile.lastActive || new Date(0).toISOString(),
+        joinedAt: profile.joinedAt || profile.createdAt || "",
         searchText: searchTerms.join(" ")
       };
     })
@@ -1298,10 +1302,20 @@ function exploreSearchPayload(db, url, req, auth) {
 }
 
 function publicSearchTypeGroup(type = "all") {
-  const value = String(type || "all").toLowerCase();
+  const raw = String(type || "all").toLowerCase();
+  const aliases = {
+    startup: "startups",
+    founder: "founders",
+    investor: "investors",
+    people: "people",
+    user: "users",
+    job: "jobs",
+    opportunity: "opportunities"
+  };
+  const value = aliases[raw] || raw;
   return {
     value,
-    wantsUsers: ["all", "users", "people", "founders", "investors", "jobs"].includes(value),
+    wantsUsers: ["all", "users", "people", "startups", "founders", "investors", "jobs"].includes(value),
     wantsStartups: ["all", "startups", "founders", "jobs"].includes(value),
     wantsGigs: ["all", "jobs", "gigs", "opportunities"].includes(value)
   };
@@ -1359,7 +1373,7 @@ function mapPublicUser(user, db, req, auth) {
     _id: user.id || user.handle || profileHandle(user),
     name: user.name,
     email: user.email || "",
-    username: user.handle || profileHandle(user),
+    username: user.username || user.handle || profileHandle(user),
     handle: user.handle || profileHandle(user),
     avatar: user.avatarPhoto?.dataUrl || "",
     avatarPhoto: user.avatarPhoto || null,
@@ -1373,6 +1387,9 @@ function mapPublicUser(user, db, req, auth) {
     company: user.companyName || "",
     companyName: user.companyName || "",
     skills: user.skills || [],
+    isOnline: Boolean(user.isOnline),
+    createdAt: user.createdAt || user.joinedAt || user.lastActive || "",
+    joinedAt: user.joinedAt || user.createdAt || "",
     mutualConnections: mutualConnectionCount(db, auth?.name || "", user.name || ""),
     profileUrl: user.profileUrl || profileUrlFor(user, req)
   };
@@ -1412,12 +1429,17 @@ function publicSearchPayload(db, url, req, auth) {
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
   const limit = Math.max(1, Math.min(30, Number(url.searchParams.get("limit") || 20)));
   const start = (page - 1) * limit;
+  const currentName = String(auth?.name || url.searchParams.get("current") || "").trim().toLowerCase();
   const people = wantsUsers
     ? explorePeoplePool(db, req)
+      .filter(item => !currentName || String(item.name || "").trim().toLowerCase() !== currentName)
       .filter(item => roleMatchesExploreCategory(item, type === "users" || type === "people" ? "all" : type))
       .map(item => ({ ...item, score: scoreExploreEntity(item, q) }))
       .filter(item => !q || item.score > 0)
-      .sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)))
+      .sort((a, b) => {
+        if (!q) return new Date(b.createdAt || b.joinedAt || b.lastActive || 0) - new Date(a.createdAt || a.joinedAt || a.lastActive || 0);
+        return b.score - a.score || new Date(b.createdAt || b.joinedAt || 0) - new Date(a.createdAt || a.joinedAt || 0) || String(a.name).localeCompare(String(b.name));
+      })
       .slice(start, start + limit)
       .map(item => mapPublicUser(item, db, req, auth))
     : [];
@@ -1452,9 +1474,12 @@ function publicSearchPayload(db, url, req, auth) {
   return {
     success: true,
     q,
+    query: q,
     type,
+    mode: q ? "search" : "recent",
     page,
     limit,
+    results: q ? [...people, ...startups, ...gigs] : people.slice(0, Math.min(limit, 10)),
     users: people,
     people,
     startups,
@@ -1761,13 +1786,17 @@ function createUserProfile({ name, role, title, additionalInfo = {} }) {
     name,
     role,
     title,
+    username: profileHandle({ name }),
     avatarInitials: initials,
     avatarPhoto: additionalInfo.avatarPhoto || null,
     city: additionalInfo.city || "",
     state: additionalInfo.state || "",
     location: additionalInfo.location || null,
     bio: additionalInfo.bio || "",
-    skills: additionalInfo.skills || []
+    skills: additionalInfo.skills || [],
+    isOnline: true,
+    createdAt: new Date().toISOString(),
+    joinedAt: new Date().toISOString()
   };
 
   if (role === "freelancer") {
@@ -2336,6 +2365,37 @@ async function handleApi(req, res) {
     return sendJson(res, 200, publicSearchPayload(db, url, req, auth));
   }
 
+  if (route === "/api/feed/events" && req.method === "GET") {
+    const db = publicDB();
+    const curated = [
+      { title: "Startup India Demo Day", date: new Date(Date.now() + 3 * 86400000).toISOString(), location: "Bangalore", type: "Demo Day" },
+      { title: "FinTech Summit 2026", date: new Date(Date.now() + 7 * 86400000).toISOString(), location: "Mumbai", type: "Conference" },
+      { title: "AI Founders Meetup Hyd", date: new Date(Date.now() + 10 * 86400000).toISOString(), location: "Hyderabad", type: "Meetup" }
+    ];
+    const events = (db.events || []).length ? (db.events || []) : curated;
+    return sendJson(res, 200, { success: true, data: events.slice(0, 6) });
+  }
+
+  if (route === "/api/feed/trending-startups" && req.method === "GET") {
+    const db = publicDB();
+    const startups = publicSearchStartupPool(db, req)
+      .sort((a, b) => new Date(b.createdAt || b.joinedAt || 0) - new Date(a.createdAt || a.joinedAt || 0) || Number(b.trendingScore || 0) - Number(a.trendingScore || 0))
+      .slice(0, 5)
+      .map(startup => ({
+        id: startup.id,
+        _id: startup.id,
+        name: startup.name,
+        username: startup.username || startup.handle || profileHandle({ name: startup.name }),
+        avatar: startup.logo || "",
+        company: startup.name,
+        bio: startup.description || startup.tagline || "",
+        location: startup.location || [startup.city, startup.state].filter(Boolean).join(", "),
+        createdAt: startup.createdAt || startup.joinedAt || "",
+        profileUrl: startup.profileUrl || profileUrlFor({ name: startup.name }, req)
+      }));
+    return sendJson(res, 200, { success: true, data: startups });
+  }
+
   if (route === "/api/people/search" && req.method === "GET") {
     const db = publicDB();
     const results = searchPeople(db, {
@@ -2688,21 +2748,27 @@ async function handleApi(req, res) {
 
   if (route === "/api/messages/send" && req.method === "POST") {
     const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const targetRaw = body.receiverId || body.to || "";
+    const targetProfile = findNetworkProfile(db, targetRaw) || profileByName(targetRaw);
     const from = String(auth?.name || body.from || "").slice(0, 80);
-    const to = String(body.to || "").slice(0, 80);
-    const text = String(body.text || "").slice(0, 600);
+    const to = String(body.to || targetProfile?.name || targetRaw || "").slice(0, 80);
+    const text = String(body.text || body.content || "").slice(0, 600);
     if (!from || !to || (!text && !body.attachment)) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
     const message = {
       id: String(body.id || `msg-${Date.now()}`).slice(0, 80),
       from,
       to,
       text,
-      kind: String(body.kind || "text").slice(0, 30),
+      content: text,
+      sender: from,
+      receiver: to,
+      kind: String(body.kind || body.type || "text").slice(0, 30),
+      type: String(body.type || body.kind || "text").slice(0, 30),
       attachment: body.attachment || null,
       read: false,
       createdAt: body.createdAt || new Date().toISOString()
     };
-    const db = readJson(DB_FILE, INITIAL_DB);
     db.messages = db.messages || [];
     if (!db.messages.some(item => item.id === message.id)) db.messages.push(message);
     createNotification(db, to, "message", `New message from ${from}`, { id: `not-${message.id}`, from, messageId: message.id });
@@ -2710,13 +2776,15 @@ async function handleApi(req, res) {
     if (socketIO) {
       socketIO.to(`user:${to}`).emit("message:new", message);
       socketIO.to(`user:${from}`).emit("message:new", message);
+      socketIO.to(`user:${to}`).emit("new_message", { message, conversationWith: from });
+      socketIO.to(`user_${to}`).emit("new_message", { message, conversationWith: from });
     }
     const recipient = profileByName(to);
     sendEmailNotification(recipient?.email, "New Connect Hub message", `${from}: ${text}`).catch(() => {});
     return sendJson(res, 200, { success: true, message, db: publicDB() });
   }
 
-  if (route === "/api/messages/inbox" && req.method === "GET") {
+  if ((route === "/api/messages/inbox" || route === "/api/messages/conversations") && req.method === "GET") {
     const db = publicDB();
     const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
     const tab = String(url.searchParams.get("tab") || "focused").toLowerCase();
@@ -2759,6 +2827,74 @@ async function handleApi(req, res) {
       return true;
     }).sort((a, b) => new Date(b.recentAt || 0) - new Date(a.recentAt || 0) || a.name.localeCompare(b.name));
     return sendJson(res, 200, { success: true, tab, conversations: rows });
+  }
+
+  if (route.match(/^\/api\/messages\/read\/[^/]+$/) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const targetId = decodeURIComponent(route.split("/")[4] || "");
+    const target = findNetworkProfile(db, targetId) || profileByName(targetId);
+    const otherName = target?.name || targetId;
+    db.messages = db.messages || [];
+    db.messages.forEach(message => {
+      if (message.from === otherName && message.to === auth.name && !message.read) {
+        message.read = true;
+        message.readAt = new Date().toISOString();
+      }
+    });
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true });
+  }
+
+  if (route.match(/^\/api\/messages\/[^/]+$/) && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const targetId = decodeURIComponent(route.split("/")[3] || "");
+    const target = findNetworkProfile(db, targetId) || profileByName(targetId);
+    const me = auth.name;
+    const otherName = target?.name || targetId;
+    const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+    const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || 30)));
+    const thread = (db.messages || [])
+      .filter(message => (message.from === me && message.to === otherName) || (message.from === otherName && message.to === me))
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    const pageItems = thread.slice(Math.max(0, thread.length - page * limit), thread.length - (page - 1) * limit);
+    db.messages = db.messages || [];
+    db.messages.forEach(message => {
+      if (message.from === otherName && message.to === me && !message.read) {
+        message.read = true;
+        message.readAt = new Date().toISOString();
+      }
+    });
+    writeJson(DB_FILE, db);
+    const people = allPeople(publicDB());
+    const profileFor = name => people.find(profile => profile.name === name) || { name, handle: profileHandle({ name }), avatarInitials: initialsFor(name || "CH") };
+    return sendJson(res, 200, {
+      success: true,
+      messages: pageItems.map(message => {
+        const senderProfile = profileFor(message.from);
+        const receiverProfile = profileFor(message.to);
+        return {
+          ...message,
+          content: message.content || message.text || "",
+          type: message.type || message.kind || "text",
+          sender: mapPublicUser(senderProfile, publicDB(), req, auth),
+          receiver: mapPublicUser(receiverProfile, publicDB(), req, auth)
+        };
+      }),
+      hasMore: thread.length > page * limit,
+      page
+    });
+  }
+
+  if (route === "/api/notifications/count" && req.method === "GET") {
+    const db = publicDB();
+    const userName = String(auth?.name || url.searchParams.get("user") || "").trim();
+    const companyName = String(auth?.companyName || url.searchParams.get("company") || "").trim();
+    const names = [userName, companyName].filter(Boolean);
+    const notifications = (db.notifications || []).filter(note => names.includes(note.to) && !note.read).length;
+    const messages = (db.messages || []).filter(message => message.to === userName && !message.read).length;
+    return sendJson(res, 200, { success: true, notifications, messages, total: notifications + messages });
   }
 
   if (route === "/api/notifications" && req.method === "GET") {
@@ -3113,13 +3249,22 @@ if (Server) {
   } catch {}
 
   io.on("connection", socket => {
-    socket.on("user:online", name => {
+    const joinUserRoom = name => {
       const safeName = String(name || "").slice(0, 80);
       if (!safeName) return;
       socket.data.name = safeName;
       onlineUsers.set(safeName, socket.id);
       socket.join(`user:${safeName}`);
+      socket.join(`user_${safeName}`);
       io.emit("presence:update", Array.from(onlineUsers.keys()));
+    };
+
+    socket.on("user:online", name => {
+      joinUserRoom(name);
+    });
+
+    socket.on("join", name => {
+      joinUserRoom(name);
     });
 
     socket.on("conversation:join", conversationId => {
@@ -3135,6 +3280,11 @@ if (Server) {
     socket.on("message:typing", payload => {
       const to = String(payload?.recipientId || payload?.to || "").slice(0, 80);
       if (to) socket.to(`user:${to}`).emit("message:typing", { ...payload, from: socket.data.name });
+    });
+
+    socket.on("typing", payload => {
+      const to = String(payload?.recipientId || payload?.to || "").slice(0, 80);
+      if (to) socket.to(`user:${to}`).emit("typing", { userId: socket.data.name || payload?.from || "", from: socket.data.name || payload?.from || "" });
     });
 
     socket.on("message:send", message => {
@@ -3162,6 +3312,8 @@ if (Server) {
 
       socket.emit("message:new", safeMessage);
       io.to(`user:${safeMessage.to}`).emit("message:new", safeMessage);
+      io.to(`user:${safeMessage.to}`).emit("new_message", { message: safeMessage, conversationWith: safeMessage.from });
+      io.to(`user_${safeMessage.to}`).emit("new_message", { message: safeMessage, conversationWith: safeMessage.from });
       io.to(`conversation:${[safeMessage.from, safeMessage.to].sort().join("__")}`).emit("message:new", safeMessage);
     });
 
