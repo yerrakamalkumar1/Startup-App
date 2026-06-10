@@ -234,7 +234,7 @@
       max-width: 75%;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
       animation: rise 0.22s ease both;
     }
 
@@ -244,40 +244,56 @@
     .bubble {
       width: fit-content;
       max-width: 100%;
-      padding: 12px 14px;
-      border-radius: 18px;
-      line-height: 1.45;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 9px 13px 7px;
+      border-radius: 16px;
+      line-height: 1.38;
+      font-size: 15px;
+      font-weight: 400;
       word-wrap: break-word;
       overflow-wrap: anywhere;
-      box-shadow: 0 10px 20px rgba(26, 35, 64, 0.08);
+      box-shadow: 0 2px 10px rgba(26, 35, 64, 0.08);
     }
 
     .sent .bubble {
       color: #fff;
       background: linear-gradient(135deg, var(--teal), var(--green));
-      border-bottom-right-radius: 6px;
+      border-bottom-right-radius: 5px;
     }
 
     .received .bubble {
       color: var(--navy);
       background: #fff;
       border: 1px solid var(--line);
-      border-bottom-left-radius: 6px;
+      border-bottom-left-radius: 5px;
     }
 
     .message small { color: var(--muted); font-size: 11px; }
+    .bubble-text {
+      display: block;
+      max-width: 100%;
+      color: inherit;
+      font-weight: 400;
+      line-height: 1.38;
+    }
     .bubble-meta {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      align-self: flex-end;
+      gap: 4px;
+      margin-top: 3px;
       color: var(--muted);
-      font-size: 11px;
-      font-weight: 800;
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
     }
-    .sent .bubble-meta { justify-content: flex-end; }
+    .sent .bubble-meta { justify-content: flex-end; color: rgba(255,255,255,0.78); }
     .msg-status.seen { color: #0ea5e9; }
     .msg-status.delivered,
-    .msg-status.sent { color: #94a3b8; }
+    .msg-status.sent { color: currentColor; opacity: 0.82; }
     .media-card {
       min-width: 220px;
       min-height: 130px;
@@ -522,8 +538,10 @@
           : escapeHtml(text || "Message unavailable");
       const status = mine ? `<span class="msg-status ${message.status || "sent"}">${message.status === "seen" ? "&#10003;&#10003;" : message.status === "delivered" ? "&#10003;&#10003;" : "&#10003;"}</span>` : "";
       return `<article class="message ${mine ? "sent" : "received"}" data-message-id="${message.id}">
-        <div class="bubble">${body}</div>
-        <div class="bubble-meta"><span>${escapeHtml(message.timestamp || "")}</span>${status}</div>
+        <div class="bubble">
+          <span class="bubble-text">${body}</span>
+          <span class="bubble-meta"><span>${escapeHtml(message.timestamp || "")}</span>${status}</span>
+        </div>
         <div class="reaction-row">
           ${reactions.map(reaction => `<span class="reaction-pill">${escapeHtml(reaction)}</span>`).join("")}
           <button type="button" data-reaction-message="${message.id}" data-reaction="like">&#128077;</button>

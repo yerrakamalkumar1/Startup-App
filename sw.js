@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v51-chat-rebuild";
+const CACHE_NAME = "connecthub-v52-chat-bubbles";
 const APP_SHELL = [
   "index.html",
   "index.css",

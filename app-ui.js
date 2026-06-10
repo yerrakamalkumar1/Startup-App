@@ -2747,8 +2747,8 @@ const AppUX = (() => {
         return `<article class="chat-message-row ${mine ? "mine" : "theirs"}" data-message-id="${escapeAttr(message.id)}">
           <div class="message-bubble ${mine ? "mine" : "theirs"}">
             <div class="message-bubble-body">${renderMessageContent(message)}</div>
+            <div class="message-meta"><span>${time}</span>${mine ? messageStatusIcon(message) : ""}</div>
           </div>
-          <div class="message-meta"><span>${time}</span>${mine ? messageStatusIcon(message) : ""}</div>
         </article>`;
       }).join("") || '<p style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
     </div>
