@@ -44,6 +44,7 @@ const DATA_DIR = process.env.CONNECTHUB_DATA_DIR || path.join(__dirname, "data")
 const DB_FILE = path.join(DATA_DIR, "connecthub-db.json");
 const USERS_FILE = path.join(DATA_DIR, "connecthub-users.json");
 const OTP_FILE = path.join(DATA_DIR, "connecthub-otps.json");
+const AUDIT_FILE = path.join(DATA_DIR, "connecthub-audit.json");
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "connecthub-free-tier-dev-secret-change-in-render";
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -278,6 +279,7 @@ function ensureDataFiles() {
   if (!fs.existsSync(DB_FILE)) writeJson(DB_FILE, INITIAL_DB);
   if (!fs.existsSync(USERS_FILE)) writeJson(USERS_FILE, {});
   if (!fs.existsSync(OTP_FILE)) writeJson(OTP_FILE, {});
+  if (!fs.existsSync(AUDIT_FILE)) writeJson(AUDIT_FILE, []);
 }
 
 function readJson(file, fallback) {
@@ -416,6 +418,102 @@ function fetchIpLocation(ip) {
       resolve("Unknown Location");
     });
     request.on("error", () => resolve("Unknown Location"));
+  });
+}
+
+function fetchIpGeoDetails(ip) {
+  const cleanIp = String(ip || "").replace(/^::ffff:/, "").trim();
+  if (isPrivateIP(cleanIp)) {
+    return Promise.resolve({
+      ip: cleanIp || "Unknown",
+      city: "Local Network",
+      region: "",
+      country: "",
+      countryCode: "",
+      latitude: null,
+      longitude: null,
+      isp: "",
+      source: "private-ip"
+    });
+  }
+  return new Promise(resolve => {
+    const req = http.get(`http://ip-api.com/json/${encodeURIComponent(cleanIp)}?fields=status,message,country,countryCode,regionName,city,lat,lon,isp,query`, response => {
+      let body = "";
+      response.on("data", chunk => {
+        body += chunk;
+        if (body.length > 64 * 1024) req.destroy();
+      });
+      response.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          if (data.status !== "success") {
+            return resolve({
+              ip: cleanIp,
+              city: "Unknown Location",
+              region: "",
+              country: "",
+              countryCode: "",
+              latitude: null,
+              longitude: null,
+              isp: "",
+              source: "ip-api",
+              error: data.message || "Lookup failed"
+            });
+          }
+          resolve({
+            ip: data.query || cleanIp,
+            city: data.city || "",
+            region: data.regionName || "",
+            country: data.country || "",
+            countryCode: data.countryCode || "",
+            latitude: Number.isFinite(Number(data.lat)) ? Number(data.lat) : null,
+            longitude: Number.isFinite(Number(data.lon)) ? Number(data.lon) : null,
+            isp: data.isp || "",
+            source: "ip-api"
+          });
+        } catch {
+          resolve({
+            ip: cleanIp,
+            city: "Unknown Location",
+            region: "",
+            country: "",
+            countryCode: "",
+            latitude: null,
+            longitude: null,
+            isp: "",
+            source: "ip-api",
+            error: "Invalid lookup response"
+          });
+        }
+      });
+    });
+    req.setTimeout(2500, () => {
+      req.destroy();
+      resolve({
+        ip: cleanIp,
+        city: "Unknown Location",
+        region: "",
+        country: "",
+        countryCode: "",
+        latitude: null,
+        longitude: null,
+        isp: "",
+        source: "ip-api",
+        error: "Lookup timeout"
+      });
+    });
+    req.on("error", () => resolve({
+      ip: cleanIp,
+      city: "Unknown Location",
+      region: "",
+      country: "",
+      countryCode: "",
+      latitude: null,
+      longitude: null,
+      isp: "",
+      source: "ip-api",
+      error: "Lookup request failed"
+    }));
   });
 }
 
@@ -1658,6 +1756,80 @@ function authUserKey(auth) {
   return normalizeEmail(auth?.email) || String(auth?.name || auth?.id || "").trim().toLowerCase();
 }
 
+function isAdminAuth(auth) {
+  return auth?.role === "admin" || normalizeEmail(auth?.email) === normalizeEmail(process.env.ADMIN_EMAIL);
+}
+
+function findRegisteredUserByIdentifier(users, identifier) {
+  const raw = String(identifier || "").trim();
+  const needle = raw.replace(/^@/, "").toLowerCase();
+  if (!needle) return null;
+
+  for (const [email, entry] of Object.entries(users || {})) {
+    const profile = entry?.profile || {};
+    const identifiers = [
+      email,
+      profile.email,
+      profile.username,
+      profile.handle,
+      profile.name,
+      profileHandle(profile)
+    ]
+      .filter(Boolean)
+      .map(value => String(value).trim().replace(/^@/, "").toLowerCase());
+
+    if (identifiers.includes(needle)) {
+      return { email, entry, profile };
+    }
+  }
+  return null;
+}
+
+function earliestKnownSessionForUser(db, entry, profile, email) {
+  const keys = new Set([
+    authUserKey({ email, name: profile?.name, id: profile?.id }),
+    authUserKey({ name: profile?.name }),
+    authUserKey({ id: profile?.username || profile?.handle || profileHandle(profile || {}) })
+  ].filter(Boolean));
+
+  const sessions = [];
+  keys.forEach(key => {
+    const active = db.userSettingsByUser?.[key]?.activeSessions;
+    if (Array.isArray(active)) sessions.push(...active);
+  });
+  if (Array.isArray(profile?.activeSessions)) sessions.push(...profile.activeSessions);
+  if (Array.isArray(entry?.activeSessions)) sessions.push(...entry.activeSessions);
+
+  return sessions
+    .filter(item => item?.ip || item?.ipAddress)
+    .sort((a, b) => {
+      const aTime = new Date(a.createdAt || a.lastActive || 0).getTime() || 0;
+      const bTime = new Date(b.createdAt || b.lastActive || 0).getTime() || 0;
+      return aTime - bTime;
+    })[0] || null;
+}
+
+function appendAuditLog(entry) {
+  const logs = readJson(AUDIT_FILE, []);
+  const record = {
+    id: `audit-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+    createdAt: new Date().toISOString(),
+    ...entry
+  };
+  logs.push(record);
+  writeJson(AUDIT_FILE, logs.slice(-5000));
+  return record;
+}
+
+function publicRegistrationLookupUser(profile, email) {
+  return {
+    name: profile?.name || "",
+    username: profile?.username || profile?.handle || profileHandle(profile || {}),
+    role: profile?.role || "",
+    email
+  };
+}
+
 function savedPostsFor(db, users, auth) {
   const key = authUserKey(auth);
   const profileSaved = normalizeEmail(auth?.email) && users[normalizeEmail(auth.email)]?.profile?.savedPosts;
@@ -2790,7 +2962,17 @@ async function handleApi(req, res) {
     const profile = createUserProfile(body);
     profile.email = email;
     const passwordData = hashPassword(body.password);
-    users[email] = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, profile };
+    const registrationIp = getRealIP(req);
+    users[email] = {
+      passwordHash: passwordData.hash,
+      passwordSalt: passwordData.salt,
+      profile,
+      registration: {
+        ipAddress: registrationIp,
+        registeredAt: profile.createdAt || new Date().toISOString(),
+        userAgent: req.headers["user-agent"] || ""
+      }
+    };
     writeJson(USERS_FILE, users);
     const token = signToken({ email, name: profile.name, role: profile.role });
     await recordLoginSession({ email, name: profile.name, role: profile.role }, token, req);
@@ -3456,9 +3638,88 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, applicant, gig, db: publicDB() });
   }
 
+  const registrationLookupMatch = route.match(/^\/api\/admin\/users\/([^/]+)\/registration-location$/);
+  if ((registrationLookupMatch || route === "/api/admin/users/registration-location") && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Admin login required." });
+    if (!isAdminAuth(auth)) return sendJson(res, 403, { success: false, message: "Admin access required." });
+
+    const identifier = decodeURIComponent(registrationLookupMatch?.[1] || url.searchParams.get("username") || url.searchParams.get("user") || "").trim();
+    if (!identifier) return sendJson(res, 400, { success: false, message: "Provide a username, handle, name, or email." });
+
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const users = readJson(USERS_FILE, {});
+    const found = findRegisteredUserByIdentifier(users, identifier);
+    const auditBase = {
+      type: "admin_registration_location_lookup",
+      actor: { email: normalizeEmail(auth.email), name: auth.name || "", role: auth.role || "" },
+      targetIdentifier: identifier,
+      requestIp: getRealIP(req),
+      userAgent: req.headers["user-agent"] || "",
+      route
+    };
+
+    if (!found) {
+      appendAuditLog({ ...auditBase, outcome: "not_found" });
+      return sendJson(res, 404, { success: false, message: `No registered user found for "${identifier}".` });
+    }
+
+    const { email, entry, profile } = found;
+    const session = earliestKnownSessionForUser(db, entry, profile, email);
+    const registration = entry.registration || {};
+    const storedIp = registration.ipAddress || registration.ip || profile.registrationIpAddress || profile.registrationIp || session?.ipAddress || session?.ip || "";
+    const source = registration.ipAddress || registration.ip || profile.registrationIpAddress || profile.registrationIp
+      ? "registration"
+      : session
+        ? "first-session"
+        : "missing";
+
+    appendAuditLog({
+      ...auditBase,
+      outcome: storedIp ? "success" : "missing_ip",
+      target: publicRegistrationLookupUser(profile, email),
+      source
+    });
+
+    if (!storedIp) {
+      return sendJson(res, 200, {
+        success: true,
+        user: publicRegistrationLookupUser(profile, email),
+        registration: {
+          ipAddress: null,
+          source,
+          registeredAt: registration.registeredAt || profile.createdAt || profile.joinedAt || null
+        },
+        geolocation: null,
+        message: "No registration IP is stored for this user yet. Older accounts may only have server/auth logs."
+      });
+    }
+
+    const geolocation = await fetchIpGeoDetails(storedIp);
+    return sendJson(res, 200, {
+      success: true,
+      user: publicRegistrationLookupUser(profile, email),
+      registration: {
+        ipAddress: storedIp,
+        source,
+        registeredAt: registration.registeredAt || session?.createdAt || profile.createdAt || profile.joinedAt || null
+      },
+      geolocation: {
+        city: geolocation.city || "",
+        region: geolocation.region || "",
+        country: geolocation.country || "",
+        countryCode: geolocation.countryCode || "",
+        latitude: geolocation.latitude,
+        longitude: geolocation.longitude,
+        isp: geolocation.isp || "",
+        source: geolocation.source || "ip-api",
+        error: geolocation.error || null
+      },
+      audit: { logged: true }
+    });
+  }
+
   if (route === "/api/admin/summary" && req.method === "GET") {
-    const isAdmin = auth?.role === "admin" || normalizeEmail(auth?.email) === normalizeEmail(process.env.ADMIN_EMAIL);
-    if (!isAdmin) return sendJson(res, 403, { success: false, message: "Admin access required." });
+    if (!isAdminAuth(auth)) return sendJson(res, 403, { success: false, message: "Admin access required." });
     const db = publicDB();
     return sendJson(res, 200, {
       success: true,

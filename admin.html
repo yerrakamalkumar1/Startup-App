@@ -19,6 +19,20 @@
         <a class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white" href="index.html">Back to app</a>
       </div>
       <div id="adminStatus" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">Loading admin data...</div>
+      <section class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Registration Location Lookup</h2>
+            <p class="text-sm text-slate-600">Admin-only lookup for a user's registration IP and approximate IP geolocation. Every lookup is audit logged.</p>
+          </div>
+          <span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">Private admin tool</span>
+        </div>
+        <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input id="registrationLookupInput" class="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" value="aarohi" placeholder="Username, handle, name, or email">
+          <button id="registrationLookupBtn" class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600" type="button">Lookup</button>
+        </div>
+        <div id="registrationLookupResult" class="mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm"></div>
+      </section>
       <div id="adminCounts" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
       <div id="adminTables" class="mt-4 grid gap-4 lg:grid-cols-2"></div>
     </section>
@@ -35,6 +49,61 @@
         </table></div>
       </section>`;
     }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    async function lookupRegistrationLocation() {
+      const input = document.getElementById("registrationLookupInput");
+      const button = document.getElementById("registrationLookupBtn");
+      const result = document.getElementById("registrationLookupResult");
+      const identifier = input.value.trim();
+      if (!identifier) {
+        result.className = "mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700";
+        result.textContent = "Enter a username, handle, name, or email.";
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "Checking...";
+      result.className = "mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600";
+      result.textContent = "Looking up registration IP and geolocation...";
+      try {
+        const data = await apiRequest(`/api/admin/users/${encodeURIComponent(identifier)}/registration-location`);
+        const geo = data.geolocation || {};
+        const location = [geo.city, geo.region, geo.country].filter(Boolean).join(", ") || "Unknown location";
+        result.className = "mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-slate-800";
+        result.innerHTML = `
+          <div class="grid gap-2 sm:grid-cols-2">
+            <div><span class="block text-xs font-bold uppercase text-slate-500">User</span><strong>${escapeHtml(data.user?.name || "")}</strong> <span class="text-slate-500">@${escapeHtml(data.user?.username || "")}</span></div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">Role</span>${escapeHtml(data.user?.role || "")}</div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">IP Source</span>${escapeHtml(data.registration?.source || "")}</div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">Registered At</span>${escapeHtml(data.registration?.registeredAt || "Not stored")}</div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">Registration IP</span><code>${escapeHtml(data.registration?.ipAddress || "Not stored")}</code></div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">Approx Location</span>${escapeHtml(location)}</div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">Coordinates</span>${geo.latitude ?? ""}${geo.latitude != null && geo.longitude != null ? ", " : ""}${geo.longitude ?? ""}</div>
+            <div><span class="block text-xs font-bold uppercase text-slate-500">Lookup</span>${escapeHtml(geo.source || "not available")}${geo.error ? ` - ${escapeHtml(geo.error)}` : ""}</div>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">Access recorded in the private audit log.</p>
+        `;
+      } catch (error) {
+        result.className = "mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700";
+        result.textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Lookup";
+      }
+    }
+
+    document.getElementById("registrationLookupBtn").addEventListener("click", lookupRegistrationLocation);
+    document.getElementById("registrationLookupInput").addEventListener("keydown", event => {
+      if (event.key === "Enter") lookupRegistrationLocation();
+    });
 
     async function loadAdmin() {
       const status = document.getElementById("adminStatus");
