@@ -93,7 +93,7 @@
         `;
       } catch (error) {
         result.className = "mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700";
-        result.textContent = error.message;
+        result.innerHTML = `<strong>${escapeHtml(error.message)}</strong><br><span class="text-xs">Sign in with the email configured as <code>ADMIN_EMAIL</code> in Render, then reopen this page.</span> <a class="font-bold text-teal-700 underline" href="auth-portal.html">Open login</a>`;
       } finally {
         button.disabled = false;
         button.textContent = "Lookup";
@@ -123,7 +123,9 @@
           table("Reviews", db.reviews || [], [{key:"from",label:"From"},{key:"to",label:"To"},{key:"rating",label:"Rating"}])
         ].join("");
       } catch (error) {
-        status.innerHTML = `<strong>Admin locked.</strong> Login with the Render ADMIN_EMAIL account first. ${error.message}`;
+        document.getElementById("adminCounts").innerHTML = "";
+        document.getElementById("adminTables").innerHTML = "";
+        status.innerHTML = `<strong>Admin locked.</strong> Sign in with the email configured as <code>ADMIN_EMAIL</code> in Render, then return here. <a class="font-bold text-teal-700 underline" href="auth-portal.html">Open login</a><br><span class="text-xs text-slate-500">${escapeHtml(error.message)}</span>`;
       }
     }
     loadAdmin();

@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v54-admin-location";
+const CACHE_NAME = "connecthub-v55-admin-auth-fix";
 const APP_SHELL = [
   "index.html",
   "index.css",

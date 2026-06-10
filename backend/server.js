@@ -1757,7 +1757,10 @@ function authUserKey(auth) {
 }
 
 function isAdminAuth(auth) {
-  return auth?.role === "admin" || normalizeEmail(auth?.email) === normalizeEmail(process.env.ADMIN_EMAIL);
+  if (!auth) return false;
+  const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL);
+  const authEmail = normalizeEmail(auth.email);
+  return auth.role === "admin" || Boolean(adminEmail && authEmail === adminEmail);
 }
 
 function findRegisteredUserByIdentifier(users, identifier) {
