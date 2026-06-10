@@ -234,7 +234,7 @@
       max-width: 75%;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       animation: rise 0.22s ease both;
     }
 
@@ -266,6 +266,18 @@
     }
 
     .message small { color: var(--muted); font-size: 11px; }
+    .bubble-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .sent .bubble-meta { justify-content: flex-end; }
+    .msg-status.seen { color: #0ea5e9; }
+    .msg-status.delivered,
+    .msg-status.sent { color: #94a3b8; }
     .media-card {
       min-width: 220px;
       min-height: 130px;
@@ -412,7 +424,7 @@
           participant: { id: "u-priya", name: "Priya Sharma", username: "@priya.design", initials: "PS", role: "Startup Designer", online: true },
           unreadCount: 2,
           messages: [
-            { id: "m-1", senderId: "u-priya", text: "Hey Kamal, can you share the product reel timeline?", type: "text", timestamp: "10:14 AM", reactions: ["👍"] },
+            { id: "m-1", senderId: "u-priya", text: "Hey Kamal, can you share the product reel timeline?", type: "text", timestamp: "10:14 AM", reactions: ["Like"] },
             { id: "m-2", senderId: "u-kamal", text: "Yes, I can deliver the first cut by tonight.", type: "text", timestamp: "10:17 AM", reactions: [] },
             { id: "m-3", senderId: "u-priya", text: "Perfect. Please include a founder intro and product screenshots.", type: "text", timestamp: "10:18 AM", reactions: [] }
           ]
@@ -423,7 +435,7 @@
           unreadCount: 1,
           messages: [
             { id: "m-4", senderId: "u-rahul", text: "We liked your portfolio. Are you available for a CRM demo video?", type: "text", timestamp: "Yesterday", reactions: [] },
-            { id: "m-5", senderId: "u-kamal", text: "Available from Monday. Share the brief and expected duration.", type: "file", fileName: "proposal-outline.pdf", timestamp: "Yesterday", reactions: ["✅"] }
+            { id: "m-5", senderId: "u-kamal", text: "Available from Monday. Share the brief and expected duration.", type: "file", fileName: "proposal-outline.pdf", timestamp: "Yesterday", reactions: ["Done"] }
           ]
         },
         "c-3": {
@@ -457,7 +469,7 @@
       const rows = Object.values(appState.conversations)
         .filter(conversation => {
           const p = conversation.participant;
-          const haystack = [p.name, p.username, p.role, conversation.messages.at(-1)?.text].join(" ").toLowerCase();
+          const haystack = [p.name, p.username, p.role, messageText(conversation.messages.at(-1))].join(" ").toLowerCase();
           return haystack.includes(q);
         })
         .map(conversation => {
@@ -468,7 +480,7 @@
             <span class="conversation-meta">
               <strong>${escapeHtml(p.name)}</strong>
               <small>${escapeHtml(p.username)} · ${escapeHtml(p.role)}</small>
-              <span>${escapeHtml(last?.text || last?.fileName || "No messages yet")}</span>
+              <span>${escapeHtml(messageText(last) || last?.fileName || "No messages yet")}</span>
             </span>
             <span>
               <span class="time-pill">${escapeHtml(last?.timestamp || "")}</span>
@@ -495,22 +507,28 @@
       els.messageList.scrollTop = els.messageList.scrollHeight;
     }
 
+    function messageText(message = {}) {
+      return String(message?.content || message?.text || message?.body || "");
+    }
+
     function renderMessage(message) {
       const mine = message.senderId === appState.currentUser.id;
       const reactions = message.reactions || [];
+      const text = messageText(message);
       const body = message.type === "media"
-        ? `<span class="media-card"><i class="ti ti-photo"></i>&nbsp; Media preview</span>${escapeHtml(message.text || "")}`
+        ? `<span class="media-card"><i class="ti ti-photo"></i>&nbsp; Media preview</span>${escapeHtml(text || "")}`
         : message.type === "file"
-          ? `<span class="file-chip"><i class="ti ti-file-text"></i><strong>${escapeHtml(message.fileName || "file")}</strong></span>${escapeHtml(message.text || "")}`
-          : escapeHtml(message.text);
+          ? `<span class="file-chip"><i class="ti ti-file-text"></i><strong>${escapeHtml(message.fileName || "file")}</strong></span>${escapeHtml(text || "")}`
+          : escapeHtml(text || "Message unavailable");
+      const status = mine ? `<span class="msg-status ${message.status || "sent"}">${message.status === "seen" ? "&#10003;&#10003;" : message.status === "delivered" ? "&#10003;&#10003;" : "&#10003;"}</span>` : "";
       return `<article class="message ${mine ? "sent" : "received"}" data-message-id="${message.id}">
         <div class="bubble">${body}</div>
+        <div class="bubble-meta"><span>${escapeHtml(message.timestamp || "")}</span>${status}</div>
         <div class="reaction-row">
           ${reactions.map(reaction => `<span class="reaction-pill">${escapeHtml(reaction)}</span>`).join("")}
-          <button type="button" data-reaction-message="${message.id}" data-reaction="👍">👍</button>
-          <button type="button" data-reaction-message="${message.id}" data-reaction="✅">✅</button>
+          <button type="button" data-reaction-message="${message.id}" data-reaction="like">&#128077;</button>
+          <button type="button" data-reaction-message="${message.id}" data-reaction="done">&#10003;</button>
         </div>
-        <small>${escapeHtml(message.timestamp)}</small>
       </article>`;
     }
 
@@ -522,7 +540,9 @@
         id: `m-${Date.now()}`,
         senderId: appState.currentUser.id,
         text: value,
+        content: value,
         type: "text",
+        status: "sent",
         timestamp: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
         reactions: []
       });

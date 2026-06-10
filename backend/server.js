@@ -1703,6 +1703,42 @@ function createNotification(db, to, type, text, extra = {}) {
   return note;
 }
 
+function normalizeStoredMessage(message = {}, db = publicDB(), req, auth) {
+  const people = allPeople(db);
+  const text = String(message.content || message.text || "").slice(0, 2000);
+  const fromName = String(message.from || message.senderName || message.sender?.name || message.sender?.username || message.sender || "").trim();
+  const toName = String(message.to || message.receiverName || message.receiver?.name || message.receiver?.username || message.receiver || "").trim();
+  const profileFor = name => people.find(profile => profile.name === name || profileHandle(profile) === name) || {
+    name,
+    handle: profileHandle({ name }),
+    avatarInitials: initialsFor(name || "CH")
+  };
+  const senderProfile = profileFor(fromName);
+  const receiverProfile = profileFor(toName);
+  return {
+    ...message,
+    id: String(message.id || message._id || `msg-${Date.now()}`).slice(0, 100),
+    from: fromName,
+    to: toName,
+    senderName: fromName,
+    receiverName: toName,
+    text,
+    content: text,
+    kind: String(message.kind || message.type || "text").slice(0, 30),
+    type: String(message.type || message.kind || "text").slice(0, 30),
+    mediaUrl: message.mediaUrl || message.attachment?.dataUrl || null,
+    attachment: message.attachment || null,
+    read: Boolean(message.read || message.status === "seen"),
+    status: message.status || (message.read ? "seen" : "sent"),
+    deliveredAt: message.deliveredAt || null,
+    seenAt: message.seenAt || message.readAt || null,
+    reactions: Array.isArray(message.reactions) ? message.reactions : [],
+    sender: mapPublicUser(senderProfile, db, req, auth),
+    receiver: mapPublicUser(receiverProfile, db, req, auth),
+    createdAt: message.createdAt || new Date().toISOString()
+  };
+}
+
 function createOtp(email) {
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const salt = crypto.randomBytes(16).toString("hex");
@@ -2205,34 +2241,81 @@ async function handleApi(req, res) {
     const rows = (db.messages || [])
       .filter(message => message.from === userName || message.to === userName)
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    return sendJson(res, 200, { success: true, conversations: rows });
+    return sendJson(res, 200, { success: true, conversations: rows.map(message => normalizeStoredMessage(message, db, req, auth)) });
   }
   if (route.match(/^\/api\/messages\/[^/]+$/) && req.method === "GET") {
     const other = decodeURIComponent(route.replace("/api/messages/", ""));
     const userName = auth?.name || url.searchParams.get("user") || "";
-    const messages = (publicDB().messages || []).filter(message =>
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const messages = (db.messages || []).filter(message =>
       (message.from === userName && (message.to === other || message.to === decodeURIComponent(other))) ||
       (message.to === userName && (message.from === other || message.from === decodeURIComponent(other)))
     );
-    return sendJson(res, 200, { success: true, messages });
+    const seenIds = [];
+    (db.messages || []).forEach(message => {
+      if (message.from === other && message.to === userName && !message.read) {
+        message.read = true;
+        message.status = "seen";
+        message.readAt = message.readAt || new Date().toISOString();
+        message.seenAt = message.seenAt || message.readAt;
+        seenIds.push(message.id);
+      }
+    });
+    if (seenIds.length) {
+      (db.notifications || []).forEach(note => {
+        if (note.to === userName && note.type === "message" && !note.read && (!note.from || note.from === other)) {
+          note.read = true;
+          note.readAt = new Date().toISOString();
+        }
+      });
+      writeJson(DB_FILE, db);
+      if (socketIO) {
+        socketIO.to(`user:${other}`).emit("messages_seen", { by: userName, messageIds: seenIds, conversationWith: userName });
+      }
+    }
+    return sendJson(res, 200, {
+      success: true,
+      messages: messages.map(message => normalizeStoredMessage(message, publicDB(), req, auth)),
+      page: 1,
+      hasMore: false
+    });
   }
   if (route === "/api/messages" && req.method === "POST") {
     const body = await readBody(req);
-    req.url = "/api/messages/send";
     body.from = body.from || auth?.name;
-    body.to = body.to || body.receiver;
+    body.to = body.to || body.receiver || body.receiverId;
     body.text = body.text || body.content;
+    const attachment = body.attachment || null;
+    const mediaUrl = body.mediaUrl || attachment?.dataUrl || "";
+    const type = String(body.type || body.kind || (mediaUrl ? "image" : "text")).slice(0, 30);
     const db = readJson(DB_FILE, INITIAL_DB);
-    const message = { id: `msg-${Date.now()}`, from: body.from, to: body.to, text: body.text, attachment: body.mediaUrl || body.attachment || "", read: false, createdAt: new Date().toISOString() };
-    if (!message.from || !message.to || !message.text) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
+    const message = {
+      id: `msg-${Date.now()}`,
+      from: String(body.from || "").slice(0, 80),
+      to: String(body.to || "").slice(0, 80),
+      text: String(body.text || "").slice(0, 600),
+      content: String(body.text || "").slice(0, 600),
+      kind: type,
+      type,
+      mediaUrl: mediaUrl || null,
+      attachment,
+      status: "sent",
+      reactions: [],
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+    if (!message.from || !message.to || (!message.text && !message.attachment && !message.mediaUrl)) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
     db.messages = [...(db.messages || []), message];
     createNotification(db, message.to, "message", `New message from ${message.from}`, { id: `not-${message.id}`, from: message.from, messageId: message.id });
     writeJson(DB_FILE, db);
+    const normalized = normalizeStoredMessage(message, publicDB(), req, auth);
     if (socketIO) {
-      socketIO.to(`user:${message.to}`).emit("message:new", message);
-      socketIO.to(`user:${message.from}`).emit("message:new", message);
+      socketIO.to(`user:${message.to}`).emit("message:new", normalized);
+      socketIO.to(`user:${message.from}`).emit("message:new", normalized);
+      socketIO.to(`user:${message.to}`).emit("new_message", { message: normalized, conversationWith: message.from });
+      socketIO.to(`user_${message.to}`).emit("new_message", { message: normalized, conversationWith: message.from });
     }
-    return sendJson(res, 200, { success: true, message, db: publicDB() });
+    return sendJson(res, 200, { success: true, message: normalized, db: publicDB() });
   }
   if (route === "/api/notifications/read" && req.method === "PUT") {
     const db = readJson(DB_FILE, INITIAL_DB);
@@ -2754,7 +2837,10 @@ async function handleApi(req, res) {
     const from = String(auth?.name || body.from || "").slice(0, 80);
     const to = String(body.to || targetProfile?.name || targetRaw || "").slice(0, 80);
     const text = String(body.text || body.content || "").slice(0, 600);
-    if (!from || !to || (!text && !body.attachment)) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
+    const attachment = body.attachment || null;
+    const mediaUrl = body.mediaUrl || attachment?.dataUrl || null;
+    if (!from || !to || (!text && !attachment && !mediaUrl)) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
+    const type = String(body.type || body.kind || (mediaUrl ? "image" : "text")).slice(0, 30);
     const message = {
       id: String(body.id || `msg-${Date.now()}`).slice(0, 80),
       from,
@@ -2763,9 +2849,15 @@ async function handleApi(req, res) {
       content: text,
       sender: from,
       receiver: to,
-      kind: String(body.kind || body.type || "text").slice(0, 30),
-      type: String(body.type || body.kind || "text").slice(0, 30),
-      attachment: body.attachment || null,
+      kind: type,
+      type,
+      mediaUrl,
+      attachment,
+      replyTo: body.replyToId || body.replyTo || null,
+      reactions: [],
+      status: "sent",
+      deliveredAt: null,
+      seenAt: null,
       read: false,
       createdAt: body.createdAt || new Date().toISOString()
     };
@@ -2773,15 +2865,36 @@ async function handleApi(req, res) {
     if (!db.messages.some(item => item.id === message.id)) db.messages.push(message);
     createNotification(db, to, "message", `New message from ${from}`, { id: `not-${message.id}`, from, messageId: message.id });
     writeJson(DB_FILE, db);
+    const normalized = normalizeStoredMessage(message, publicDB(), req, auth);
     if (socketIO) {
-      socketIO.to(`user:${to}`).emit("message:new", message);
-      socketIO.to(`user:${from}`).emit("message:new", message);
-      socketIO.to(`user:${to}`).emit("new_message", { message, conversationWith: from });
-      socketIO.to(`user_${to}`).emit("new_message", { message, conversationWith: from });
+      const receiverRoom = socketIO.sockets.adapter.rooms.get(`user:${to}`) || socketIO.sockets.adapter.rooms.get(`user_${to}`);
+      const isReceiverOnline = receiverRoom && receiverRoom.size > 0;
+      if (isReceiverOnline) {
+        message.status = "delivered";
+        message.deliveredAt = new Date().toISOString();
+        message.read = false;
+        normalized.status = "delivered";
+        normalized.deliveredAt = message.deliveredAt;
+        const freshDb = readJson(DB_FILE, INITIAL_DB);
+        const stored = (freshDb.messages || []).find(item => item.id === message.id);
+        if (stored) {
+          stored.status = message.status;
+          stored.deliveredAt = message.deliveredAt;
+          writeJson(DB_FILE, freshDb);
+        }
+      }
+      socketIO.to(`user:${to}`).emit("message:new", normalized);
+      socketIO.to(`user:${from}`).emit("message:new", normalized);
+      socketIO.to(`user:${to}`).emit("new_message", { message: normalized, conversationWith: from });
+      socketIO.to(`user_${to}`).emit("new_message", { message: normalized, conversationWith: from });
+      socketIO.to(`conversation:${[from, to].sort().join("__")}`).emit("message:new", normalized);
+      if (isReceiverOnline) {
+        socketIO.to(`user:${from}`).emit("message_delivered", { messageId: message.id, conversationWith: to });
+      }
     }
     const recipient = profileByName(to);
     sendEmailNotification(recipient?.email, "New Connect Hub message", `${from}: ${text}`).catch(() => {});
-    return sendJson(res, 200, { success: true, message, db: publicDB() });
+    return sendJson(res, 200, { success: true, message: normalizeStoredMessage(message, publicDB(), req, auth), db: publicDB() });
   }
 
   if ((route === "/api/messages/inbox" || route === "/api/messages/conversations") && req.method === "GET") {
@@ -2829,21 +2942,34 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, tab, conversations: rows });
   }
 
-  if (route.match(/^\/api\/messages\/read\/[^/]+$/) && req.method === "POST") {
+  if ((route.match(/^\/api\/messages\/read\/[^/]+$/) || route.match(/^\/api\/messages\/seen\/[^/]+$/)) && req.method === "POST") {
     if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
     const db = readJson(DB_FILE, INITIAL_DB);
     const targetId = decodeURIComponent(route.split("/")[4] || "");
     const target = findNetworkProfile(db, targetId) || profileByName(targetId);
     const otherName = target?.name || targetId;
+    const seenIds = [];
     db.messages = db.messages || [];
     db.messages.forEach(message => {
       if (message.from === otherName && message.to === auth.name && !message.read) {
         message.read = true;
         message.readAt = new Date().toISOString();
+        message.status = "seen";
+        message.seenAt = message.readAt;
+        seenIds.push(message.id);
+      }
+    });
+    (db.notifications || []).forEach(note => {
+      if (note.to === auth.name && note.type === "message" && (!note.from || note.from === otherName)) {
+        note.read = true;
+        note.readAt = note.readAt || new Date().toISOString();
       }
     });
     writeJson(DB_FILE, db);
-    return sendJson(res, 200, { success: true });
+    if (socketIO && seenIds.length) {
+      socketIO.to(`user:${otherName}`).emit("messages_seen", { by: auth.name, messageIds: seenIds, conversationWith: auth.name });
+    }
+    return sendJson(res, 200, { success: true, messageIds: seenIds });
   }
 
   if (route.match(/^\/api\/messages\/[^/]+$/) && req.method === "GET") {
@@ -2864,24 +2990,14 @@ async function handleApi(req, res) {
       if (message.from === otherName && message.to === me && !message.read) {
         message.read = true;
         message.readAt = new Date().toISOString();
+        message.status = "seen";
+        message.seenAt = message.readAt;
       }
     });
     writeJson(DB_FILE, db);
-    const people = allPeople(publicDB());
-    const profileFor = name => people.find(profile => profile.name === name) || { name, handle: profileHandle({ name }), avatarInitials: initialsFor(name || "CH") };
     return sendJson(res, 200, {
       success: true,
-      messages: pageItems.map(message => {
-        const senderProfile = profileFor(message.from);
-        const receiverProfile = profileFor(message.to);
-        return {
-          ...message,
-          content: message.content || message.text || "",
-          type: message.type || message.kind || "text",
-          sender: mapPublicUser(senderProfile, publicDB(), req, auth),
-          receiver: mapPublicUser(receiverProfile, publicDB(), req, auth)
-        };
-      }),
+      messages: pageItems.map(message => normalizeStoredMessage(message, publicDB(), req, auth)),
       hasMore: thread.length > page * limit,
       page
     });
@@ -3289,17 +3405,28 @@ if (Server) {
 
     socket.on("message:send", message => {
       const incomingId = String(message?.id || "").slice(0, 80);
+      const text = String(message?.content || message?.text || "").slice(0, 600);
+      const attachment = message?.attachment || null;
+      const mediaUrl = message?.mediaUrl || attachment?.dataUrl || null;
+      const type = String(message?.type || message?.kind || (mediaUrl ? "image" : "text")).slice(0, 30);
       const safeMessage = {
         id: incomingId || `msg-${Date.now()}`,
         from: String(message?.from || socket.data.name || "").slice(0, 80),
         to: String(message?.to || "").slice(0, 80),
-        text: String(message?.text || "").slice(0, 600),
-        kind: String(message?.kind || "text").slice(0, 30),
-        attachment: message?.attachment || null,
+        text,
+        content: text,
+        kind: type,
+        type,
+        mediaUrl,
+        attachment,
+        reactions: [],
+        status: "sent",
+        deliveredAt: null,
+        seenAt: null,
         read: false,
         createdAt: message?.createdAt || new Date().toISOString()
       };
-      if (!safeMessage.from || !safeMessage.to || (!safeMessage.text && !safeMessage.attachment)) return;
+      if (!safeMessage.from || !safeMessage.to || (!safeMessage.text && !safeMessage.attachment && !safeMessage.mediaUrl)) return;
 
       const db = readJson(DB_FILE, INITIAL_DB);
       db.messages = db.messages || [];
@@ -3309,12 +3436,27 @@ if (Server) {
       }
       createNotification(db, safeMessage.to, "message", `New message from ${safeMessage.from}`, { id: `not-${safeMessage.id}`, from: safeMessage.from, messageId: safeMessage.id, createdAt: safeMessage.createdAt });
       writeJson(DB_FILE, db);
+      const receiverRoom = io.sockets.adapter.rooms.get(`user:${safeMessage.to}`) || io.sockets.adapter.rooms.get(`user_${safeMessage.to}`);
+      const isReceiverOnline = receiverRoom && receiverRoom.size > 0;
+      if (isReceiverOnline) {
+        safeMessage.status = "delivered";
+        safeMessage.deliveredAt = new Date().toISOString();
+        const freshDb = readJson(DB_FILE, INITIAL_DB);
+        const stored = (freshDb.messages || []).find(item => item.id === safeMessage.id);
+        if (stored) {
+          stored.status = safeMessage.status;
+          stored.deliveredAt = safeMessage.deliveredAt;
+          writeJson(DB_FILE, freshDb);
+        }
+      }
+      const normalized = normalizeStoredMessage(safeMessage, publicDB(), null, null);
 
-      socket.emit("message:new", safeMessage);
-      io.to(`user:${safeMessage.to}`).emit("message:new", safeMessage);
-      io.to(`user:${safeMessage.to}`).emit("new_message", { message: safeMessage, conversationWith: safeMessage.from });
-      io.to(`user_${safeMessage.to}`).emit("new_message", { message: safeMessage, conversationWith: safeMessage.from });
-      io.to(`conversation:${[safeMessage.from, safeMessage.to].sort().join("__")}`).emit("message:new", safeMessage);
+      socket.emit("message:new", normalized);
+      io.to(`user:${safeMessage.to}`).emit("message:new", normalized);
+      io.to(`user:${safeMessage.to}`).emit("new_message", { message: normalized, conversationWith: safeMessage.from });
+      io.to(`user_${safeMessage.to}`).emit("new_message", { message: normalized, conversationWith: safeMessage.from });
+      io.to(`conversation:${[safeMessage.from, safeMessage.to].sort().join("__")}`).emit("message:new", normalized);
+      if (isReceiverOnline) socket.emit("message_delivered", { messageId: safeMessage.id, conversationWith: safeMessage.to });
     });
 
     socket.on("disconnect", () => {

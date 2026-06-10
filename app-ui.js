@@ -887,6 +887,7 @@ const AppUX = (() => {
       socket.on("message:new", message => {
         const db = getDB();
         db.messages = db.messages || [];
+        message = normalizeIncomingMessage(message);
         const names = currentNames();
         if (!names.includes(message.from) && !names.includes(message.to)) return;
         if (!db.messages.some(m => m.id === message.id)) {
@@ -898,6 +899,7 @@ const AppUX = (() => {
         if (document.body.classList.contains("messages-open")) {
           if (activeTarget && [message.from, message.to].includes(activeTarget)) {
             document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(activeTarget);
+            scrollActiveChat();
             markVisibleMessagesRead();
           } else {
             renderInbox(document.getElementById("messageSearch")?.value || "");
@@ -909,6 +911,12 @@ const AppUX = (() => {
           showToast(`New message from ${message.from}`);
         }
         if (window.lucide) window.lucide.createIcons();
+      });
+      socket.on("message_delivered", payload => {
+        updateLocalMessageStatus(payload?.messageId, "delivered", "deliveredAt");
+      });
+      socket.on("messages_seen", payload => {
+        (payload?.messageIds || []).forEach(id => updateLocalMessageStatus(id, "seen", "seenAt"));
       });
       const handleRealtimeNotification = note => {
         const db = getDB();
@@ -2591,25 +2599,78 @@ const AppUX = (() => {
 
   function messagePreview(message) {
     if (!message) return "Start a conversation";
-    if (message.kind === "image") return "Photo";
-    if (message.kind === "voice") return "Voice message";
-    if (message.kind === "location") return "Location shared";
-    return message.text || "Message";
+    const kind = message.type || message.kind;
+    if (kind === "image") return "Photo";
+    if (kind === "voice") return "Voice message";
+    if (kind === "location") return "Location shared";
+    return messageText(message) || "Message";
+  }
+
+  function messageText(message = {}) {
+    return String(message.content || message.text || message.body || message.message || "");
+  }
+
+  function normalizeIncomingMessage(message = {}) {
+    const text = messageText(message);
+    return {
+      ...message,
+      id: message.id || message._id || `msg-${Date.now()}`,
+      from: message.from || message.senderName || message.sender?.name || message.sender,
+      to: message.to || message.receiverName || message.receiver?.name || message.receiver,
+      text,
+      content: text,
+      kind: message.kind || message.type || "text",
+      type: message.type || message.kind || "text",
+      status: message.status || (message.read ? "seen" : "sent"),
+      reactions: Array.isArray(message.reactions) ? message.reactions : [],
+      createdAt: message.createdAt || new Date().toISOString()
+    };
+  }
+
+  function updateLocalMessageStatus(messageId, status, timestampKey) {
+    if (!messageId || !status) return;
+    const db = getDB();
+    const message = (db.messages || []).find(item => item.id === messageId || item._id === messageId);
+    if (!message) return;
+    message.status = status;
+    if (status === "seen") message.read = true;
+    if (timestampKey) message[timestampKey] = new Date().toISOString();
+    saveDB(db, { localOnly: true });
+    const activeTarget = document.getElementById("msgTo")?.value;
+    if (activeTarget && document.body.classList.contains("messages-open")) {
+      document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(activeTarget);
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+
+  function messageStatusIcon(message = {}) {
+    const status = message.status || (message.read ? "seen" : "sent");
+    if (status === "seen") return `<span class="message-status seen">&#10003;&#10003;</span>`;
+    if (status === "delivered") return `<span class="message-status delivered">&#10003;&#10003;</span>`;
+    return `<span class="message-status sent">&#10003;</span>`;
   }
 
   function openChat(selectedName) {
     const body = document.getElementById("messageDockBody");
     if (!body) return;
     body.innerHTML = renderMessageDockBody(selectedName);
+    scrollActiveChat(false);
     markVisibleMessagesRead();
     subscribeFirebaseChat(selectedName);
     syncFromBackend?.().then(() => {
       const currentTarget = document.getElementById("msgTo")?.value;
       if (currentTarget === selectedName) body.innerHTML = renderMessageDockBody(selectedName);
+      if (currentTarget === selectedName) scrollActiveChat(false);
       updateUnreadBadge();
       if (window.lucide) window.lucide.createIcons();
     }).catch(() => {});
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function scrollActiveChat(smooth = true) {
+    const panel = document.getElementById("activeChatMessages");
+    if (!panel) return;
+    requestAnimationFrame(() => panel.scrollTo({ top: panel.scrollHeight, behavior: smooth ? "smooth" : "auto" }));
   }
 
   function subscribeFirebaseChat(selectedName) {
@@ -2644,14 +2705,16 @@ const AppUX = (() => {
   }
 
   function renderMessageContent(message) {
-    const text = escapeHTML(message.text || "");
-    if (message.kind === "image" && message.attachment?.dataUrl) {
-      return `<img class="chat-attachment-image" src="${message.attachment.dataUrl}" alt="Shared image"><span>${text || "Photo"}</span>`;
+    const text = escapeHTML(messageText(message));
+    const kind = message.type || message.kind || "text";
+    const mediaUrl = message.mediaUrl || message.attachment?.dataUrl || "";
+    if (kind === "image" && mediaUrl) {
+      return `<img class="chat-attachment-image" src="${escapeAttr(mediaUrl)}" alt="Shared image"><span>${text || "Photo"}</span>`;
     }
-    if (message.kind === "voice" && message.attachment?.dataUrl) {
-      return `<audio class="chat-attachment-audio" controls src="${message.attachment.dataUrl}"></audio><span>${text || "Voice message"}</span>`;
+    if (kind === "voice" && mediaUrl) {
+      return `<audio class="chat-attachment-audio" controls src="${escapeAttr(mediaUrl)}"></audio><span>${text || "Voice message"}</span>`;
     }
-    if (message.kind === "location" && message.attachment?.latitude) {
+    if (kind === "location" && message.attachment?.latitude) {
       const lat = Number(message.attachment.latitude).toFixed(5);
       const lon = Number(message.attachment.longitude).toFixed(5);
       const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
@@ -2660,7 +2723,8 @@ const AppUX = (() => {
         <span><strong>Shared location</strong><small>${escapeHTML(message.attachment.city || "")} ${escapeHTML(message.attachment.state || "")}</small></span>
       </a>`;
     }
-    return text.replace(/\n/g, "<br>");
+    if (!text && mediaUrl) return `<a class="chat-file-card" href="${escapeAttr(mediaUrl)}" target="_blank" rel="noopener"><i data-lucide="paperclip"></i><span>Open attachment</span></a>`;
+    return text ? text.replace(/\n/g, "<br>") : `<span class="message-empty-text">Message unavailable</span>`;
   }
 
   function renderMessageDockBody(selectedName) {
@@ -2670,19 +2734,22 @@ const AppUX = (() => {
     const online = (window.ConnectHubOnlineUsers || []).includes(selectedName);
     const messages = db.messages.filter(m =>
       (m.from === user.name && m.to === selectedName) || (m.from === selectedName && m.to === user.name)
-    );
+    ).map(normalizeIncomingMessage);
     return `<div class="chat-full-header">
       <button class="btn btn-secondary btn-icon" onclick="AppUX.renderInbox()" type="button"><i data-lucide="arrow-left"></i></button>
       ${avatarMarkup(profile, "user-avatar")}
       <div><strong>${profile.name}</strong><small>${online ? "Online" : "Offline"} · ${profile.title || profile.role || "Member"}</small></div>
     </div>
-    <div class="message-panel full-chat-panel">
+    <div class="message-panel full-chat-panel" id="activeChatMessages">
       ${messages.map(message => {
         const mine = message.from === user.name;
-        return `<div class="message-bubble ${mine ? "mine" : "theirs"}">
-          ${renderMessageContent(message)}
-          <small>${new Date(message.createdAt || Date.now()).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</small>
-        </div>`;
+        const time = new Date(message.createdAt || Date.now()).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+        return `<article class="chat-message-row ${mine ? "mine" : "theirs"}" data-message-id="${escapeAttr(message.id)}">
+          <div class="message-bubble ${mine ? "mine" : "theirs"}">
+            <div class="message-bubble-body">${renderMessageContent(message)}</div>
+          </div>
+          <div class="message-meta"><span>${time}</span>${mine ? messageStatusIcon(message) : ""}</div>
+        </article>`;
       }).join("") || '<p style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
     </div>
     <div class="chat-compose">
@@ -2705,6 +2772,7 @@ const AppUX = (() => {
     if (!to || (!text && !extra.attachment)) return;
     sendLocalMessage(to, text, extra);
     document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(to);
+    scrollActiveChat();
     updateUnreadBadge();
     playSound("done");
     if (window.lucide) window.lucide.createIcons();
@@ -2781,7 +2849,11 @@ const AppUX = (() => {
     const db = getDB();
     const names = [user.name, user.companyName].filter(Boolean);
     db.messages.forEach(message => {
-      if (names.includes(message.to) && message.from === activeTarget) message.read = true;
+      if (names.includes(message.to) && message.from === activeTarget) {
+        message.read = true;
+        message.status = "seen";
+        message.seenAt = message.seenAt || new Date().toISOString();
+      }
     });
     db.notifications.forEach(note => {
       if (names.includes(note.to) && notificationActorName(note) === activeTarget && notificationTabMatch(note, "messages")) note.read = true;

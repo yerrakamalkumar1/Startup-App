@@ -922,8 +922,15 @@ function sendLocalMessage(to, text, extra = {}) {
     from: user.name,
     to,
     text: String(text).slice(0, 600),
+    content: String(text).slice(0, 600),
     kind: extra.kind || "text",
+    type: extra.type || extra.kind || "text",
+    mediaUrl: extra.mediaUrl || extra.attachment?.dataUrl || null,
     attachment: extra.attachment || null,
+    status: "sent",
+    deliveredAt: null,
+    seenAt: null,
+    reactions: [],
     read: false,
     createdAt: new Date().toISOString()
   };

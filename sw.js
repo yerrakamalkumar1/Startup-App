@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v50-remove-rate-estimator";
+const CACHE_NAME = "connecthub-v51-chat-rebuild";
 const APP_SHELL = [
   "index.html",
   "index.css",
