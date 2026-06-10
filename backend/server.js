@@ -34,7 +34,9 @@ try {
   aiService = null;
 }
 let socketIO = null;
+const onlineUsers = new Map();
 const exploreCache = new Map();
+const serverStartedAt = new Date();
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -216,6 +218,60 @@ const SETTINGS_FEATURE_MAP = [
   { key: "help-support", keywordTokens: ["help", "support", "call", "problem", "bug", "feedback"], displayName: "Help Center", category: "Support", deepLinkRoute: "/settings/support/help", description: "Call support, report a problem, or send feedback to ConnectHub.", icon: "help-circle", priority: 58 },
   { key: "logout", keywordTokens: ["logout", "log out", "sign out", "exit", "session"], displayName: "Log Out", category: "Account Actions", deepLinkRoute: "/settings/account/logout", description: "Sign out from this device safely.", icon: "log-out", priority: 52 }
 ];
+
+const INDIA_CONTEXT = {
+  country: "India",
+  timezone: "Asia/Kolkata",
+  locale: "en-IN",
+  currency: "INR",
+  currencySymbol: "Rs",
+  supportPhone: "6301394850",
+  primaryCities: [
+    "Hyderabad",
+    "Bengaluru",
+    "Mumbai",
+    "Delhi NCR",
+    "Chennai",
+    "Pune",
+    "Kolkata",
+    "Ahmedabad",
+    "Jaipur",
+    "Kochi",
+    "Indore",
+    "Coimbatore",
+    "Visakhapatnam",
+    "Kakinada"
+  ],
+  languages: [
+    { code: "en", label: "English" },
+    { code: "hi", label: "Hindi" },
+    { code: "te", label: "Telugu" },
+    { code: "ta", label: "Tamil" },
+    { code: "kn", label: "Kannada" },
+    { code: "mr", label: "Marathi" },
+    { code: "ur", label: "Urdu" }
+  ],
+  sectors: [
+    "Commerce & Retail",
+    "Food & Hospitality",
+    "Property & Infrastructure",
+    "Health & Wellness",
+    "Education & Training",
+    "Finance & Legal",
+    "Logistics & Mobility",
+    "SaaS & Technology",
+    "Consumer Services",
+    "Media & Entertainment",
+    "Manufacturing & Hardware"
+  ],
+  roleLabels: {
+    freelancer: "Freelancer",
+    startup_admin: "Startup Owner",
+    startup: "Startup Owner",
+    founder: "Startup Founder",
+    investor: "Investor / Sponsor"
+  }
+};
 
 function ensureDataFiles() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1703,6 +1759,84 @@ function createNotification(db, to, type, text, extra = {}) {
   return note;
 }
 
+function indiaTimePayload() {
+  const now = new Date();
+  return {
+    iso: now.toISOString(),
+    timezone: INDIA_CONTEXT.timezone,
+    label: new Intl.DateTimeFormat("en-IN", {
+      timeZone: INDIA_CONTEXT.timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    }).format(now)
+  };
+}
+
+function buildIndiaContext(auth, req) {
+  const db = publicDB();
+  const profile = auth ? profileForAuth(auth, db) : null;
+  const city = profile?.city || profile?.location?.city || "India";
+  const role = profile?.role || auth?.role || "guest";
+  return {
+    ...INDIA_CONTEXT,
+    currentCity: city,
+    currentState: profile?.state || profile?.location?.state || "",
+    currentRole: role,
+    currentRoleLabel: INDIA_CONTEXT.roleLabels[role] || INDIA_CONTEXT.roleLabels[String(role).toLowerCase()] || "Member",
+    serverTime: indiaTimePayload(),
+    clientIp: getRealIP(req)
+  };
+}
+
+function realtimeSummary() {
+  const db = publicDB();
+  return {
+    success: true,
+    realtime: {
+      socketAvailable: Boolean(Server && socketIO),
+      onlineCount: onlineUsers.size,
+      onlineUsers: Array.from(onlineUsers.keys()).slice(0, 30),
+      startedAt: serverStartedAt.toISOString(),
+      serverTime: indiaTimePayload()
+    },
+    counts: {
+      profiles: allPeople(db).length,
+      startups: (db.startups || []).length,
+      gigs: (db.jobs || []).length,
+      messages: (db.messages || []).length,
+      notifications: (db.notifications || []).length,
+      connections: (db.connections || []).length
+    }
+  };
+}
+
+function emitRealtime(event, payload = {}, rooms = []) {
+  if (!socketIO) return;
+  const enriched = {
+    ...payload,
+    event,
+    emittedAt: new Date().toISOString(),
+    indiaTime: indiaTimePayload()
+  };
+  const targets = (Array.isArray(rooms) ? rooms : [rooms])
+    .map(room => String(room || "").trim())
+    .filter(room => room && !/(undefined|null)$/i.test(room));
+  if (!targets.length) socketIO.emit(event, enriched);
+  else targets.forEach(room => socketIO.to(room).emit(event, enriched));
+  socketIO.emit("realtime:status", realtimeSummary().realtime);
+}
+
+function emitStateUpdate(reason, extra = {}) {
+  emitRealtime("state:updated", {
+    reason,
+    summary: realtimeSummary().counts,
+    ...extra
+  });
+}
+
 function normalizeStoredMessage(message = {}, db = publicDB(), req, auth) {
   const people = allPeople(db);
   const text = String(message.content || message.text || "").slice(0, 2000);
@@ -1936,6 +2070,18 @@ async function handleApi(req, res) {
   if (auth) touchActiveSession(auth, req);
 
   if (route === "/api/health") return sendJson(res, 200, { ok: true });
+  if (route === "/api/realtime/status" && req.method === "GET") {
+    return sendJson(res, 200, {
+      ...realtimeSummary(),
+      context: buildIndiaContext(auth, req)
+    });
+  }
+  if (route === "/api/india/context" && req.method === "GET") {
+    return sendJson(res, 200, {
+      success: true,
+      context: buildIndiaContext(auth, req)
+    });
+  }
   if (handleAiHubApi && await handleAiHubApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
   if (handleAiApi && await handleAiApi(req, res, { route, readBody, sendJson, auth, publicDB })) return;
 
@@ -1975,6 +2121,8 @@ async function handleApi(req, res) {
     if (patch.name && String(patch.name).trim().length < 2) return sendJson(res, 400, { success: false, message: "Name must be at least 2 characters." });
     if (patch.bio && String(patch.bio).length > 220) patch.bio = String(patch.bio).slice(0, 220);
     const profile = persistUserProfile(auth, patch);
+    emitRealtime("profile:updated", { profile }, [`user:${profile?.name}`, `user_${profile?.name}`]);
+    emitStateUpdate("profile-updated", { profile: { name: profile?.name, role: profile?.role, city: profile?.city } });
     return sendJson(res, 200, { success: true, user: profile });
   }
   if (route === "/api/users/avatar" && req.method === "POST") {
@@ -1984,6 +2132,8 @@ async function handleApi(req, res) {
     if (!avatarPhoto?.dataUrl || !String(avatarPhoto.dataUrl).startsWith("data:image/")) return sendJson(res, 400, { success: false, message: "Send a base64 image dataUrl." });
     if (String(avatarPhoto.dataUrl).length > 2_500_000) return sendJson(res, 400, { success: false, message: "Image is too large. Use an image under 2 MB." });
     const profile = persistUserProfile(auth, { avatarPhoto });
+    emitRealtime("profile:updated", { profile }, [`user:${profile?.name}`, `user_${profile?.name}`]);
+    emitStateUpdate("avatar-updated", { profile: { name: profile?.name, role: profile?.role, city: profile?.city } });
     return sendJson(res, 200, { success: true, url: avatarPhoto.dataUrl, user: profile });
   }
   if (route === "/api/users/settings" && (req.method === "PUT" || req.method === "PATCH")) {
@@ -2550,6 +2700,8 @@ async function handleApi(req, res) {
       db.connections.push(connection);
       createNotification(db, to, "connection_request", `${from} sent you a connection request.`, { connectionId: connection.id, from });
       writeJson(DB_FILE, db);
+      emitRealtime("network:updated", { connection }, [`user:${from}`, `user:${to}`, `user_${from}`, `user_${to}`]);
+      emitStateUpdate("connection-request", { connection });
     }
     return sendJson(res, 200, { success: true, connection, user: networkProfilePayload(target, db, from, req), db: publicDB() });
   }
@@ -2602,6 +2754,7 @@ async function handleApi(req, res) {
     if (!body.db) return sendJson(res, 400, { success: false, message: "Missing db payload." });
     const merged = mergeDBState(readJson(DB_FILE, INITIAL_DB), body.db);
     writeJson(DB_FILE, merged);
+    emitStateUpdate("state-sync", { source: auth?.name || "client" });
     return sendJson(res, 200, { success: true, db: publicDB() });
   }
 
@@ -2641,6 +2794,10 @@ async function handleApi(req, res) {
     writeJson(USERS_FILE, users);
     const token = signToken({ email, name: profile.name, role: profile.role });
     await recordLoginSession({ email, name: profile.name, role: profile.role }, token, req);
+    emitRealtime("user:registered", {
+      profile: mapPublicUser({ ...profile, email }, publicDB(), req, { name: profile.name })
+    });
+    emitStateUpdate("user-registered", { profile: { name: profile.name, role: profile.role, city: profile.city } });
     return sendJson(res, 200, { success: true, user: profile, token, db: publicDB() });
   }
 
@@ -2659,6 +2816,8 @@ async function handleApi(req, res) {
     };
     users[email].profile = safeProfile;
     writeJson(USERS_FILE, users);
+    emitRealtime("profile:updated", { profile: safeProfile }, [`user:${safeProfile?.name}`, `user_${safeProfile?.name}`]);
+    emitStateUpdate("profile-updated", { profile: { name: safeProfile?.name, role: safeProfile?.role, city: safeProfile?.city } });
     return sendJson(res, 200, { success: true, user: safeProfile });
   }
 
@@ -3099,6 +3258,8 @@ async function handleApi(req, res) {
     db.connections.push(connection);
     createNotification(db, to, "connection_request", `${from} sent you a connection request.`, { connectionId: connection.id });
     writeJson(DB_FILE, db);
+    emitRealtime("network:updated", { connection }, [`user:${from}`, `user:${to}`, `user_${from}`, `user_${to}`]);
+    emitStateUpdate("connection-request", { connection });
     const recipient = profileByName(to);
     sendEmailNotification(recipient?.email, "New Connect Hub connection request", `${from} sent you a connection request.`).catch(() => {});
     return sendJson(res, 200, { success: true, connection, db: publicDB() });
@@ -3114,6 +3275,8 @@ async function handleApi(req, res) {
       createNotification(db, connection.from, "connection_accepted", `${connection.to} accepted your connection request.`, { from: connection.to, connectionId: connection.id });
     }
     writeJson(DB_FILE, db);
+    emitRealtime("network:updated", { connection }, [`user:${connection.from}`, `user:${connection.to}`, `user_${connection.from}`, `user_${connection.to}`]);
+    emitStateUpdate("connection-response", { connection });
     return sendJson(res, 200, { success: true, connection, db: publicDB() });
   }
 
@@ -3266,6 +3429,8 @@ async function handleApi(req, res) {
     const recipient = startup?.name || gig.postedBy || gig.startupName;
     if (recipient) createNotification(db, recipient, "gig_application", `${applicantName} applied to ${gig.title}.`, { from: applicantName, gigId: gig.id, applicationId: application.id });
     writeJson(DB_FILE, db);
+    emitRealtime("gig:updated", { gig, application }, recipient ? [`user:${recipient}`, `user_${recipient}`, `user:${applicantName}`, `user_${applicantName}`] : [`user:${applicantName}`, `user_${applicantName}`]);
+    emitStateUpdate("gig-application", { gigId: gig.id, application });
     return sendJson(res, 200, { success: true, message: "Application submitted.", application, gig, db: publicDB() });
   }
 
@@ -3286,6 +3451,8 @@ async function handleApi(req, res) {
     });
     createNotification(db, applicant.user, status === "accepted" ? "gig_accepted" : "gig_rejected", `${auth?.name || "Startup"} ${status === "accepted" ? "accepted" : "updated"} your application for ${gig.title}.`, { from: auth?.name || "Startup", gigId: gig.id, applicationId: applicant.id });
     writeJson(DB_FILE, db);
+    emitRealtime("gig:updated", { gig, applicant }, [`user:${applicant.user}`, `user_${applicant.user}`, `user:${auth?.name}`, `user_${auth?.name}`]);
+    emitStateUpdate("gig-application-status", { gigId: gig.id, applicant });
     return sendJson(res, 200, { success: true, applicant, gig, db: publicDB() });
   }
 
@@ -3358,7 +3525,6 @@ const server = http.createServer((req, res) => {
 if (Server) {
   const io = new Server(server, { cors: { origin: "*" } });
   socketIO = io;
-  const onlineUsers = new Map();
   try {
     const { registerAiHubSocket } = require("./services/socketService");
     registerAiHubSocket(io, { publicDB });
@@ -3369,10 +3535,13 @@ if (Server) {
       const safeName = String(name || "").slice(0, 80);
       if (!safeName) return;
       socket.data.name = safeName;
-      onlineUsers.set(safeName, socket.id);
+      const sockets = onlineUsers.get(safeName) || new Set();
+      sockets.add(socket.id);
+      onlineUsers.set(safeName, sockets);
       socket.join(`user:${safeName}`);
       socket.join(`user_${safeName}`);
       io.emit("presence:update", Array.from(onlineUsers.keys()));
+      socket.emit("realtime:status", realtimeSummary().realtime);
     };
 
     socket.on("user:online", name => {
@@ -3391,6 +3560,11 @@ if (Server) {
     socket.on("conversation:leave", conversationId => {
       const id = String(conversationId || "").slice(0, 120);
       if (id) socket.leave(`conversation:${id}`);
+    });
+
+    socket.on("state:request", () => {
+      socket.emit("state:updated", { reason: "socket-request", summary: realtimeSummary().counts, emittedAt: new Date().toISOString() });
+      socket.emit("realtime:status", realtimeSummary().realtime);
     });
 
     socket.on("message:typing", payload => {
@@ -3460,8 +3634,15 @@ if (Server) {
     });
 
     socket.on("disconnect", () => {
-      if (socket.data.name) onlineUsers.delete(socket.data.name);
+      if (socket.data.name) {
+        const sockets = onlineUsers.get(socket.data.name);
+        if (sockets) {
+          sockets.delete(socket.id);
+          if (!sockets.size) onlineUsers.delete(socket.data.name);
+        }
+      }
       io.emit("presence:update", Array.from(onlineUsers.keys()));
+      io.emit("realtime:status", realtimeSummary().realtime);
     });
   });
 }

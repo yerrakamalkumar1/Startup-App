@@ -78,6 +78,7 @@ const AppUX = (() => {
     installRefreshBar();
     installDarkMode();
     installAccessibilityPreferences();
+    installIndiaAdaptation();
     installNotificationBell();
     installRealtime();
     installMessageDock();
@@ -187,6 +188,71 @@ const AppUX = (() => {
     setTimeout(() => showToast("ConnectHub can be installed on your home screen"), 900);
   }
 
+  function refreshLiveSurfaces(reason = "realtime") {
+    try {
+      updateUnreadBadge();
+      if (document.body.classList.contains("messages-open")) {
+        const activeTarget = document.getElementById("msgTo")?.value;
+        if (activeTarget) {
+          const body = document.getElementById("messageDockBody");
+          if (body) {
+            body.innerHTML = renderMessageDockBody(activeTarget);
+            scrollActiveChat();
+          }
+        } else {
+          renderInbox(document.getElementById("messageSearch")?.value || "");
+        }
+      }
+      if (document.getElementById("notificationPanel")?.classList.contains("active")) renderNotificationPanel();
+      if (document.body.classList.contains("explore-open") && typeof renderExploreResults === "function") renderExploreResults();
+      if (currentView === "network" && typeof renderNetworkPage === "function") renderNetworkPage();
+      if (window.lucide) window.lucide.createIcons();
+      document.dispatchEvent(new CustomEvent("connecthub:surface-refresh", { detail: { reason } }));
+    } catch (error) {
+      console.warn("ConnectHub live surface refresh failed:", error.message);
+    }
+  }
+
+  async function installIndiaAdaptation() {
+    if (window.__connectHubIndiaAdaptation) return;
+    window.__connectHubIndiaAdaptation = true;
+    const applyContext = context => {
+      if (!context) return;
+      window.ConnectHubIndiaContext = context;
+      localStorage.setItem("connecthub_india_context", JSON.stringify(context));
+      document.documentElement.lang = context.locale || "en-IN";
+      document.documentElement.dataset.locale = context.locale || "en-IN";
+      document.documentElement.dataset.timezone = context.timezone || "Asia/Kolkata";
+      document.documentElement.dataset.currency = context.currency || "INR";
+      document.body?.classList.add("india-adaptive");
+      const badge = document.getElementById("connectivityBadge");
+      if (badge) {
+        badge.title = `ConnectHub India · ${context.serverTime?.label || "IST"} · ${context.currentRoleLabel || "Member"}`;
+      }
+    };
+    try {
+      const cached = JSON.parse(localStorage.getItem("connecthub_india_context") || "null");
+      applyContext(cached);
+    } catch {
+      // Ignore old malformed local context.
+    }
+    try {
+      const data = await apiRequest("/api/india/context");
+      applyContext(data.context);
+    } catch (error) {
+      applyContext({
+        country: "India",
+        locale: "en-IN",
+        timezone: "Asia/Kolkata",
+        currency: "INR",
+        currencySymbol: "Rs",
+        currentCity: getCurrentUser?.()?.city || "India",
+        currentRoleLabel: getCurrentUser?.()?.role || "Member"
+      });
+    }
+    document.addEventListener("connecthub:db-sync", () => refreshLiveSurfaces("cross-tab-sync"));
+  }
+
   function updateConnectivityStatus(isOnline) {
     let badge = document.getElementById("connectivityBadge");
     if (!badge) {
@@ -198,7 +264,9 @@ const AppUX = (() => {
       document.body.appendChild(badge);
     }
     badge.classList.toggle("offline", !isOnline);
-    badge.innerHTML = `<span></span>${isOnline ? "Online" : "Offline"}`;
+    const liveCount = window.ConnectHubRealtimeStatus?.onlineCount;
+    const suffix = isOnline && Number.isFinite(Number(liveCount)) ? ` · ${Number(liveCount)} live` : "";
+    badge.innerHTML = `<span></span>${isOnline ? `Online${suffix}` : "Offline"}`;
   }
 
   function installCommandPalette() {
@@ -868,6 +936,7 @@ const AppUX = (() => {
       const joinUserRooms = () => currentNames().forEach(name => socket.emit("user:online", name));
       socket.on("connect", () => {
         joinUserRooms();
+        socket.emit("state:request");
         updateConnectivityStatus(true);
         document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: true } }));
       });
@@ -878,11 +947,49 @@ const AppUX = (() => {
       socket.on("presence:update", names => {
         window.ConnectHubOnlineUsers = names || [];
         document.dispatchEvent(new CustomEvent("connecthub:presence"));
+        refreshLiveSurfaces("presence");
         if (document.body.classList.contains("messages-open")) {
           const target = document.getElementById("msgTo")?.value;
           if (target) openChat(target);
           else renderInbox(document.getElementById("messageSearch")?.value || "");
         }
+      });
+      socket.on("realtime:status", status => {
+        window.ConnectHubRealtimeStatus = status || {};
+        updateConnectivityStatus(navigator.onLine);
+      });
+      socket.on("state:updated", payload => {
+        syncFromBackend?.().then(() => refreshLiveSurfaces(payload?.reason || "state-updated")).catch(() => {});
+      });
+      socket.on("user:registered", payload => {
+        const db = getDB();
+        const profile = payload?.profile;
+        if (profile) {
+          db.registeredProfiles = db.registeredProfiles || [];
+          const key = profile.email || profile.id || profile.handle || profile.name;
+          if (!db.registeredProfiles.some(item => (item.email || item.id || item.handle || item.name) === key)) {
+            db.registeredProfiles.unshift(profile);
+            saveDB(db, { localOnly: true, reason: "user-registered" });
+          }
+        }
+        refreshLiveSurfaces("user-registered");
+      });
+      socket.on("profile:updated", payload => {
+        const profile = payload?.profile;
+        if (profile) {
+          const db = getDB();
+          db.registeredProfiles = (db.registeredProfiles || []).map(item =>
+            item.email === profile.email || item.name === profile.name ? { ...item, ...profile } : item
+          );
+          saveDB(db, { localOnly: true, reason: "profile-updated" });
+        }
+        refreshLiveSurfaces("profile-updated");
+      });
+      socket.on("network:updated", () => {
+        syncFromBackend?.().then(() => refreshLiveSurfaces("network-updated")).catch(() => refreshLiveSurfaces("network-updated"));
+      });
+      socket.on("gig:updated", () => {
+        syncFromBackend?.().then(() => refreshLiveSurfaces("gig-updated")).catch(() => refreshLiveSurfaces("gig-updated"));
       });
       socket.on("message:new", message => {
         const db = getDB();
@@ -949,10 +1056,12 @@ const AppUX = (() => {
       });
       socket.on("feed:newPost", post => {
         document.dispatchEvent(new CustomEvent("connecthub:feed-post", { detail: post }));
+        syncFromBackend?.().then(() => refreshLiveSurfaces("feed-new-post")).catch(() => refreshLiveSurfaces("feed-new-post"));
         showToast("New post added to the feed");
       });
       socket.on("post:updated", payload => {
         document.dispatchEvent(new CustomEvent("connecthub:post-updated", { detail: payload }));
+        refreshLiveSurfaces("post-updated");
       });
       socket.on("story:new", story => {
         document.dispatchEvent(new CustomEvent("connecthub:story", { detail: story }));
@@ -995,6 +1104,20 @@ const AppUX = (() => {
           renderNotificationPanel();
         }).catch(() => {});
       }, 20000);
+    }
+    if (!window.__connectHubRealtimeStatusPoll) {
+      const refreshStatus = () => apiRequest("/api/realtime/status")
+        .then(data => {
+          window.ConnectHubRealtimeStatus = data.realtime || {};
+          if (data.context) {
+            window.ConnectHubIndiaContext = data.context;
+            localStorage.setItem("connecthub_india_context", JSON.stringify(data.context));
+          }
+          updateConnectivityStatus(navigator.onLine);
+        })
+        .catch(() => updateConnectivityStatus(navigator.onLine));
+      refreshStatus();
+      window.__connectHubRealtimeStatusPoll = setInterval(refreshStatus, 45000);
     }
   }
 

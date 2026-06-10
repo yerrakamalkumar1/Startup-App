@@ -266,6 +266,53 @@ const CONNECTHUB_BACKEND_URL = (
   window.CONNECTHUB_BACKEND_URL ||
   (location.protocol !== "file:" ? location.origin : "")
 ).replace(/\/$/, "");
+const CONNECTHUB_TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const CONNECTHUB_REALTIME_KEY = "connecthub_realtime_ping";
+const CONNECTHUB_CHANNEL = (() => {
+  try {
+    return "BroadcastChannel" in window ? new BroadcastChannel("connecthub_realtime") : null;
+  } catch {
+    return null;
+  }
+})();
+
+function publishLocalRealtime(type, payload = {}) {
+  const message = {
+    type,
+    payload,
+    source: CONNECTHUB_TAB_ID,
+    createdAt: new Date().toISOString()
+  };
+  try {
+    CONNECTHUB_CHANNEL?.postMessage(message);
+  } catch {
+    // BroadcastChannel can fail in older in-app browsers; localStorage is the fallback.
+  }
+  try {
+    localStorage.setItem(CONNECTHUB_REALTIME_KEY, JSON.stringify(message));
+  } catch {
+    // Storage can be unavailable in private mode.
+  }
+}
+
+function applyLocalRealtimeMessage(message) {
+  if (!message || message.source === CONNECTHUB_TAB_ID) return;
+  if (message.type === "db:updated" && message.payload?.db) {
+    const merged = mergeDBState(getDB(), message.payload.db);
+    localStorage.setItem("connecthub_db", JSON.stringify(merged));
+    document.dispatchEvent(new CustomEvent("connecthub:db-sync", { detail: message }));
+  }
+}
+
+CONNECTHUB_CHANNEL && (CONNECTHUB_CHANNEL.onmessage = event => applyLocalRealtimeMessage(event.data));
+window.addEventListener("storage", event => {
+  if (event.key !== CONNECTHUB_REALTIME_KEY || !event.newValue) return;
+  try {
+    applyLocalRealtimeMessage(JSON.parse(event.newValue));
+  } catch {
+    // Ignore malformed storage events from extensions or old tabs.
+  }
+});
 
 async function apiRequest(path, options = {}) {
   if (!CONNECTHUB_BACKEND_URL) throw new Error("Backend is not configured.");
@@ -289,6 +336,7 @@ async function syncFromBackend() {
     if (data.db) {
       const db = mergeDBState(getDB(), data.db);
       localStorage.setItem("connecthub_db", JSON.stringify(db));
+      publishLocalRealtime("db:updated", { db, reason: "backend-sync" });
       return db;
     }
   } catch (error) {
@@ -340,6 +388,7 @@ function getDB() {
 function saveDB(db, options = {}) {
   db = ensureDBShape(db);
   localStorage.setItem("connecthub_db", JSON.stringify(db));
+  if (!options.silent) publishLocalRealtime("db:updated", { db, reason: options.reason || "local-save" });
   if (CONNECTHUB_BACKEND_URL && !options.localOnly) {
     apiRequest("/api/state", {
       method: "PUT",
@@ -897,7 +946,7 @@ function connectUsers(targetName) {
     }).then(result => {
       if (result.db) {
         const merged = mergeDBState(getDB(), result.db);
-        localStorage.setItem("connecthub_db", JSON.stringify(merged));
+        saveDB(merged, { localOnly: true, reason: "connection-sync" });
       }
     }).catch(error => console.warn("ConnectHub connection sync failed:", error.message));
   }
@@ -956,7 +1005,7 @@ function sendLocalMessage(to, text, extra = {}) {
     }).then(result => {
       if (result.db) {
         const merged = mergeDBState(getDB(), result.db);
-        localStorage.setItem("connecthub_db", JSON.stringify(merged));
+        saveDB(merged, { localOnly: true, reason: "message-sync" });
       }
     }).catch(error => {
       console.warn("ConnectHub message API failed:", error.message);
@@ -1015,7 +1064,7 @@ function expressInvestorInterest(startupId, startupName, amount = "", note = "")
       method: "POST",
       body: JSON.stringify(interest)
     }).then(result => {
-      if (result.db) localStorage.setItem("connecthub_db", JSON.stringify(mergeDBState(getDB(), result.db)));
+      if (result.db) saveDB(mergeDBState(getDB(), result.db), { localOnly: true, reason: "investor-interest-sync" });
     }).catch(error => console.warn("ConnectHub investor interest sync failed:", error.message));
   }
   return interest;
@@ -1050,7 +1099,7 @@ function submitReview(to, rating, text = "") {
       method: "POST",
       body: JSON.stringify(review)
     }).then(result => {
-      if (result.db) localStorage.setItem("connecthub_db", JSON.stringify(mergeDBState(getDB(), result.db)));
+      if (result.db) saveDB(mergeDBState(getDB(), result.db), { localOnly: true, reason: "review-sync" });
     }).catch(error => console.warn("ConnectHub review sync failed:", error.message));
   }
   return review;
