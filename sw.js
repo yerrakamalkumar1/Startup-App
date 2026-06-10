@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v49-explore-messages-feed-fix";
+const CACHE_NAME = "connecthub-v50-remove-rate-estimator";
 const APP_SHELL = [
   "index.html",
   "index.css",

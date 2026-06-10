@@ -21,7 +21,6 @@
     <ul class="sidebar-menu">
       <li class="sidebar-item active" id="t-gigs" onclick="go('gigs')"><a><i data-lucide="briefcase"></i>Startup Gigs</a></li>
       <li class="sidebar-item" id="t-mads" onclick="go('mads')"><a><i data-lucide="megaphone"></i>Service Ads</a></li>
-      <li class="sidebar-item" id="t-calc" onclick="go('calc')"><a><i data-lucide="calculator"></i>Rate Estimator</a></li>
       <li class="sidebar-item" id="t-apps" onclick="go('apps')"><a><i data-lucide="file-check"></i>Applications</a></li>
       <li class="sidebar-item" id="t-network" onclick="go('network')"><a><i data-lucide="users"></i>My Network</a></li>
       <li class="sidebar-item" onclick="window.location.href='/dashboard/aihub?role=freelancer'"><a><i data-lucide="sparkles"></i>AI Hub</a></li>
@@ -130,13 +129,12 @@
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('t-' + view)?.classList.add('active');
-    const titles = { feed:'Feed', gigs:'Startup Gigs', mads:'Service Ads', calc:'Rate Estimator', apps:'Applications', network:'My Network', profile:'Profile', settings:'Settings' };
+    const titles = { feed:'Feed', gigs:'Startup Gigs', mads:'Service Ads', apps:'Applications', network:'My Network', profile:'Profile', settings:'Settings' };
     document.getElementById('ptitle').textContent = titles[view] || '';
     const b = document.getElementById('body');
     if (view === 'feed') b.innerHTML = '';
     else if (view === 'gigs') renderGigs(b);
     else if (view === 'mads') renderMyAds(b);
-    else if (view === 'calc') renderCalc(b);
     else if (view === 'apps') renderApps(b);
     else if (view === 'network') AppUX.renderNetworkPage(b);
     else if (view === 'profile') renderProfile(b);
@@ -311,67 +309,6 @@
           ${mine ? `<button class="btn btn-secondary" onclick="deleteAd('${ad.id}')">Remove</button>` : ''}
         </div>
       </div>`;
-  }
-
-  function renderCalc(b) {
-    b.innerHTML = `
-      <div class="glass-panel" style="padding:1.25rem;max-width:860px;">
-        <h3 style="margin-bottom:1rem;font-size:1rem;">Smart Rate Estimator</h3>
-        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:1rem;">
-          <div>
-            <div class="form-group"><label>Skill Category</label><select id="cCategory" class="form-control" onchange="applySmartRate()">
-              ${SERVICE_CATEGORIES.map(cat => `<option>${cat}</option>`).join('')}
-            </select></div>
-            <div class="form-group"><label>Experience Level</label><select id="cExp" class="form-control" onchange="applySmartRate()">
-              <option value="beginner">Beginner</option>
-              <option value="mid" selected>Intermediate</option>
-              <option value="expert">Expert</option>
-            </select></div>
-            <div class="form-group"><label>Suggested Hourly Rate (Rs/hr)</label><input type="number" id="cRate" class="form-control" value="650" oninput="recalc()"></div>
-            <div class="form-group"><label>Estimated Hours</label><input type="number" id="cHrs" class="form-control" value="20" oninput="recalc()"></div>
-            <div class="form-group"><label>Complexity</label>
-              <select id="cMult" class="form-control" onchange="recalc()">
-                <option value="1">Standard</option>
-                <option value="1.25">Moderate</option>
-                <option value="1.5">Custom</option>
-                <option value="2">High Complexity</option>
-              </select>
-            </div>
-          </div>
-          <div class="calculator-results" style="text-align:center;display:flex;flex-direction:column;justify-content:center;">
-            <p style="font-size:0.72rem;color:#7b8794;font-weight:800;">ESTIMATED BID</p>
-            <h2 id="cTotal" style="font-size:2rem;color:#0f766e;margin:0.3rem 0;">Rs 13,000</h2>
-            <p id="cBreak" style="font-size:0.78rem;color:#526071;">Rs 650 x 20hrs x 1x</p>
-            <p id="cGuide" style="font-size:0.78rem;color:#526071;margin-top:0.5rem;">Based on category + experience logic table.</p>
-            <div style="border-top:1px solid #e5eaf1;margin-top:1rem;padding-top:1rem;">
-              <div style="display:flex;justify-content:space-between;font-size:0.8rem;"><span>Platform Fee (2.5%)</span><strong id="cFee" style="color:#c24141;">-Rs 250</strong></div>
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-top:0.3rem;"><strong>Net Earnings</strong><strong id="cNet" style="color:#087f5b;">Rs 12,675</strong></div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    applySmartRate();
-  }
-
-  function applySmartRate() {
-    const category = document.getElementById('cCategory')?.value || 'Other';
-    const exp = document.getElementById('cExp')?.value || 'mid';
-    const suggested = getSmartRateSuggestion(category, exp);
-    document.getElementById('cRate').value = suggested;
-    document.getElementById('cGuide').textContent = `${category}: Rs ${suggested}/hr suggested for ${exp === 'mid' ? 'intermediate' : exp} freelancers.`;
-    recalc();
-  }
-
-  function recalc() {
-    const r = +document.getElementById('cRate').value || 0;
-    const h = +document.getElementById('cHrs').value || 0;
-    const m = +document.getElementById('cMult').value || 1;
-    const total = Math.round(r * h * m);
-    const fee = Math.round(total * 0.025);
-    document.getElementById('cTotal').textContent = `Rs ${total.toLocaleString('en-IN')}`;
-    document.getElementById('cBreak').textContent = `Rs ${r} x ${h}hrs x ${m}x`;
-    document.getElementById('cFee').textContent = `-Rs ${fee.toLocaleString('en-IN')}`;
-    document.getElementById('cNet').textContent = `Rs ${(total - fee).toLocaleString('en-IN')}`;
   }
 
   function renderApps(b) {
