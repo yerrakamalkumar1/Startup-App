@@ -494,6 +494,38 @@
       localStorage.setItem("ch_auth_users", JSON.stringify(users));
     }
 
+    async function backendAuthRequest(path, payload) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Authentication failed.");
+      }
+      return data;
+    }
+
+    function persistSignedInUser(profile, token, identifier) {
+      localStorage.setItem("connecthub_user", JSON.stringify(profile));
+      if (token) localStorage.setItem("connecthub_token", token);
+      if (document.getElementById("rememberMe")?.checked) localStorage.setItem("ch_auth_remember", identifier);
+      authState.failedAttempts = 0;
+      authState.lockUntil = 0;
+      localStorage.removeItem("ch_auth_failed_attempts");
+      localStorage.removeItem("ch_auth_lock_until");
+    }
+
+    function redirectAfterAuth(role) {
+      const next = new URLSearchParams(window.location.search).get("next");
+      if (next && !/^https?:\/\//i.test(next)) {
+        window.location.href = next;
+        return;
+      }
+      window.location.href = getDashboardUrl(role);
+    }
+
     function setActiveTab(tab) {
       authState.activeTab = tab;
       selectors.loginTab.classList.toggle("active", tab === "login");
@@ -555,7 +587,7 @@
       return false;
     }
 
-    function handleLogin(event) {
+    async function handleLogin(event) {
       event.preventDefault();
       if (isLocked()) {
         toast("Too many attempts. Try again in a minute.", "error");
@@ -567,6 +599,31 @@
         toast("Enter a valid email/mobile and passcode.", "error");
         return;
       }
+
+      const submitButton = selectors.loginForm.querySelector("button[type='submit']");
+      submitButton.disabled = true;
+      submitButton.textContent = "Signing in...";
+      if (identifier.includes("@")) {
+        try {
+          const result = await backendAuthRequest("/api/login", { email: identifier, password });
+          persistSignedInUser(result.user, result.token, identifier);
+          toast("Signed in successfully");
+          setTimeout(() => redirectAfterAuth(result.user.role), 650);
+          return;
+        } catch (error) {
+          authState.failedAttempts += 1;
+          localStorage.setItem("ch_auth_failed_attempts", String(authState.failedAttempts));
+          if (authState.failedAttempts >= 5) {
+            authState.lockUntil = Date.now() + 60000;
+            localStorage.setItem("ch_auth_lock_until", String(authState.lockUntil));
+          }
+          toast(error.message || "Invalid login details.", "error");
+          submitButton.disabled = false;
+          submitButton.innerHTML = '<i class="ti ti-login-2"></i> Sign in';
+          return;
+        }
+      }
+
       const user = getUsers()[identifier];
       if (!user || user.password !== password) {
         authState.failedAttempts += 1;
@@ -576,14 +633,13 @@
           localStorage.setItem("ch_auth_lock_until", String(authState.lockUntil));
         }
         toast("Invalid login details.", "error");
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="ti ti-login-2"></i> Sign in';
         return;
       }
-      authState.failedAttempts = 0;
-      localStorage.removeItem("ch_auth_failed_attempts");
-      localStorage.setItem("connecthub_user", JSON.stringify(user.profile));
-      if (document.getElementById("rememberMe").checked) localStorage.setItem("ch_auth_remember", identifier);
+      persistSignedInUser(user.profile, "", identifier);
       toast("Signed in successfully");
-      setTimeout(() => window.location.href = getDashboardUrl(user.profile.role), 650);
+      setTimeout(() => redirectAfterAuth(user.profile.role), 650);
     }
 
     function validateStepOne() {
@@ -606,10 +662,11 @@
       return true;
     }
 
-    function createAccount() {
+    async function createAccount() {
       const identifier = normalizeId(document.getElementById("regIdentifier").value);
       const role = document.getElementById("regRole").value;
       const name = document.getElementById("regName").value.trim();
+      const password = document.getElementById("regPassword").value;
       const profile = {
         name,
         email: identifier.includes("@") ? identifier : "",
@@ -623,10 +680,44 @@
         bio: document.getElementById("regBio").value.trim(),
         avatarInitials: name.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase()
       };
+
+      const nextButton = document.getElementById("nextStep");
+      nextButton.disabled = true;
+      nextButton.textContent = "Creating...";
+      if (identifier.includes("@")) {
+        try {
+          const result = await backendAuthRequest("/api/register", {
+            name,
+            email: identifier,
+            password,
+            role,
+            title: profile.title,
+            additionalInfo: {
+              city: profile.city,
+              state: profile.state,
+              companyName: profile.companyName,
+              sector: profile.sector,
+              bio: profile.bio
+            }
+          });
+          persistSignedInUser(result.user, result.token, identifier);
+          authState.lastUser = result.user;
+          selectors.registerForm.classList.remove("active");
+          selectors.successScreen.classList.add("active");
+          toast("Registration complete");
+          return;
+        } catch (error) {
+          toast(error.message || "Registration failed.", "error");
+          nextButton.disabled = false;
+          nextButton.textContent = "Create account";
+          return;
+        }
+      }
+
       const users = getUsers();
-      users[identifier] = { password: document.getElementById("regPassword").value, profile };
+      users[identifier] = { password, profile };
       saveUsers(users);
-      localStorage.setItem("connecthub_user", JSON.stringify(profile));
+      persistSignedInUser(profile, "", identifier);
       authState.lastUser = profile;
       selectors.registerForm.classList.remove("active");
       selectors.successScreen.classList.add("active");
