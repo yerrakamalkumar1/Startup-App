@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v57-app-core-realtime";
+const CACHE_NAME = "connecthub-v58-chat-voice-smooth";
 const APP_SHELL = [
   "index.html",
   "index.css",
