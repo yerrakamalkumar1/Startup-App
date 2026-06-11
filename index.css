@@ -2457,7 +2457,6 @@ body.dark .skeleton-card {
   font-size: 0.72rem;
   font-weight: 850;
   white-space: nowrap;
-  touch-action: none;
 }
 
 .chat-quick-actions button svg {
@@ -2470,21 +2469,6 @@ body.dark .skeleton-card {
   color: #ffffff;
   border-color: #dc2626;
   box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.14);
-}
-
-.voice-rec-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.72);
-  animation: voiceRecPulse 950ms ease-in-out infinite;
-}
-
-@keyframes voiceRecPulse {
-  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.72); }
-  70% { box-shadow: 0 0 0 9px rgba(255, 255, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
 }
 
 .chat-attachment-image {
@@ -10905,11 +10889,6 @@ body.dark .profile-tag-row .keyword-tag:focus-visible,
   flex-direction: column;
   gap: 0.12rem;
   animation: chatBubbleIn 0.22s ease both;
-}
-
-.chat-message-row.chat-message-enter {
-  opacity: 0;
-  transform: translateY(8px) scale(0.98);
 }
 
 .chat-message-row.mine {

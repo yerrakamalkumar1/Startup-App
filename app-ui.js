@@ -194,7 +194,11 @@ const AppUX = (() => {
       if (document.body.classList.contains("messages-open")) {
         const activeTarget = document.getElementById("msgTo")?.value;
         if (activeTarget) {
-          syncActiveChatMessages(activeTarget, false);
+          const body = document.getElementById("messageDockBody");
+          if (body) {
+            body.innerHTML = renderMessageDockBody(activeTarget);
+            scrollActiveChat();
+          }
         } else {
           renderInbox(document.getElementById("messageSearch")?.value || "");
         }
@@ -959,7 +963,8 @@ const AppUX = (() => {
         const activeTarget = document.getElementById("msgTo")?.value;
         if (document.body.classList.contains("messages-open")) {
           if (activeTarget && [message.from, message.to].includes(activeTarget)) {
-            appendMessageToActiveChat(message, true);
+            document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(activeTarget);
+            scrollActiveChat();
             markVisibleMessagesRead();
           } else {
             renderInbox(document.getElementById("messageSearch")?.value || "");
@@ -993,7 +998,7 @@ const AppUX = (() => {
         refreshLiveSurfaces("presence");
         if (document.body.classList.contains("messages-open")) {
           const target = document.getElementById("msgTo")?.value;
-          if (target) syncActiveChatMessages(target, false);
+          if (target) openChat(target);
           else renderInbox(document.getElementById("messageSearch")?.value || "");
         }
       });
@@ -2780,15 +2785,7 @@ const AppUX = (() => {
     saveDB(db, { localOnly: true });
     const activeTarget = document.getElementById("msgTo")?.value;
     if (activeTarget && document.body.classList.contains("messages-open")) {
-      const safeMessageId = String(message.id || message._id || messageId).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-      const row = document.querySelector(`[data-message-id="${safeMessageId}"]`);
-      const meta = row?.querySelector(".message-meta");
-      if (meta) {
-        const timeText = new Date(message.createdAt || Date.now()).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-        meta.innerHTML = `<span>${timeText}</span>${message.from === getCurrentUser()?.name ? messageStatusIcon(message) : ""}`;
-      } else {
-        syncActiveChatMessages(activeTarget, false);
-      }
+      document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(activeTarget);
       if (window.lucide) window.lucide.createIcons();
     }
   }
@@ -2809,7 +2806,7 @@ const AppUX = (() => {
     subscribeFirebaseChat(selectedName);
     syncFromBackend?.().then(() => {
       const currentTarget = document.getElementById("msgTo")?.value;
-      if (currentTarget === selectedName) syncActiveChatMessages(selectedName, false);
+      if (currentTarget === selectedName) body.innerHTML = renderMessageDockBody(selectedName);
       if (currentTarget === selectedName) scrollActiveChat(false);
       updateUnreadBadge();
       if (window.lucide) window.lucide.createIcons();
@@ -2833,7 +2830,7 @@ const AppUX = (() => {
         saveDB(db, { localOnly: true });
         const currentTarget = document.getElementById("msgTo")?.value;
         if (currentTarget === selectedName) {
-          appendMessageToActiveChat(message, true);
+          document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(selectedName);
           if (window.lucide) window.lucide.createIcons();
         }
         updateUnreadBadge();
@@ -2877,47 +2874,6 @@ const AppUX = (() => {
     return text ? text.replace(/\n/g, "<br>") : `<span class="message-empty-text">Message unavailable</span>`;
   }
 
-  function renderMessageRow(message, currentUserName) {
-    const mine = message.from === currentUserName;
-    const time = new Date(message.createdAt || Date.now()).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-    return `<article class="chat-message-row ${mine ? "mine" : "theirs"} chat-message-enter" data-message-id="${escapeAttr(message.id)}">
-      <div class="message-bubble ${mine ? "mine" : "theirs"}">
-        <div class="message-bubble-body">${renderMessageContent(message)}</div>
-        <div class="message-meta"><span>${time}</span>${mine ? messageStatusIcon(message) : ""}</div>
-      </div>
-    </article>`;
-  }
-
-  function appendMessageToActiveChat(message, smooth = true) {
-    const panel = document.getElementById("activeChatMessages");
-    const user = getCurrentUser?.();
-    if (!panel || !user || !message?.id) return false;
-    const safeMessageId = String(message.id).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-    if (panel.querySelector(`[data-message-id="${safeMessageId}"]`)) return false;
-    const activeTarget = document.getElementById("msgTo")?.value;
-    if (activeTarget && ![message.from, message.to].includes(activeTarget)) return false;
-    panel.querySelector(".chat-empty-state")?.remove();
-    panel.insertAdjacentHTML("beforeend", renderMessageRow(normalizeIncomingMessage(message), user.name));
-    requestAnimationFrame(() => {
-      panel.querySelector(`[data-message-id="${safeMessageId}"]`)?.classList.remove("chat-message-enter");
-      panel.scrollTo({ top: panel.scrollHeight, behavior: smooth ? "smooth" : "auto" });
-      if (window.lucide) window.lucide.createIcons();
-    });
-    return true;
-  }
-
-  function syncActiveChatMessages(selectedName, smooth = false) {
-    const user = getCurrentUser?.();
-    const panel = document.getElementById("activeChatMessages");
-    if (!user || !panel || !selectedName) return;
-    const messages = (getDB().messages || []).filter(m =>
-      (m.from === user.name && m.to === selectedName) || (m.from === selectedName && m.to === user.name)
-    ).map(normalizeIncomingMessage);
-    let appended = false;
-    messages.forEach(message => { appended = appendMessageToActiveChat(message, smooth) || appended; });
-    if (appended) markVisibleMessagesRead();
-  }
-
   function renderMessageDockBody(selectedName) {
     const user = getCurrentUser();
     const db = getDB();
@@ -2933,8 +2889,15 @@ const AppUX = (() => {
     </div>
     <div class="message-panel full-chat-panel" id="activeChatMessages">
       ${messages.map(message => {
-        return renderMessageRow(message, user.name).replace(" chat-message-enter", "");
-      }).join("") || '<p class="chat-empty-state" style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
+        const mine = message.from === user.name;
+        const time = new Date(message.createdAt || Date.now()).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+        return `<article class="chat-message-row ${mine ? "mine" : "theirs"}" data-message-id="${escapeAttr(message.id)}">
+          <div class="message-bubble ${mine ? "mine" : "theirs"}">
+            <div class="message-bubble-body">${renderMessageContent(message)}</div>
+            <div class="message-meta"><span>${time}</span>${mine ? messageStatusIcon(message) : ""}</div>
+          </div>
+        </article>`;
+      }).join("") || '<p style="color:#7b8794;text-align:center;padding:1rem;">No messages yet.</p>'}
     </div>
     <div class="chat-compose">
       <input id="msgTo" type="hidden" value="${selectedName}">
@@ -2943,13 +2906,7 @@ const AppUX = (() => {
       <div class="chat-quick-actions">
         <button type="button" title="Send photo" onclick="document.getElementById('chatImageInput').click()"><i data-lucide="image"></i><span>Photo</span></button>
         <button type="button" title="Send location" onclick="AppUX.sendLocationMessage()"><i data-lucide="map-pin"></i><span>Location</span></button>
-        <button type="button" id="voiceNoteBtn" title="Hold to record voice note"
-          onpointerdown="AppUX.startVoiceRecording(event)"
-          onpointerup="AppUX.finishVoiceRecording(event)"
-          onpointercancel="AppUX.cancelVoiceRecording(event)"
-          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();AppUX.toggleVoiceRecording(event)}">
-          <i data-lucide="mic"></i><span>Hold</span>
-        </button>
+        <button type="button" id="voiceNoteBtn" title="Voice note" onclick="AppUX.toggleVoiceRecording()"><i data-lucide="mic"></i><span>Voice</span></button>
       </div>
       <input id="msgText" class="form-control" placeholder="Message ${profile.name.split(" ")[0]}...">
       <button class="btn btn-primary" onclick="AppUX.sendDockMessage()"><i data-lucide="send"></i></button>
@@ -2960,10 +2917,8 @@ const AppUX = (() => {
     const to = document.getElementById("msgTo")?.value;
     const text = document.getElementById("msgText")?.value || extra.text || "";
     if (!to || (!text && !extra.attachment)) return;
-    const message = sendLocalMessage(to, text, extra);
-    const input = document.getElementById("msgText");
-    if (input) input.value = "";
-    if (message) appendMessageToActiveChat(message, true);
+    sendLocalMessage(to, text, extra);
+    document.getElementById("messageDockBody").innerHTML = renderMessageDockBody(to);
     scrollActiveChat();
     updateUnreadBadge();
     playSound("done");
@@ -2995,103 +2950,42 @@ const AppUX = (() => {
 
   let voiceRecorder = null;
   let voiceChunks = [];
-  let voiceStream = null;
-  let voiceStartedAt = 0;
-  let voiceStopMode = "send";
 
-  function getSupportedVoiceMime() {
-    if (!window.MediaRecorder?.isTypeSupported) return "";
-    return [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/mp4"
-    ].find(type => MediaRecorder.isTypeSupported(type)) || "";
-  }
-
-  function setVoiceButtonRecording(isRecording) {
+  async function toggleVoiceRecording() {
     const button = document.getElementById("voiceNoteBtn");
-    if (!button) return;
-    button.classList.toggle("recording", isRecording);
-    button.innerHTML = isRecording
-      ? `<span class="voice-rec-dot"></span><span>Release</span>`
-      : `<i data-lucide="mic"></i><span>Hold</span>`;
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  async function startVoiceRecording(event) {
-    event?.preventDefault?.();
-    if (voiceRecorder && voiceRecorder.state === "recording") return;
+    if (voiceRecorder && voiceRecorder.state === "recording") {
+      voiceRecorder.stop();
+      button?.classList.remove("recording");
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       showToast("Voice recording is not supported on this browser", "error");
       return;
     }
     try {
-      voiceStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       voiceChunks = [];
-      voiceStartedAt = Date.now();
-      voiceStopMode = "send";
-      const mimeType = getSupportedVoiceMime();
-      voiceRecorder = new MediaRecorder(voiceStream, mimeType ? { mimeType } : undefined);
+      voiceRecorder = new MediaRecorder(stream);
       voiceRecorder.ondataavailable = event => {
-        if (event.data?.size) voiceChunks.push(event.data);
+        if (event.data.size) voiceChunks.push(event.data);
       };
       voiceRecorder.onstop = () => {
-        const durationMs = Math.max(0, Date.now() - voiceStartedAt);
-        const durationSec = Math.max(1, Math.round(durationMs / 1000));
-        voiceStream?.getTracks().forEach(track => track.stop());
-        voiceStream = null;
-        setVoiceButtonRecording(false);
-        if (voiceStopMode === "cancel") {
-          showToast("Voice note cancelled");
-          return;
-        }
-        if (!voiceChunks.length) {
-          showToast("No audio captured", "error");
-          return;
-        }
+        stream.getTracks().forEach(track => track.stop());
         const blob = new Blob(voiceChunks, { type: voiceRecorder.mimeType || "audio/webm" });
         const reader = new FileReader();
         reader.onload = () => sendDockMessage({
           kind: "voice",
-          text: `Voice message (${durationSec}s)`,
-          attachment: { dataUrl: reader.result, type: blob.type, name: `voice-note-${Date.now()}.webm`, duration: durationSec }
+          text: "Voice message",
+          attachment: { dataUrl: reader.result, type: blob.type, name: "voice-note.webm" }
         });
         reader.readAsDataURL(blob);
       };
-      voiceRecorder.start(250);
-      setVoiceButtonRecording(true);
-      showToast("Recording voice note. Release to send.");
-    } catch (error) {
-      voiceStream?.getTracks().forEach(track => track.stop());
-      voiceStream = null;
-      setVoiceButtonRecording(false);
-      showToast(error?.name === "NotAllowedError" ? "Microphone permission denied" : "Microphone permission needed", "error");
+      voiceRecorder.start();
+      button?.classList.add("recording");
+      showToast("Recording voice note...");
+    } catch {
+      showToast("Microphone permission needed", "error");
     }
-  }
-
-  function finishVoiceRecording(event) {
-    event?.preventDefault?.();
-    if (!voiceRecorder || voiceRecorder.state !== "recording") return;
-    voiceStopMode = "send";
-    voiceRecorder.stop();
-  }
-
-  function cancelVoiceRecording(event) {
-    event?.preventDefault?.();
-    if (!voiceRecorder || voiceRecorder.state !== "recording") return;
-    voiceStopMode = "cancel";
-    voiceRecorder.stop();
-  }
-
-  async function toggleVoiceRecording() {
-    if (voiceRecorder && voiceRecorder.state === "recording") {
-      finishVoiceRecording();
-      return;
-    }
-    startVoiceRecording();
   }
 
   function markVisibleMessagesRead() {
@@ -3146,10 +3040,6 @@ const AppUX = (() => {
       .slice()
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
     if (!latest) return;
-    const popKey = `${latest.id || latest.type + ":" + latest.text}:${latest.createdAt || ""}`;
-    const lastPop = window.__connectHubLastNotificationPop || {};
-    if (lastPop.key === popKey && Date.now() - lastPop.at < 12000) return;
-    window.__connectHubLastNotificationPop = { key: popKey, at: Date.now() };
     playSound("bell");
     let pop = document.getElementById("notificationPop");
     if (!pop) {
@@ -5053,6 +4943,6 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, startVoiceRecording, finishVoiceRecording, cancelVoiceRecording, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, sendExploreConnect, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, sendExploreConnect, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
 })();
 window.AppUX = AppUX;
