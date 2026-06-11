@@ -3799,14 +3799,27 @@ if (Server) {
       const safeName = String(name || "").slice(0, 80);
       if (!safeName) return;
       socket.data.name = safeName;
+      socket.data.userNames = socket.data.userNames || new Set();
+      socket.data.userNames.add(safeName);
       const sockets = onlineUsers.get(safeName) || new Set();
       sockets.add(socket.id);
       onlineUsers.set(safeName, sockets);
       socket.join(`user:${safeName}`);
       socket.join(`user_${safeName}`);
       io.emit("presence:update", Array.from(onlineUsers.keys()));
+      io.emit("user_online", { userId: safeName, name: safeName });
       socket.emit("realtime:status", realtimeSummary().realtime);
     };
+
+    socket.on("authenticate", payload => {
+      const names = [
+        payload?.name,
+        payload?.userId,
+        payload?.username,
+        payload?.email
+      ].filter(Boolean);
+      names.forEach(joinUserRoom);
+    });
 
     socket.on("user:online", name => {
       joinUserRoom(name);
@@ -3838,7 +3851,36 @@ if (Server) {
 
     socket.on("typing", payload => {
       const to = String(payload?.recipientId || payload?.to || "").slice(0, 80);
-      if (to) socket.to(`user:${to}`).emit("typing", { userId: socket.data.name || payload?.from || "", from: socket.data.name || payload?.from || "" });
+      const from = socket.data.name || payload?.from || payload?.fromUserId || "";
+      if (to) socket.to(`user:${to}`).emit("typing", { userId: from, from, fromUserId: from });
+    });
+
+    socket.on("stop_typing", payload => {
+      const to = String(payload?.recipientId || payload?.to || payload?.toUserId || "").slice(0, 80);
+      const from = socket.data.name || payload?.from || payload?.fromUserId || "";
+      if (to) socket.to(`user:${to}`).emit("stop_typing", { userId: from, from, fromUserId: from });
+    });
+
+    socket.on("messages_read", payload => {
+      const senderId = String(payload?.senderId || payload?.from || "").slice(0, 80);
+      const receiverId = String(payload?.receiverId || socket.data.name || payload?.by || "").slice(0, 80);
+      if (!senderId || !receiverId) return;
+      const db = readJson(DB_FILE, INITIAL_DB);
+      const seenIds = [];
+      (db.messages || []).forEach(message => {
+        if (message.from === senderId && message.to === receiverId && !message.read) {
+          message.read = true;
+          message.status = "seen";
+          message.readAt = message.readAt || new Date().toISOString();
+          message.seenAt = message.seenAt || message.readAt;
+          seenIds.push(message.id);
+        }
+      });
+      if (seenIds.length) {
+        writeJson(DB_FILE, db);
+        io.to(`user:${senderId}`).emit("messages_seen", { by: receiverId, messageIds: seenIds, conversationWith: receiverId });
+        io.to(`user:${senderId}`).emit("messages_read", { receiverId, messageIds: seenIds });
+      }
     });
 
     socket.on("message:send", message => {
@@ -3898,14 +3940,18 @@ if (Server) {
     });
 
     socket.on("disconnect", () => {
-      if (socket.data.name) {
-        const sockets = onlineUsers.get(socket.data.name);
+      const joinedNames = Array.from(socket.data.userNames || (socket.data.name ? [socket.data.name] : []));
+      joinedNames.forEach(name => {
+        const sockets = onlineUsers.get(name);
         if (sockets) {
           sockets.delete(socket.id);
-          if (!sockets.size) onlineUsers.delete(socket.data.name);
+          if (!sockets.size) onlineUsers.delete(name);
         }
-      }
+      });
       io.emit("presence:update", Array.from(onlineUsers.keys()));
+      joinedNames
+        .filter(name => !onlineUsers.has(name))
+        .forEach(name => io.emit("user_offline", { userId: name, name, lastSeen: new Date().toISOString() }));
       io.emit("realtime:status", realtimeSummary().realtime);
     });
   });

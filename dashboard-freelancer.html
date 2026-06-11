@@ -104,6 +104,7 @@
   </div>
 </div>
 
+<script src="/public/js/app-core.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script src="firebase-chat.js"></script>
@@ -116,15 +117,17 @@
   }
 
   const user = getCurrentUser();
-  if (!user) window.location.href = 'index.html';
-  if (user.role !== 'freelancer') window.location.href = getDashboardUrl(user.role);
-  document.getElementById('av').textContent = user.avatarInitials;
-  document.getElementById('uname').textContent = user.name;
-  document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'feed', exploreView: 'explore', adsView: 'mads', profileView: 'profile' });
+  if (!user) window.location.replace('index.html');
+  else if (user.role !== 'freelancer') window.location.replace(getDashboardUrl(user.role));
+  if (user && user.role === 'freelancer') {
+    document.getElementById('av').textContent = user.avatarInitials;
+    document.getElementById('uname').textContent = user.name;
+    document.getElementById('urole').textContent = user.title;
+    AppUX.init({ homeView: 'feed', exploreView: 'explore', adsView: 'mads', profileView: 'profile' });
+  }
 
   let currentJobId = '';
-  syncFromBackend().then(() => go(location.pathname.replace(/\/$/, '') === '/settings' ? 'settings' : 'feed'));
+  if (user && user.role === 'freelancer') syncFromBackend().then(() => go(location.pathname.replace(/\/$/, '') === '/settings' ? 'settings' : 'feed'));
 
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));

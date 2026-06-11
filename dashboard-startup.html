@@ -121,6 +121,7 @@
   </div>
 </div>
 
+<script src="/public/js/app-core.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script src="firebase-chat.js"></script>
@@ -133,28 +134,31 @@
   }
 
   const user = getCurrentUser();
-  if (!user || user.role !== 'startup_admin') window.location.href = 'index.html';
-  document.getElementById('av').textContent = user.avatarInitials;
-  document.getElementById('uname').textContent = user.name;
-  document.getElementById('urole').textContent = user.title;
-  AppUX.init({
-    homeView: 'analytics',
-    exploreView: 'browse',
-    adsView: 'browse',
-    profileView: 'profile',
-    onProfileSaved: updated => {
-      const db = getDB();
-      myStartup = db.startups.find(s => s.id === updated.startupId) || myStartup;
-      document.getElementById('portalLabel').textContent = `Startup Portal - ${myStartup.name}`;
-    }
-  });
+  if (!user) window.location.replace('index.html');
+  else if (user.role !== 'startup_admin') window.location.replace('index.html');
 
-  let db0 = getDB();
-  let myStartup = db0.startups.find(s => s.id === user.startupId) || db0.startups[0];
-  document.getElementById('portalLabel').textContent = `Startup Portal - ${myStartup.name}`;
+  let db0 = user && user.role === 'startup_admin' ? getDB() : { startups: [] };
+  let myStartup = user && user.role === 'startup_admin' ? (db0.startups.find(s => s.id === user.startupId) || db0.startups[0]) : null;
+  if (user && user.role === 'startup_admin') {
+    document.getElementById('av').textContent = user.avatarInitials;
+    document.getElementById('uname').textContent = user.name;
+    document.getElementById('urole').textContent = user.title;
+    AppUX.init({
+      homeView: 'analytics',
+      exploreView: 'browse',
+      adsView: 'browse',
+      profileView: 'profile',
+      onProfileSaved: updated => {
+        const db = getDB();
+        myStartup = db.startups.find(s => s.id === updated.startupId) || myStartup;
+        document.getElementById('portalLabel').textContent = `Startup Portal - ${myStartup.name}`;
+      }
+    });
+    document.getElementById('portalLabel').textContent = `Startup Portal - ${myStartup.name}`;
+  }
 
   let chartInst = null;
-  syncFromBackend().then(db => {
+  if (user && user.role === 'startup_admin') syncFromBackend().then(db => {
     db0 = db;
     myStartup = db.startups.find(s => s.id === user.startupId) || db.startups[0];
     document.getElementById('portalLabel').textContent = `Startup Portal - ${myStartup.name}`;

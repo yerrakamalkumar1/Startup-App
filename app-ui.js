@@ -932,71 +932,29 @@ const AppUX = (() => {
         reconnectionDelayMax: 4000
       });
       window.ConnectHubSocket = socket;
+      if (window.ConnectHub) {
+        window.ConnectHub.socket = socket;
+        window.ConnectHub.refreshState?.();
+      }
+      const bind = window.ConnectHub?.bindSocket
+        ? (eventName, handler) => window.ConnectHub.bindSocket(socket, eventName, handler)
+        : (eventName, handler) => {
+            if (typeof socket.off === "function") socket.off(eventName);
+            socket.on(eventName, handler);
+          };
+      const rememberRealtimeEvent = key => window.ConnectHub?.rememberEvent
+        ? window.ConnectHub.rememberEvent(key, 30000)
+        : true;
       const currentNames = () => [getCurrentUser?.()?.name, getCurrentUser?.()?.companyName].filter(Boolean);
       const joinUserRooms = () => currentNames().forEach(name => socket.emit("user:online", name));
-      socket.on("connect", () => {
-        joinUserRooms();
-        socket.emit("state:request");
-        updateConnectivityStatus(true);
-        document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: true } }));
-      });
-      socket.on("disconnect", () => {
-        updateConnectivityStatus(navigator.onLine);
-        document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: false } }));
-      });
-      socket.on("presence:update", names => {
-        window.ConnectHubOnlineUsers = names || [];
-        document.dispatchEvent(new CustomEvent("connecthub:presence"));
-        refreshLiveSurfaces("presence");
-        if (document.body.classList.contains("messages-open")) {
-          const target = document.getElementById("msgTo")?.value;
-          if (target) openChat(target);
-          else renderInbox(document.getElementById("messageSearch")?.value || "");
-        }
-      });
-      socket.on("realtime:status", status => {
-        window.ConnectHubRealtimeStatus = status || {};
-        updateConnectivityStatus(navigator.onLine);
-      });
-      socket.on("state:updated", payload => {
-        syncFromBackend?.().then(() => refreshLiveSurfaces(payload?.reason || "state-updated")).catch(() => {});
-      });
-      socket.on("user:registered", payload => {
-        const db = getDB();
-        const profile = payload?.profile;
-        if (profile) {
-          db.registeredProfiles = db.registeredProfiles || [];
-          const key = profile.email || profile.id || profile.handle || profile.name;
-          if (!db.registeredProfiles.some(item => (item.email || item.id || item.handle || item.name) === key)) {
-            db.registeredProfiles.unshift(profile);
-            saveDB(db, { localOnly: true, reason: "user-registered" });
-          }
-        }
-        refreshLiveSurfaces("user-registered");
-      });
-      socket.on("profile:updated", payload => {
-        const profile = payload?.profile;
-        if (profile) {
-          const db = getDB();
-          db.registeredProfiles = (db.registeredProfiles || []).map(item =>
-            item.email === profile.email || item.name === profile.name ? { ...item, ...profile } : item
-          );
-          saveDB(db, { localOnly: true, reason: "profile-updated" });
-        }
-        refreshLiveSurfaces("profile-updated");
-      });
-      socket.on("network:updated", () => {
-        syncFromBackend?.().then(() => refreshLiveSurfaces("network-updated")).catch(() => refreshLiveSurfaces("network-updated"));
-      });
-      socket.on("gig:updated", () => {
-        syncFromBackend?.().then(() => refreshLiveSurfaces("gig-updated")).catch(() => refreshLiveSurfaces("gig-updated"));
-      });
-      socket.on("message:new", message => {
+      const handleRealtimeMessage = rawMessage => {
         const db = getDB();
         db.messages = db.messages || [];
-        message = normalizeIncomingMessage(message);
+        const message = normalizeIncomingMessage(rawMessage?.message || rawMessage);
         const names = currentNames();
         if (!names.includes(message.from) && !names.includes(message.to)) return;
+        const eventKey = `message:${message.id || message.from + ":" + message.to + ":" + message.createdAt + ":" + (message.content || message.text || "")}`;
+        if (!rememberRealtimeEvent(eventKey)) return;
         if (!db.messages.some(m => m.id === message.id)) {
           db.messages.push(message);
           saveDB(db, { localOnly: true });
@@ -1018,11 +976,75 @@ const AppUX = (() => {
           showToast(`New message from ${message.from}`);
         }
         if (window.lucide) window.lucide.createIcons();
+      };
+      bind("connect", () => {
+        joinUserRooms();
+        socket.emit("authenticate", {
+          userId: getCurrentUser?.()?.id || getCurrentUser?.()?._id || getCurrentUser?.()?.email || getCurrentUser?.()?.name,
+          name: getCurrentUser?.()?.name,
+          role: getCurrentUser?.()?.role
+        });
+        socket.emit("state:request");
+        updateConnectivityStatus(true);
+        document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: true } }));
       });
-      socket.on("message_delivered", payload => {
+      bind("disconnect", () => {
+        updateConnectivityStatus(navigator.onLine);
+        document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: false } }));
+      });
+      bind("presence:update", names => {
+        window.ConnectHubOnlineUsers = names || [];
+        document.dispatchEvent(new CustomEvent("connecthub:presence"));
+        refreshLiveSurfaces("presence");
+        if (document.body.classList.contains("messages-open")) {
+          const target = document.getElementById("msgTo")?.value;
+          if (target) openChat(target);
+          else renderInbox(document.getElementById("messageSearch")?.value || "");
+        }
+      });
+      bind("realtime:status", status => {
+        window.ConnectHubRealtimeStatus = status || {};
+        updateConnectivityStatus(navigator.onLine);
+      });
+      bind("state:updated", payload => {
+        syncFromBackend?.().then(() => refreshLiveSurfaces(payload?.reason || "state-updated")).catch(() => {});
+      });
+      bind("user:registered", payload => {
+        const db = getDB();
+        const profile = payload?.profile;
+        if (profile) {
+          db.registeredProfiles = db.registeredProfiles || [];
+          const key = profile.email || profile.id || profile.handle || profile.name;
+          if (!db.registeredProfiles.some(item => (item.email || item.id || item.handle || item.name) === key)) {
+            db.registeredProfiles.unshift(profile);
+            saveDB(db, { localOnly: true, reason: "user-registered" });
+          }
+        }
+        refreshLiveSurfaces("user-registered");
+      });
+      bind("profile:updated", payload => {
+        const profile = payload?.profile;
+        if (profile) {
+          const db = getDB();
+          db.registeredProfiles = (db.registeredProfiles || []).map(item =>
+            item.email === profile.email || item.name === profile.name ? { ...item, ...profile } : item
+          );
+          saveDB(db, { localOnly: true, reason: "profile-updated" });
+        }
+        refreshLiveSurfaces("profile-updated");
+      });
+      bind("network:updated", () => {
+        syncFromBackend?.().then(() => refreshLiveSurfaces("network-updated")).catch(() => refreshLiveSurfaces("network-updated"));
+      });
+      bind("gig:updated", () => {
+        syncFromBackend?.().then(() => refreshLiveSurfaces("gig-updated")).catch(() => refreshLiveSurfaces("gig-updated"));
+      });
+      bind("message:new", handleRealtimeMessage);
+      bind("new_message", payload => handleRealtimeMessage(payload?.message || payload));
+      bind("message_delivered", payload => {
         updateLocalMessageStatus(payload?.messageId, "delivered", "deliveredAt");
       });
-      socket.on("messages_seen", payload => {
+      bind("messages_seen", payload => {
         (payload?.messageIds || []).forEach(id => updateLocalMessageStatus(id, "seen", "seenAt"));
       });
       const handleRealtimeNotification = note => {
@@ -1040,6 +1062,8 @@ const AppUX = (() => {
           read: Boolean(note?.read),
           createdAt: note?.createdAt || new Date().toISOString()
         };
+        const notificationKey = `notification:${normalized.id || normalized.type + ":" + normalized.from + ":" + normalized.text}`;
+        if (!rememberRealtimeEvent(notificationKey)) return;
         if (!db.notifications.some(item => item.id === normalized.id)) {
           db.notifications.push(normalized);
           saveDB(db, { localOnly: true });
@@ -1049,25 +1073,25 @@ const AppUX = (() => {
         renderNotificationPanel();
         showNotificationPop();
       };
-      socket.on("notification:new", handleRealtimeNotification);
-      socket.on("notifications:update", payload => {
+      bind("notification:new", handleRealtimeNotification);
+      bind("notifications:update", payload => {
         if (payload?.notification) handleRealtimeNotification(payload.notification);
         renderNotificationPanel();
       });
-      socket.on("feed:newPost", post => {
+      bind("feed:newPost", post => {
         document.dispatchEvent(new CustomEvent("connecthub:feed-post", { detail: post }));
         syncFromBackend?.().then(() => refreshLiveSurfaces("feed-new-post")).catch(() => refreshLiveSurfaces("feed-new-post"));
         showToast("New post added to the feed");
       });
-      socket.on("post:updated", payload => {
+      bind("post:updated", payload => {
         document.dispatchEvent(new CustomEvent("connecthub:post-updated", { detail: payload }));
         refreshLiveSurfaces("post-updated");
       });
-      socket.on("story:new", story => {
+      bind("story:new", story => {
         document.dispatchEvent(new CustomEvent("connecthub:story", { detail: story }));
         showToast("New story is live");
       });
-      socket.on("message:typing", payload => {
+      bind("message:typing", payload => {
         const activeTarget = document.getElementById("msgTo")?.value;
         if (activeTarget && payload?.from === activeTarget) {
           let indicator = document.getElementById("typingIndicator");

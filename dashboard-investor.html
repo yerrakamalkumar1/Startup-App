@@ -81,6 +81,7 @@
   </div>
 </div>
 
+<script src="/public/js/app-core.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
 <script src="firebase-chat.js"></script>
@@ -93,15 +94,18 @@
   }
 
   const user = getCurrentUser();
-  if (!user || user.role !== 'investor') window.location.href = 'index.html';
-  document.getElementById('av').textContent = user.avatarInitials;
-  document.getElementById('uname').textContent = user.name;
-  document.getElementById('urole').textContent = user.title;
-  AppUX.init({ homeView: 'explore', exploreView: 'explore', adsView: 'explore', profileView: 'profile' });
+  if (!user) window.location.replace('index.html');
+  else if (user.role !== 'investor') window.location.replace('index.html');
+  if (user && user.role === 'investor') {
+    document.getElementById('av').textContent = user.avatarInitials;
+    document.getElementById('uname').textContent = user.name;
+    document.getElementById('urole').textContent = user.title;
+    AppUX.init({ homeView: 'explore', exploreView: 'explore', adsView: 'explore', profileView: 'profile' });
+  }
 
   let investingId = '';
   let roleFilter = 'All';
-  syncFromBackend().then(() => go('explore'));
+  if (user && user.role === 'investor') syncFromBackend().then(() => go('explore'));
 
   function go(view) {
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));

@@ -1,7 +1,8 @@
-const CACHE_NAME = "connecthub-v56-auth-portal-backend";
+const CACHE_NAME = "connecthub-v57-app-core-realtime";
 const APP_SHELL = [
   "index.html",
   "index.css",
+  "public/js/app-core.js",
   "config.js",
   "app-ui.js",
   "db.js",
