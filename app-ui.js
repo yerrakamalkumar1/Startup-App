@@ -991,6 +991,13 @@ const AppUX = (() => {
       bind("disconnect", () => {
         updateConnectivityStatus(navigator.onLine);
         document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: false } }));
+        clearTimeout(window.__connectHubSocketReconnectTimer);
+        window.__connectHubSocketReconnectTimer = setTimeout(() => {
+          if (!socket.connected) socket.connect();
+        }, 3000);
+      });
+      bind("ping_keepalive", payload => {
+        socket.emit("pong_keepalive", { t: Date.now(), serverT: payload?.t || null });
       });
       bind("presence:update", names => {
         window.ConnectHubOnlineUsers = names || [];
@@ -1001,6 +1008,16 @@ const AppUX = (() => {
           if (target) openChat(target);
           else renderInbox(document.getElementById("messageSearch")?.value || "");
         }
+      });
+      bind("user_status", payload => {
+        const name = payload?.name || payload?.userId;
+        if (!name) return;
+        const current = new Set(window.ConnectHubOnlineUsers || []);
+        if (payload?.isOnline) current.add(name);
+        else current.delete(name);
+        window.ConnectHubOnlineUsers = Array.from(current);
+        document.dispatchEvent(new CustomEvent("connecthub:presence", { detail: payload }));
+        refreshLiveSurfaces("user-status");
       });
       bind("realtime:status", status => {
         window.ConnectHubRealtimeStatus = status || {};
@@ -2754,7 +2771,17 @@ const AppUX = (() => {
   }
 
   function messageText(message = {}) {
-    return String(message.content || message.text || message.body || message.message || "");
+    const candidates = [message.content, message.text, message.body, message.message, message.caption];
+    for (const candidate of candidates) {
+      if (candidate == null) continue;
+      if (typeof candidate === "object") {
+        const nested = candidate.content || candidate.text || candidate.body || candidate.message || "";
+        if (nested) return String(nested);
+        continue;
+      }
+      if (String(candidate).trim()) return String(candidate);
+    }
+    return "";
   }
 
   function normalizeIncomingMessage(message = {}) {

@@ -11080,3 +11080,31 @@ body.dark .profile-tag-row .keyword-tag:focus-visible,
   line-height: 1;
   cursor: pointer;
 }
+
+/* Section 1 stability fixes: Explore must scroll normally without floating cards. */
+.explore-page.active {
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+.explore-page.active #exploreDockBody {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)) !important;
+}
+
+.explore-page.active .explore-future-shell,
+.explore-page.active .explore-content-layout,
+.explore-page.active .explore-panel,
+.explore-page.active .activity-card,
+.explore-page.active .people-search-card,
+.explore-page.active .explore-search-results,
+.explore-page.active .explore-directory {
+  position: relative !important;
+  inset: auto !important;
+  bottom: auto !important;
+  transform: none;
+}

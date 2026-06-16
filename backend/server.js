@@ -637,6 +637,48 @@ function publicDB() {
   return db;
 }
 
+function setProfilePresence(names = [], isOnline = false) {
+  const identifiers = new Set(
+    names
+      .map(name => String(name || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (!identifiers.size) return;
+  const lastSeen = new Date().toISOString();
+  let changed = false;
+
+  const matches = profile => {
+    if (!profile) return false;
+    return [
+      profile.name,
+      profile.companyName,
+      profile.username,
+      profile.handle,
+      profile.email
+    ].some(value => identifiers.has(String(value || "").trim().toLowerCase()));
+  };
+
+  const db = readJson(DB_FILE, INITIAL_DB);
+  db.registeredProfiles = (db.registeredProfiles || []).map(profile => {
+    if (!matches(profile)) return profile;
+    changed = true;
+    return { ...profile, isOnline, lastSeen };
+  });
+
+  const users = readJson(USERS_FILE, {});
+  Object.keys(users || {}).forEach(email => {
+    const profile = users[email]?.profile;
+    if (!matches({ ...profile, email })) return;
+    users[email].profile = { ...profile, isOnline, lastSeen };
+    changed = true;
+  });
+
+  if (changed) {
+    writeJson(DB_FILE, db);
+    writeJson(USERS_FILE, users);
+  }
+}
+
 function mergeById(existingItems = [], incomingItems = []) {
   const map = new Map();
   [...existingItems, ...incomingItems].forEach(item => {
@@ -3806,8 +3848,10 @@ if (Server) {
       onlineUsers.set(safeName, sockets);
       socket.join(`user:${safeName}`);
       socket.join(`user_${safeName}`);
+      setProfilePresence([safeName], true);
       io.emit("presence:update", Array.from(onlineUsers.keys()));
       io.emit("user_online", { userId: safeName, name: safeName });
+      io.emit("user_status", { userId: safeName, name: safeName, isOnline: true });
       socket.emit("realtime:status", realtimeSummary().realtime);
     };
 
@@ -3842,6 +3886,11 @@ if (Server) {
     socket.on("state:request", () => {
       socket.emit("state:updated", { reason: "socket-request", summary: realtimeSummary().counts, emittedAt: new Date().toISOString() });
       socket.emit("realtime:status", realtimeSummary().realtime);
+    });
+
+    socket.on("pong_keepalive", payload => {
+      socket.data.lastPongAt = Date.now();
+      socket.data.lastPongClientAt = payload?.t || null;
     });
 
     socket.on("message:typing", payload => {
@@ -3951,10 +4000,21 @@ if (Server) {
       io.emit("presence:update", Array.from(onlineUsers.keys()));
       joinedNames
         .filter(name => !onlineUsers.has(name))
-        .forEach(name => io.emit("user_offline", { userId: name, name, lastSeen: new Date().toISOString() }));
+        .forEach(name => {
+          const lastSeen = new Date().toISOString();
+          setProfilePresence([name], false);
+          io.emit("user_offline", { userId: name, name, lastSeen });
+          io.emit("user_status", { userId: name, name, isOnline: false, lastSeen });
+        });
       io.emit("realtime:status", realtimeSummary().realtime);
     });
   });
+
+  const keepaliveTimer = setInterval(() => {
+    io.emit("ping_keepalive", { t: Date.now() });
+    io.emit("realtime:status", realtimeSummary().realtime);
+  }, 25000);
+  keepaliveTimer.unref?.();
 }
 
 server.listen(PORT, () => {
