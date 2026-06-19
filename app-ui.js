@@ -16,6 +16,9 @@ const AppUX = (() => {
   let exploreFilters = { role: "", location: "", skills: "", company: "", category: "all", stage: "", sector: "", sort: "relevance" };
   let currentMessageTab = "focused";
   let currentNotificationTab = "all";
+  let currentFeedPage = 1;
+  let feedHasMore = false;
+  let feedIsLoading = false;
   let visibleNotificationIds = [];
   let deferredInstallPrompt = null;
   let networkSearchTimer = null;
@@ -3260,6 +3263,7 @@ const AppUX = (() => {
     if (!body || view !== homeView) return;
     if (body.querySelector(".ch-social-portal")) return;
     body.insertAdjacentHTML("afterbegin", renderSocialPortal());
+    loadHomeFeed({ reset: true }).catch(() => {});
     window.ConnectHubObserveEntrances?.(body);
     if (window.lucide) window.lucide.createIcons();
   }
@@ -3274,7 +3278,7 @@ const AppUX = (() => {
           </div>
           <div class="ch-feed-section-title">Stories</div>
           <div class="ch-reels-row">${CH_REELS.map(renderReelBubble).join("")}</div>
-          <div class="ch-post-feed">${CH_POSTS.map(renderPostCard).join("")}</div>
+          <div id="chPostFeed" class="ch-post-feed">${renderFeedSkeletonCards(3)}</div>
           <div class="ch-mobile-feed-insights">
             ${renderFeedInsightCards()}
           </div>
@@ -3286,6 +3290,100 @@ const AppUX = (() => {
       </section>
       ${renderReelModal()}
       ${renderPostComposer()}`;
+  }
+
+  function renderFeedSkeletonCards(count = 3) {
+    return Array.from({ length: count }, () => `
+      <article class="ch-post-card ch-post-skeleton">
+        <header>
+          <span class="skeleton-card ch-skel-avatar"></span>
+          <div class="ch-skel-lines">
+            <span class="skeleton-card"></span>
+            <span class="skeleton-card short"></span>
+          </div>
+        </header>
+        <span class="skeleton-card wide"></span>
+        <span class="skeleton-card medium"></span>
+        <div class="skeleton-card media"></div>
+      </article>`).join("");
+  }
+
+  function countList(value) {
+    if (Array.isArray(value)) return value.length;
+    const count = Number(value || 0);
+    return Number.isFinite(count) ? count : 0;
+  }
+
+  function normalizeFeedPost(post = {}) {
+    const content = messageText({ content: post.content, text: post.text, body: post.description, caption: post.caption });
+    const name = post.name || post.authorName || post.author || post.senderName || "ConnectHub member";
+    const tags = Array.isArray(post.tags) && post.tags.length
+      ? post.tags
+      : Array.isArray(post.hashtags) ? post.hashtags : [];
+    const city = post.city || post.location || post.state || "India";
+    return {
+      ...post,
+      id: post.id || post._id || `post-${Date.now()}`,
+      name,
+      role: post.role || post.title || "Member",
+      title: post.title || post.companyName || post.role || "ConnectHub update",
+      city,
+      initials: post.initials || post.authorInitials || initialsForName(name),
+      time: post.time || relativeTime(post.createdAt || Date.now()).replace(" ago", ""),
+      text: content,
+      tags,
+      likes: countList(post.reactions) || countList(post.likes) || countList(post.reactionCount),
+      comments: countList(post.comments) || countList(post.commentCount),
+      shares: countList(post.shares) || countList(post.shareCount),
+      saved: Boolean(post.saved),
+      liked: Boolean(post.myReaction || post.likedByMe),
+      mediaUrls: Array.isArray(post.mediaUrls) ? post.mediaUrls : Array.isArray(post.images) ? post.images : [],
+      accent: post.accent || sectorColor(post.sector || post.role || "")
+    };
+  }
+
+  async function loadHomeFeed({ reset = false } = {}) {
+    const feed = document.getElementById("chPostFeed");
+    if (!feed || feedIsLoading) return;
+    feedIsLoading = true;
+    if (reset) {
+      currentFeedPage = 1;
+      feed.innerHTML = renderFeedSkeletonCards(3);
+    }
+    try {
+      const data = await apiRequest(`/api/posts/feed?page=${currentFeedPage}&limit=10`);
+      const posts = (data.posts || []).map(normalizeFeedPost);
+      feedHasMore = Boolean(data.hasMore);
+      const existingMore = feed.querySelector(".ch-feed-more");
+      if (existingMore) existingMore.remove();
+      if (posts.length) {
+        const markup = posts.map(renderPostCard).join("");
+        if (reset) feed.innerHTML = `${markup}${renderFeedLoadMore()}`;
+        else feed.insertAdjacentHTML("beforeend", `${markup}${renderFeedLoadMore()}`);
+        currentFeedPage += 1;
+      } else if (reset) {
+        feed.innerHTML = `${CH_POSTS.map(normalizeFeedPost).map(renderPostCard).join("")}${renderFeedLoadMore(false)}`;
+      }
+    } catch {
+      const fallback = CH_POSTS.map(normalizeFeedPost);
+      feedHasMore = false;
+      if (reset) feed.innerHTML = fallback.map(renderPostCard).join("");
+      else feed.insertAdjacentHTML("beforeend", renderFeedLoadMore(false));
+    } finally {
+      feedIsLoading = false;
+      window.ConnectHubObserveEntrances?.(feed);
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+
+  function renderFeedLoadMore(show = feedHasMore) {
+    return show
+      ? `<button class="ch-feed-more" type="button" onclick="AppUX.loadMoreFeedPosts()"><i data-lucide="loader"></i><span>Load more</span></button>`
+      : "";
+  }
+
+  function loadMoreFeedPosts() {
+    loadHomeFeed({ reset: false }).catch(() => {});
   }
 
   function renderFeedInsightCards() {
@@ -3339,20 +3437,26 @@ const AppUX = (() => {
   }
 
   function renderPostCard(post, index) {
-    const safeName = post.name.replace(/'/g, "\\'");
+    post = normalizeFeedPost(post);
+    const safeName = String(post.name || "ConnectHub member").replace(/'/g, "\\'");
     const state = getPostState(post.id, post);
+    const timeLabel = /ago|now/i.test(String(post.time || "")) ? post.time : `${post.time || "now"} ago`;
+    const mediaUrl = post.mediaUrls?.[0] || post.mediaUrl || "";
+    const mediaMarkup = mediaUrl
+      ? `<div class="ch-post-media"><img src="${escapeAttr(mediaUrl)}" alt="${escapeAttr(post.title || "Post media")}"></div>`
+      : `<div class="ch-post-visual"><div><i data-lucide="image"></i><strong>${escapeHTML(post.title)}</strong><span>${escapeHTML(post.role)} update</span></div></div>`;
     return `<article class="ch-post-card" style="--accent:${post.accent};--delay:${index * 70}ms" data-post-id="${post.id}">
       <header>
         <button class="ch-avatar-button" type="button" onclick="AppUX.openProfileFromPost('${safeName}')">${escapeHTML(post.initials)}</button>
         <div>
           <h3><button type="button" onclick="AppUX.openProfileFromPost('${safeName}')">${escapeHTML(post.name)}</button> <span>${escapeHTML(post.role)}</span></h3>
-          <p>${escapeHTML(post.title)} - ${escapeHTML(post.city)} - ${escapeHTML(post.time)} ago</p>
+          <p>${escapeHTML(post.title)} - ${escapeHTML(post.city)} - ${escapeHTML(timeLabel)}</p>
         </div>
         <button class="ch-follow-btn" type="button" onclick="AppUX.toggleFollow(this)">Follow</button>
       </header>
       <p class="ch-post-text">${linkPostTags(decodePostContent(post.text))}</p>
-      <div class="ch-post-visual"><div><i data-lucide="image"></i><strong>${escapeHTML(post.title)}</strong><span>${escapeHTML(post.role)} update</span></div></div>
-      <div class="ch-post-tags">${post.tags.map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${tag}')">#${escapeHTML(tag)}</button>`).join("")}</div>
+      ${mediaMarkup}
+      <div class="ch-post-tags">${(post.tags || []).map(tag => `<button type="button" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('${escapeAttr(tag)}')">#${escapeHTML(tag)}</button>`).join("")}</div>
       <footer>
         <button type="button" class="${state.liked ? "active" : ""}" onclick="AppUX.likePost(this, '${post.id}')"><i data-lucide="thumbs-up"></i><span>Like</span><b class="like-count">${state.likes}</b></button>
         <button type="button" onclick="AppUX.togglePostComments('${post.id}')"><i data-lucide="message-circle"></i><span>Comment</span><b class="comment-count">${state.comments}</b></button>
@@ -3421,6 +3525,20 @@ const AppUX = (() => {
     return escapeHTML(text).replace(/#([a-z0-9_]+)/gi, `<button type="button" class="inline-tag" onclick="AppUX.openExplorePage(); AppUX.applyExploreSuggestion('$1')">#$1</button>`);
   }
 
+  function tagsFromPostText(text = "") {
+    return [...new Set((String(text).match(/#[a-z0-9_]+/gi) || [])
+      .map(tag => tag.replace(/^#/, "").trim())
+      .filter(Boolean))];
+  }
+
+  function feedRoleLabel(role = "") {
+    const value = String(role || "").toLowerCase();
+    if (value.includes("startup")) return "Startup";
+    if (value.includes("investor")) return "Investor";
+    if (value.includes("freelancer")) return "Freelancer";
+    return "Member";
+  }
+
   function renderReelModal() {
     return `<section id="chReelModal" class="ch-reel-modal" aria-hidden="true">
       <button class="ch-reel-close" type="button" onclick="AppUX.closeReel()" aria-label="Close">x</button>
@@ -3486,15 +3604,58 @@ const AppUX = (() => {
   function openPostComposer() { document.getElementById("chPostComposer")?.classList.add("active"); }
   function closePostComposer() { document.getElementById("chPostComposer")?.classList.remove("active"); }
 
-  function publishComposedPost() {
+  async function publishComposedPost() {
     const text = document.getElementById("chPostText")?.value.trim();
     if (!text) return showToast("Write something first", "warning");
+    const input = document.getElementById("chPostText");
+    const user = getCurrentUser?.() || {};
     closePostComposer();
-    showToast("Post published to your ConnectHub feed");
     playSound("done");
+    try {
+      const data = await apiRequest("/api/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          content: text,
+          authorName: user.name || user.companyName || "ConnectHub member",
+          authorEmail: user.email || "",
+          visibility: "public"
+        })
+      });
+      if (input) input.value = "";
+      const feed = document.getElementById("chPostFeed");
+      if (feed && data.post) {
+        feed.querySelector(".ch-feed-more")?.remove();
+        feed.insertAdjacentHTML("afterbegin", renderPostCard(data.post, 0));
+        window.ConnectHubObserveEntrances?.(feed);
+        if (window.lucide) window.lucide.createIcons();
+      } else {
+        loadHomeFeed({ reset: true }).catch(() => {});
+      }
+      showToast("Post published to your ConnectHub feed");
+    } catch {
+      const fallbackPost = normalizeFeedPost({
+        id: `local-post-${Date.now()}`,
+        name: user.name || user.companyName || "You",
+        role: user.title || feedRoleLabel(user.role),
+        title: user.companyName || "ConnectHub update",
+        city: user.city || "India",
+        initials: user.avatarInitials || initialsForName(user.name || "You"),
+        text,
+        content: text,
+        tags: tagsFromPostText(text),
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        createdAt: new Date().toISOString()
+      });
+      const feed = document.getElementById("chPostFeed");
+      if (feed) feed.insertAdjacentHTML("afterbegin", renderPostCard(fallbackPost, 0));
+      if (input) input.value = "";
+      showToast("Post saved locally. It will sync when backend is ready.", "warning");
+    }
   }
 
-  function likePost(button, id) {
+  async function likePost(button, id) {
     const active = button.classList.toggle("active");
     const count = button.querySelector("b");
     const next = Math.max(0, Number(count?.textContent || 0) + (active ? 1 : -1));
@@ -3502,9 +3663,20 @@ const AppUX = (() => {
     if (id) updatePostState(id, { liked: active, likes: next });
     burst(button, "heart");
     showToast(active ? "Post liked. The creator will be notified." : "Like removed");
+    try {
+      const data = await apiRequest(`/api/posts/${encodeURIComponent(id)}/like`, { method: "PUT" });
+      const total = Number(data.post?.reactionCount ?? data.post?.likes ?? data.post?.likeCount);
+      if (Number.isFinite(total) && count) {
+        count.textContent = String(total);
+        updatePostState(id, { liked: Boolean(data.liked), likes: total });
+      }
+      button.classList.toggle("active", Boolean(data.liked));
+    } catch {
+      // Keep the optimistic local state when the backend is waking up.
+    }
   }
 
-  function savePost(button, id) {
+  async function savePost(button, id) {
     const active = button.classList.toggle("active");
     const label = button.querySelector("span");
     const icon = button.querySelector("svg");
@@ -3512,6 +3684,16 @@ const AppUX = (() => {
     if (icon) icon.setAttribute("data-lucide", active ? "bookmark-check" : "bookmark");
     if (id) updatePostState(id, { saved: active });
     showToast(active ? "Saved for later" : "Removed from saved");
+    try {
+      const data = await apiRequest(`/api/v1/posts/save/${encodeURIComponent(id)}`, { method: "POST" });
+      const saved = Boolean(data.saved);
+      button.classList.toggle("active", saved);
+      if (label) label.textContent = saved ? "Saved" : "Save";
+      if (icon) icon.setAttribute("data-lucide", saved ? "bookmark-check" : "bookmark");
+      updatePostState(id, { saved });
+    } catch {
+      // Saved state remains available locally for offline/resume use.
+    }
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -3522,7 +3704,7 @@ const AppUX = (() => {
     section.classList.toggle("open", !section.hidden);
   }
 
-  function postComment(id) {
+  async function postComment(id) {
     const input = document.getElementById(`comment-input-${id}`);
     const text = input?.value.trim();
     if (!text) return;
@@ -3536,6 +3718,19 @@ const AppUX = (() => {
     if (count) count.textContent = String(commentRows.length);
     input.value = "";
     showToast("Comment posted");
+    try {
+      const data = await apiRequest(`/api/posts/${encodeURIComponent(id)}/comment`, {
+        method: "POST",
+        body: JSON.stringify({ content: text })
+      });
+      const total = Number(data.post?.commentCount ?? data.post?.comments);
+      if (Number.isFinite(total) && count) {
+        count.textContent = String(total);
+        updatePostState(id, { comments: total });
+      }
+    } catch {
+      // The local comment stays visible and can be synced by a later state refresh.
+    }
   }
 
   function toggleFollow(button) {
@@ -3556,6 +3751,7 @@ const AppUX = (() => {
     if (count) count.textContent = String(next);
     updatePostState(id, { shares: next });
     showToast("Post link copied");
+    apiRequest(`/api/posts/${encodeURIComponent(id)}/share`, { method: "POST" }).catch(() => {});
   }
 
   function openProfileFromPost(name) {
@@ -4970,6 +5166,6 @@ const AppUX = (() => {
     document.querySelector(".app-container")?.classList.remove("nav-open");
   }
 
-  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, sendExploreConnect, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost };
+  return { init, onView, back, playSound, startPayment, applyUserChrome, updateUnreadBadge, markNotificationsRead, setNotificationTab, openNotification, removeNotification, reviewUser, renderMessageDockBody, sendDockMessage, sendImageMessage, sendLocationMessage, toggleVoiceRecording, renderEditProfilePage, renderSettingsPage, renderNetworkPage, setNetworkRoleFilter, handleNetworkSearchInput, runNetworkSearch, toggleSavedProfile, respondConnection, removeConnection, setThemeMode, cycleLanguagePreference, cycleFontSizePreference, toggleAccountPrivacy, cycleMessagingPrivacy, openSecurityHub, sendSettingsOtp, updateSettingsPasscode, handleSettingsSearchInput, openSettingAction, openSettingsNotifications, closeSettingsModal, closeSettingsBottomSheet, selectSettingsSheetOption, saveSettingsToggle, saveNotificationPref, openProfileVisibilitySelector, openMessagingPrivacySelector, openLanguageSelector, openFontSizeSelector, openSettingsEditProfile, previewSettingsAvatar, saveSettingsProfile, useSettingsLocation, openManageContact, saveSettingsContact, openLinkedAccounts, saveLinkedAccounts, mockConnectAccount, openChangePassword, sendSettingsPasswordOtp, updatePasswordStrength, submitSettingsNewPassword, openActiveSessions, toggleSettingsSessionDetails, toggleSettingsSessionHistory, revokeSettingsSession, revokeOtherSettingsSessions, openBlockMutedUsers, addSettingsListUser, removeSettingsListUser, openCurrentPlan, openUpgradePro, openBillingHistory, downloadUserData, openActivityLog, openArchive, openHelpCenter, openReportProblem, submitSettingsReport, openRateApp, submitSettingsRating, openTerms, openAbout, openDeactivateAccount, confirmDeactivateAccount, openDeleteAccount, confirmDeleteAccount, openCommandPalette, closeCommandPalette, renderCommandResults, runCommand, installConnectHubApp, saveEditProfile, useCurrentLocationForProfile, showToast, closeMessages, renderInbox, setMessageTab, filterMessages, handleMessageSearchKey, focusMessageSearch, openChat, openExplorePage, closeExplore, filterExplore, setExploreCategory, setExploreFilter, toggleExploreFullscreen, openExploreFilter, openExploreMediaSheet, closeExploreMediaSheet, pickExploreImage, handleExploreImageSearch, clearExploreImagePreview, startExploreVoice, applyExploreSuggestion, clearExploreRecents, useLocationForExplore, saveExploreRecent, sendExploreConnect, openMessageTo, startAvatarLongPress, cancelAvatarLongPress, avatarClickGuard, openProfileShareSheet, closeProfileShareSheet, sharePublicProfile, copyPublicProfileLink, openProfileQrCode, closeProfileQrCode, generateProfileQrFallback, openPostComposer, closePostComposer, publishComposedPost, openReel, closeReel, nextReel, prevReel, likePost, savePost, togglePostComments, postComment, toggleFollow, sharePost, openProfileFromPost, loadMoreFeedPosts };
 })();
 window.AppUX = AppUX;

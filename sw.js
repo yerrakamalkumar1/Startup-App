@@ -1,4 +1,4 @@
-const CACHE_NAME = "connecthub-v59-section1-critical-fixes";
+const CACHE_NAME = "connecthub-v60-feed-realtime-cleanup";
 const APP_SHELL = [
   "index.html",
   "index.css",

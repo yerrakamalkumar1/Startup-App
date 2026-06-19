@@ -88,6 +88,22 @@
         this.connected = false;
         this.updateConnectionBadge(false);
         document.dispatchEvent(new CustomEvent("connecthub:socket", { detail: { connected: false } }));
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
+          if (this.socket && !this.socket.connected) this.socket.connect();
+        }, 3000);
+      });
+      this.socket.on("ping_keepalive", payload => {
+        this.socket.emit("pong_keepalive", { t: Date.now(), serverT: payload?.t || null });
+      });
+      this.socket.on("user_status", payload => {
+        const name = payload?.name || payload?.userId;
+        if (!name) return;
+        const current = new Set(window.ConnectHubOnlineUsers || []);
+        if (payload?.isOnline) current.add(name);
+        else current.delete(name);
+        window.ConnectHubOnlineUsers = Array.from(current);
+        document.dispatchEvent(new CustomEvent("connecthub:presence", { detail: payload }));
       });
       this.socket.on("presence:update", names => {
         window.ConnectHubOnlineUsers = names || [];

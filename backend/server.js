@@ -47,6 +47,50 @@ const OTP_FILE = path.join(DATA_DIR, "connecthub-otps.json");
 const AUDIT_FILE = path.join(DATA_DIR, "connecthub-audit.json");
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "connecthub-free-tier-dev-secret-change-in-render";
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const rateLimitBuckets = new Map();
+
+function securityHeaders(extra = {}) {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)",
+    ...extra
+  };
+}
+
+function rateLimitConfig(route, method) {
+  if (route === "/api/health" || route === "/api/realtime/status") return null;
+  if (/\/api\/(login|register|auth|password)/.test(route)) {
+    return { windowMs: 15 * 60 * 1000, max: 30, label: "auth" };
+  }
+  if (route === "/api/posts" && method === "POST") {
+    return { windowMs: 60 * 60 * 1000, max: 30, label: "post-create" };
+  }
+  if (route.startsWith("/api/")) return { windowMs: 60 * 1000, max: 180, label: "api" };
+  return null;
+}
+
+function isRateLimited(req, route) {
+  const config = rateLimitConfig(route, req.method);
+  if (!config) return false;
+  const now = Date.now();
+  const ip = getRealIP(req);
+  const key = `${config.label}:${ip}`;
+  const bucket = rateLimitBuckets.get(key) || { count: 0, resetAt: now + config.windowMs };
+  if (bucket.resetAt <= now) {
+    bucket.count = 0;
+    bucket.resetAt = now + config.windowMs;
+  }
+  bucket.count += 1;
+  rateLimitBuckets.set(key, bucket);
+  if (rateLimitBuckets.size > 5000) {
+    for (const [bucketKey, value] of rateLimitBuckets) {
+      if (value.resetAt <= now) rateLimitBuckets.delete(bucketKey);
+    }
+  }
+  return bucket.count > config.max;
+}
 
 const DEMO_USERS = {
   "sarah@connecthub.in": {
@@ -716,7 +760,7 @@ function mergeDBState(existingDB, incomingDB) {
 
 function sendJson(res, status, data) {
   res.writeHead(status, {
-    "Content-Type": "application/json",
+    ...securityHeaders({ "Content-Type": "application/json" }),
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
@@ -2054,9 +2098,31 @@ function emitStateUpdate(reason, extra = {}) {
   });
 }
 
+function extractMessageContent(message = {}) {
+  const candidates = [
+    message.content,
+    message.text,
+    message.body,
+    message.message,
+    message.caption,
+    message.payload
+  ];
+  for (const candidate of candidates) {
+    if (candidate == null) continue;
+    if (typeof candidate === "object") {
+      const nested = extractMessageContent(candidate);
+      if (nested) return nested;
+      continue;
+    }
+    const text = String(candidate).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 function normalizeStoredMessage(message = {}, db = publicDB(), req, auth) {
   const people = allPeople(db);
-  const text = String(message.content || message.text || "").slice(0, 2000);
+  const text = extractMessageContent(message).slice(0, 2000);
   const fromName = String(message.from || message.senderName || message.sender?.name || message.sender?.username || message.sender || "").trim();
   const toName = String(message.to || message.receiverName || message.receiver?.name || message.receiver?.username || message.receiver || "").trim();
   const profileFor = name => people.find(profile => profile.name === name || profileHandle(profile) === name) || {
@@ -2088,6 +2154,121 @@ function normalizeStoredMessage(message = {}, db = publicDB(), req, auth) {
     receiver: mapPublicUser(receiverProfile, db, req, auth),
     createdAt: message.createdAt || new Date().toISOString()
   };
+}
+
+function normalizePostList(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function postCount(value) {
+  if (Array.isArray(value)) return value.length;
+  const count = Number(value || 0);
+  return Number.isFinite(count) ? count : 0;
+}
+
+function extractPostContent(body = {}) {
+  return String(body.content || body.text || body.description || body.caption || "").trim().slice(0, 3000);
+}
+
+function extractHashtags(content = "", provided = []) {
+  const tags = [
+    ...normalizePostList(provided),
+    ...(String(content).match(/#[\p{L}\p{N}_]+/gu) || []).map(tag => tag.slice(1))
+  ];
+  return [...new Set(tags.map(tag => String(tag || "").replace(/^#/, "").trim().toLowerCase()).filter(Boolean))].slice(0, 24);
+}
+
+function postOwnerName(post = {}) {
+  return String(post.authorName || post.author || post.name || post.companyName || "ConnectHub member").trim();
+}
+
+function normalizePostRecord(db, post = {}, auth = {}, req) {
+  const authorName = postOwnerName(post);
+  const people = allPeople(db);
+  const authorProfile = people.find(profile =>
+    profile.name === authorName ||
+    profile.email === post.authorEmail ||
+    profileHandle(profile) === post.authorHandle
+  ) || { name: authorName, role: post.role || "member", title: post.title || "", avatarInitials: initialsFor(authorName || "CH") };
+  const reactions = normalizePostList(post.reactions);
+  const legacyLikes = normalizePostList(post.likes).map(user => ({ user, emoji: "like" }));
+  const allReactions = reactions.length ? reactions : legacyLikes;
+  const actor = auth?.name || "";
+  const comments = normalizePostList(post.comments).map(comment => ({
+    id: comment.id || `comment-${Date.now()}`,
+    user: comment.user || comment.author || "Member",
+    author: comment.author || comment.user || "Member",
+    text: String(comment.text || comment.content || "").slice(0, 1000),
+    content: String(comment.content || comment.text || "").slice(0, 1000),
+    createdAt: comment.createdAt || new Date().toISOString(),
+    replies: normalizePostList(comment.replies)
+  }));
+  const shares = normalizePostList(post.shares);
+  const content = String(post.content || post.text || post.description || post.caption || "").slice(0, 3000);
+  const title = post.title || (content ? content.slice(0, 64) : "ConnectHub post");
+  const mediaUrls = [
+    ...normalizePostList(post.mediaUrls),
+    ...normalizePostList(post.images),
+    post.mediaUrl,
+    post.media
+  ].filter(Boolean);
+
+  return {
+    ...post,
+    id: String(post.id || post._id || `post-${Date.now()}`).slice(0, 100),
+    postId: String(post.id || post._id || "").slice(0, 100),
+    author: authorName,
+    authorName,
+    authorEmail: post.authorEmail || authorProfile.email || "",
+    authorHandle: post.authorHandle || profileHandle(authorProfile),
+    name: authorName,
+    role: post.role || authorProfile.title || roleBucket(authorProfile.role),
+    title,
+    text: content,
+    content,
+    city: post.city || authorProfile.city || "",
+    state: post.state || authorProfile.state || "",
+    initials: post.initials || post.authorInitials || authorProfile.avatarInitials || initialsFor(authorName || "CH"),
+    avatarPhoto: post.avatarPhoto || authorProfile.avatarPhoto || null,
+    tags: extractHashtags(content, post.hashtags || post.tags),
+    hashtags: extractHashtags(content, post.hashtags || post.tags),
+    mediaUrls,
+    images: mediaUrls,
+    reactions: allReactions,
+    likes: postCount(post.likes) || allReactions.length,
+    reactionCount: allReactions.length,
+    myReaction: allReactions.find(reaction => String(reaction.user || reaction.name || "") === String(actor))?.emoji || null,
+    comments,
+    commentCount: postCount(post.commentCount) || comments.length,
+    shares,
+    shareCount: postCount(post.shareCount) || shares.length,
+    saves: normalizePostList(post.saves),
+    viewCount: postCount(post.viewCount),
+    visibility: post.visibility || "public",
+    createdAt: post.createdAt || new Date().toISOString(),
+    updatedAt: post.updatedAt || post.createdAt || new Date().toISOString()
+  };
+}
+
+function publicFeedPosts(db, auth, req, { page = 1, limit = 10 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safeLimit = Math.max(1, Math.min(30, Number(limit || 10)));
+  const allPosts = (db.profilePosts || [])
+    .filter(post => !post.isDeleted)
+    .map(post => normalizePostRecord(db, post, auth, req))
+    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const start = (safePage - 1) * safeLimit;
+  return {
+    posts: allPosts.slice(start, start + safeLimit),
+    total: allPosts.length,
+    page: safePage,
+    limit: safeLimit,
+    hasMore: start + safeLimit < allPosts.length
+  };
+}
+
+function findProfilePost(db, id) {
+  return (db.profilePosts || []).find(post => String(post.id || post._id) === String(id));
 }
 
 function createOtp(email) {
@@ -2244,7 +2425,7 @@ function serveStatic(req, res) {
   const filePath = path.normalize(path.join(ROOT_DIR, requestedPath));
 
   if (!filePath.startsWith(ROOT_DIR)) {
-    res.writeHead(403);
+    res.writeHead(403, securityHeaders({ "Content-Type": "text/plain; charset=utf-8" }));
     res.end("Forbidden");
     return;
   }
@@ -2253,11 +2434,11 @@ function serveStatic(req, res) {
     if (error) {
       fs.readFile(path.join(ROOT_DIR, "index.html"), (fallbackError, fallbackContent) => {
         if (fallbackError) {
-          res.writeHead(404);
+          res.writeHead(404, securityHeaders({ "Content-Type": "text/plain; charset=utf-8" }));
           res.end("Not found");
           return;
         }
-        res.writeHead(200, { "Content-Type": "text/html" });
+        res.writeHead(200, securityHeaders({ "Content-Type": "text/html; charset=utf-8" }));
         res.end(fallbackContent);
       });
       return;
@@ -2274,7 +2455,7 @@ function serveStatic(req, res) {
       ".jpeg": "image/jpeg",
       ".svg": "image/svg+xml"
     };
-    res.writeHead(200, { "Content-Type": contentTypes[ext] || "application/octet-stream" });
+    res.writeHead(200, securityHeaders({ "Content-Type": contentTypes[ext] || "application/octet-stream" }));
     res.end(content);
   });
 }
@@ -2283,6 +2464,9 @@ async function handleApi(req, res) {
   if (req.method === "OPTIONS") return sendJson(res, 204, {});
   const url = new URL(req.url, `http://${req.headers.host}`);
   const route = url.pathname;
+  if (isRateLimited(req, route)) {
+    return sendJson(res, 429, { success: false, message: "Too many requests. Please try again shortly." });
+  }
   const auth = authFromRequest(req);
   if (auth) touchActiveSession(auth, req);
 
@@ -2383,6 +2567,9 @@ async function handleApi(req, res) {
   }
   if (route === "/api/explore/search" && req.method === "GET") {
     const db = publicDB();
+    if (String(url.searchParams.get("q") || "").trim()) {
+      return sendJson(res, 200, { ...exploreSearchPayload(db, url, req, auth), cached: false });
+    }
     const cacheKey = `explore-search:${url.searchParams.toString()}:${auth?.email || auth?.name || "guest"}`;
     return sendCachedExploreJson(res, cacheKey, 90 * 1000, async () => exploreSearchPayload(db, url, req, auth));
   }
@@ -2522,75 +2709,174 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, results });
   }
 
-  if (route === "/api/posts/feed" && req.method === "GET") return sendJson(res, 200, { success: true, posts: publicDB().profilePosts || [] });
+  if (route === "/api/posts/feed" && req.method === "GET") {
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const page = url.searchParams.get("page") || 1;
+    const limit = url.searchParams.get("limit") || 10;
+    const feed = publicFeedPosts(db, auth, req, { page, limit });
+    const viewedIds = new Set(feed.posts.map(post => post.id));
+    let changed = false;
+    db.profilePosts = (db.profilePosts || []).map(post => {
+      const id = String(post.id || post._id || "");
+      if (!viewedIds.has(id)) return post;
+      changed = true;
+      return { ...post, viewCount: postCount(post.viewCount) + 1 };
+    });
+    if (changed) writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, ...publicFeedPosts(readJson(DB_FILE, INITIAL_DB), auth, req, { page, limit }) });
+  }
   if (route === "/api/posts" && req.method === "POST") {
     const body = await readBody(req);
     const db = readJson(DB_FILE, INITIAL_DB);
+    const content = extractPostContent(body);
+    const mediaUrls = normalizePostList(body.mediaUrls || body.images);
+    if (!content && !mediaUrls.length && !body.mediaUrl) {
+      return sendJson(res, 400, { success: false, message: "Post content or media is required." });
+    }
+    const authorName = auth?.name || body.authorName || body.author || "ConnectHub member";
+    const authorProfile = allPeople(publicDB()).find(profile => profile.name === authorName || profile.email === auth?.email);
     const post = {
       id: `post-${Date.now()}`,
-      author: auth?.name || body.author || "ConnectHub member",
-      authorName: auth?.name || body.authorName || body.author || "ConnectHub member",
+      author: authorName,
+      authorName,
       authorEmail: auth?.email || body.authorEmail || "",
-      title: body.title || "",
-      content: body.content || "",
-      images: body.images || body.mediaUrls || [],
-      hashtags: body.hashtags || body.tags || [],
+      authorHandle: authorProfile ? profileHandle(authorProfile) : profileHandle({ name: authorName }),
+      role: authorProfile?.title || roleBucket(authorProfile?.role || ""),
+      title: body.title || content.slice(0, 64) || "ConnectHub post",
+      content,
+      text: content,
+      images: mediaUrls,
+      mediaUrls: [...mediaUrls, body.mediaUrl].filter(Boolean),
+      hashtags: extractHashtags(content, body.hashtags || body.tags),
+      tags: extractHashtags(content, body.hashtags || body.tags),
+      mediaType: body.mediaType || (body.mediaUrl ? "image" : ""),
       likes: [],
+      reactions: [],
       comments: [],
       saves: [],
       shares: [],
+      shareCount: 0,
+      commentCount: 0,
+      viewCount: 0,
+      visibility: body.visibility || "public",
       createdAt: new Date().toISOString()
     };
     db.profilePosts = [...(db.profilePosts || []), post];
     writeJson(DB_FILE, db);
-    if (socketIO) socketIO.emit("feed:newPost", post);
-    return sendJson(res, 200, { success: true, post, db: publicDB() });
+    const normalized = normalizePostRecord(publicDB(), post, auth, req);
+    if (socketIO) {
+      socketIO.emit("feed:newPost", normalized);
+      socketIO.emit("new_post", { post: normalized });
+    }
+    return sendJson(res, 200, { success: true, post: normalized, db: publicDB() });
+  }
+  if (route.match(/^\/api\/posts\/[^/]+\/react$/) && req.method === "POST") {
+    const id = decodeURIComponent(route.split("/")[3]);
+    const body = await readBody(req);
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const post = findProfilePost(db, id);
+    if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
+    const actor = auth?.name || body.user || "Guest";
+    const emoji = String(body.emoji || body.reaction || "like").slice(0, 32);
+    post.reactions = normalizePostList(post.reactions);
+    post.likes = normalizePostList(post.likes);
+    const existingIndex = post.reactions.findIndex(reaction => String(reaction.user) === String(actor));
+    let action = "added";
+    if (existingIndex >= 0) {
+      if (post.reactions[existingIndex].emoji === emoji) {
+        post.reactions.splice(existingIndex, 1);
+        action = "removed";
+      } else {
+        post.reactions[existingIndex].emoji = emoji;
+        action = "changed";
+      }
+    } else {
+      post.reactions.push({ user: actor, emoji, createdAt: new Date().toISOString() });
+    }
+    post.likes = post.reactions.map(reaction => reaction.user);
+    post.updatedAt = new Date().toISOString();
+    const grouped = post.reactions.reduce((map, reaction) => {
+      const key = reaction.emoji || "like";
+      map[key] = (map[key] || 0) + 1;
+      return map;
+    }, {});
+    const owner = postOwnerName(post);
+    if (action === "added" && owner && owner !== actor) {
+      createNotification(db, owner, "reaction", `${actor} reacted to your post.`, { from: actor, postId: post.id, emoji });
+    }
+    writeJson(DB_FILE, db);
+    const normalized = normalizePostRecord(publicDB(), post, auth, req);
+    if (socketIO) {
+      socketIO.emit("post:updated", { postId: post.id, post: normalized, reactions: grouped, action });
+      socketIO.emit("post_reaction", { postId: post.id, reactions: grouped, total: post.reactions.length, action, emoji, reactorName: actor });
+    }
+    return sendJson(res, 200, { success: true, post: normalized, reactions: grouped, total: post.reactions.length, action });
   }
   if (route.match(/^\/api\/posts\/[^/]+\/like$/) && req.method === "PUT") {
-    const id = route.split("/")[3];
+    const id = decodeURIComponent(route.split("/")[3]);
     const db = readJson(DB_FILE, INITIAL_DB);
-    const post = (db.profilePosts || []).find(item => item.id === id);
+    const post = findProfilePost(db, id);
     if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
     post.likes = post.likes || [];
     const actor = auth?.name || "guest";
-    if (!post.likes.includes(actor)) {
+    post.reactions = normalizePostList(post.reactions);
+    const alreadyLiked = post.likes.includes(actor) || post.reactions.some(reaction => reaction.user === actor);
+    if (alreadyLiked) {
+      post.likes = post.likes.filter(user => user !== actor);
+      post.reactions = post.reactions.filter(reaction => reaction.user !== actor);
+    } else {
       post.likes.push(actor);
+      post.reactions.push({ user: actor, emoji: "like", createdAt: new Date().toISOString() });
       const owner = post.authorName || post.author;
       if (owner && owner !== actor) createNotification(db, owner, "like_post", `${actor} liked your post.`, { from: actor, postId: post.id });
     }
+    post.updatedAt = new Date().toISOString();
     writeJson(DB_FILE, db);
-    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post });
-    return sendJson(res, 200, { success: true, post, db: publicDB() });
+    const normalized = normalizePostRecord(publicDB(), post, auth, req);
+    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post: normalized });
+    return sendJson(res, 200, { success: true, post: normalized, liked: !alreadyLiked, db: publicDB() });
   }
   if (route.match(/^\/api\/posts\/[^/]+\/comment$/) && req.method === "POST") {
-    const id = route.split("/")[3];
+    const id = decodeURIComponent(route.split("/")[3]);
     const body = await readBody(req);
     const db = readJson(DB_FILE, INITIAL_DB);
-    const post = (db.profilePosts || []).find(item => item.id === id);
+    const post = findProfilePost(db, id);
     if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
     post.comments = post.comments || [];
     const actor = auth?.name || body.user || "Guest";
-    const comment = { id: `comment-${Date.now()}`, user: actor, text: String(body.text || "").slice(0, 1000), createdAt: new Date().toISOString() };
+    const text = String(body.text || body.content || "").trim().slice(0, 1000);
+    if (!text) return sendJson(res, 400, { success: false, message: "Comment text is required." });
+    const comment = { id: `comment-${Date.now()}`, user: actor, author: actor, text, content: text, createdAt: new Date().toISOString(), replies: [] };
     post.comments.push(comment);
+    post.commentCount = post.comments.length;
+    post.updatedAt = new Date().toISOString();
     const owner = post.authorName || post.author;
     if (owner && owner !== actor) createNotification(db, owner, "comment_post", `${actor} commented on your post.`, { from: actor, postId: post.id, commentId: comment.id });
     writeJson(DB_FILE, db);
-    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post });
-    return sendJson(res, 200, { success: true, post, db: publicDB() });
+    const normalized = normalizePostRecord(publicDB(), post, auth, req);
+    if (socketIO) {
+      socketIO.emit("post:updated", { postId: post.id, post: normalized });
+      socketIO.emit(`post_comment_${post.id}`, { postId: post.id, comment });
+      socketIO.emit("new_comment", { postId: post.id, comment });
+    }
+    return sendJson(res, 200, { success: true, comment, post: normalized, db: publicDB() });
   }
   if (route.match(/^\/api\/posts\/[^/]+\/share$/) && req.method === "POST") {
-    const id = route.split("/")[3];
+    const id = decodeURIComponent(route.split("/")[3]);
     const db = readJson(DB_FILE, INITIAL_DB);
-    const post = (db.profilePosts || []).find(item => item.id === id);
+    const post = findProfilePost(db, id);
     if (!post) return sendJson(res, 404, { success: false, message: "Post not found." });
     const actor = auth?.name || "Guest";
     post.shares = post.shares || [];
     if (!post.shares.includes(actor)) post.shares.push(actor);
+    post.shareCount = post.shares.length;
+    post.updatedAt = new Date().toISOString();
     const owner = post.authorName || post.author;
     if (owner && owner !== actor) createNotification(db, owner, "post_share", `${actor} shared your post.`, { from: actor, postId: post.id });
     writeJson(DB_FILE, db);
-    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post });
-    return sendJson(res, 200, { success: true, post, db: publicDB() });
+    const normalized = normalizePostRecord(publicDB(), post, auth, req);
+    if (socketIO) socketIO.emit("post:updated", { postId: post.id, post: normalized });
+    return sendJson(res, 200, { success: true, post: normalized, db: publicDB() });
   }
   if (route === "/api/reels/feed" && req.method === "GET") return sendJson(res, 200, { success: true, reels: publicDB().reels || [] });
   if (route === "/api/reels" && req.method === "POST") {
@@ -2651,7 +2937,7 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     body.from = body.from || auth?.name;
     body.to = body.to || body.receiver || body.receiverId;
-    body.text = body.text || body.content;
+    body.text = extractMessageContent(body);
     const attachment = body.attachment || null;
     const mediaUrl = body.mediaUrl || attachment?.dataUrl || "";
     const type = String(body.type || body.kind || (mediaUrl ? "image" : "text")).slice(0, 30);
@@ -2660,8 +2946,8 @@ async function handleApi(req, res) {
       id: `msg-${Date.now()}`,
       from: String(body.from || "").slice(0, 80),
       to: String(body.to || "").slice(0, 80),
-      text: String(body.text || "").slice(0, 600),
-      content: String(body.text || "").slice(0, 600),
+      text: body.text.slice(0, 600),
+      content: body.text.slice(0, 600),
       kind: type,
       type,
       mediaUrl: mediaUrl || null,
@@ -2971,6 +3257,7 @@ async function handleApi(req, res) {
     if (!body.db) return sendJson(res, 400, { success: false, message: "Missing db payload." });
     const merged = mergeDBState(readJson(DB_FILE, INITIAL_DB), body.db);
     writeJson(DB_FILE, merged);
+    exploreCache.clear();
     emitStateUpdate("state-sync", { source: auth?.name || "client" });
     return sendJson(res, 200, { success: true, db: publicDB() });
   }
@@ -3019,6 +3306,7 @@ async function handleApi(req, res) {
       }
     };
     writeJson(USERS_FILE, users);
+    exploreCache.clear();
     const token = signToken({ email, name: profile.name, role: profile.role });
     await recordLoginSession({ email, name: profile.name, role: profile.role }, token, req);
     emitRealtime("user:registered", {
@@ -3043,6 +3331,7 @@ async function handleApi(req, res) {
     };
     users[email].profile = safeProfile;
     writeJson(USERS_FILE, users);
+    exploreCache.clear();
     emitRealtime("profile:updated", { profile: safeProfile }, [`user:${safeProfile?.name}`, `user_${safeProfile?.name}`]);
     emitStateUpdate("profile-updated", { profile: { name: safeProfile?.name, role: safeProfile?.role, city: safeProfile?.city } });
     return sendJson(res, 200, { success: true, user: safeProfile });
@@ -3222,7 +3511,7 @@ async function handleApi(req, res) {
     const targetProfile = findNetworkProfile(db, targetRaw) || profileByName(targetRaw);
     const from = String(auth?.name || body.from || "").slice(0, 80);
     const to = String(body.to || targetProfile?.name || targetRaw || "").slice(0, 80);
-    const text = String(body.text || body.content || "").slice(0, 600);
+    const text = extractMessageContent(body).slice(0, 600);
     const attachment = body.attachment || null;
     const mediaUrl = body.mediaUrl || attachment?.dataUrl || null;
     if (!from || !to || (!text && !attachment && !mediaUrl)) return sendJson(res, 400, { success: false, message: "Message sender, recipient, and content are required." });
@@ -3829,7 +4118,11 @@ const server = http.createServer((req, res) => {
 });
 
 if (Server) {
-  const io = new Server(server, { cors: { origin: "*" } });
+  const io = new Server(server, {
+    cors: { origin: "*" },
+    pingInterval: 25000,
+    pingTimeout: 20000
+  });
   socketIO = io;
   try {
     const { registerAiHubSocket } = require("./services/socketService");
@@ -3934,7 +4227,7 @@ if (Server) {
 
     socket.on("message:send", message => {
       const incomingId = String(message?.id || "").slice(0, 80);
-      const text = String(message?.content || message?.text || "").slice(0, 600);
+      const text = extractMessageContent(message || {}).slice(0, 600);
       const attachment = message?.attachment || null;
       const mediaUrl = message?.mediaUrl || attachment?.dataUrl || null;
       const type = String(message?.type || message?.kind || (mediaUrl ? "image" : "text")).slice(0, 30);
