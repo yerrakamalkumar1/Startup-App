@@ -2245,6 +2245,8 @@ function normalizePostRecord(db, post = {}, auth = {}, req) {
     saves: normalizePostList(post.saves),
     viewCount: postCount(post.viewCount),
     visibility: post.visibility || "public",
+    isPublished: post.isPublished !== false,
+    sharedBy: normalizePostList(post.sharedBy),
     createdAt: post.createdAt || new Date().toISOString(),
     updatedAt: post.updatedAt || post.createdAt || new Date().toISOString()
   };
@@ -2729,6 +2731,31 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { success: true, results });
   }
 
+  if (route === "/api/feed" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"));
+    const limit = Math.max(1, Math.min(30, parseInt(url.searchParams.get("limit") || "10")));
+    const currentName = auth.name;
+    const connectedNames = new Set((db.connections || [])
+      .filter(c => c.status === "Accepted" && (c.from === currentName || c.to === currentName))
+      .map(c => c.from === currentName ? c.to : c.from));
+    connectedNames.add(currentName);
+    const allPosts = (db.profilePosts || [])
+      .filter(post => !post.isDeleted && post.isPublished !== false)
+      .filter(post => {
+        if (post.visibility === "private") return String(post.author) === currentName || String(post.authorName) === currentName;
+        if (post.visibility === "friends_only") return connectedNames.has(post.author) || connectedNames.has(post.authorName) || String(post.author) === currentName || String(post.authorName) === currentName;
+        return true;
+      })
+      .map(post => normalizePostRecord(db, post, auth, req))
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const total = allPosts.length;
+    const start = (page - 1) * limit;
+    const posts = allPosts.slice(start, start + limit);
+    return sendJson(res, 200, { success: true, data: posts, total, page, limit, hasMore: start + limit < total });
+  }
+
   if (route === "/api/posts/feed" && req.method === "GET") {
     const db = readJson(DB_FILE, INITIAL_DB);
     const page = url.searchParams.get("page") || 1;
@@ -2779,12 +2806,20 @@ async function handleApi(req, res) {
       commentCount: 0,
       viewCount: 0,
       visibility: body.visibility || "public",
+      isPublished: body.isPublished !== false,
       createdAt: new Date().toISOString()
     };
     db.profilePosts = [...(db.profilePosts || []), post];
     writeJson(DB_FILE, db);
     const normalized = normalizePostRecord(publicDB(), post, auth, req);
     if (socketIO) {
+      const connectedNames = new Set((db.connections || [])
+        .filter(c => c.status === "Accepted" && (c.from === authorName || c.to === authorName))
+        .map(c => c.from === authorName ? c.to : c.from));
+      connectedNames.forEach(name => {
+        socketIO.to("user_" + name).emit("feed:newPost", normalized);
+        socketIO.to("user_" + name).emit("new_post", { post: normalized });
+      });
       socketIO.emit("feed:newPost", normalized);
       socketIO.emit("new_post", { post: normalized });
     }
@@ -2919,11 +2954,17 @@ async function handleApi(req, res) {
   if (route.match(/^\/api\/messages\/[^/]+$/) && req.method === "GET") {
     const other = decodeURIComponent(route.replace("/api/messages/", ""));
     const userName = auth?.name || url.searchParams.get("user") || "";
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"));
+    const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get("limit") || "50")));
     const db = readJson(DB_FILE, INITIAL_DB);
-    const messages = (db.messages || []).filter(message =>
+    const allMessages = (db.messages || []).filter(message =>
       (message.from === userName && (message.to === other || message.to === decodeURIComponent(other))) ||
       (message.to === userName && (message.from === other || message.from === decodeURIComponent(other)))
-    );
+    ).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const total = allMessages.length;
+    const start = Math.max(0, total - page * limit);
+    const end = Math.max(0, total - (page - 1) * limit);
+    const messages = allMessages.slice(start, end).reverse();
     const seenIds = [];
     (db.messages || []).forEach(message => {
       if (message.from === other && message.to === userName && !message.read) {
@@ -2949,8 +2990,10 @@ async function handleApi(req, res) {
     return sendJson(res, 200, {
       success: true,
       messages: messages.map(message => normalizeStoredMessage(message, publicDB(), req, auth)),
-      page: 1,
-      hasMore: false
+      page,
+      limit,
+      total,
+      hasMore: page * limit < total
     });
   }
   if (route === "/api/messages" && req.method === "POST") {

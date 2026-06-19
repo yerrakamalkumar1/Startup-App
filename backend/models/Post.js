@@ -19,6 +19,7 @@ const CommentSchema = new mongoose.Schema(
 const PostSchema = new mongoose.Schema(
   {
     author: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     title: { type: String, trim: true, default: "" },
     content: { type: String, required: true },
     mediaUrls: [String],
@@ -28,19 +29,19 @@ const PostSchema = new mongoose.Schema(
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     comments: [CommentSchema],
     saves: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    location: String
+    sharedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    location: String,
+    visibility: { type: String, enum: ["public", "private", "friends_only", "draft"], default: "public" },
+    isPublished: { type: Boolean, default: true }
   },
   { timestamps: true }
 );
 
-// MongoDB text search uses this compound text index for fast keyword relevance.
-// Weights make title hits rank above body and tag-only hits.
 PostSchema.index(
   { title: "text", content: "text", tags: "text", hashtags: "text" },
-  {
-    name: "PostTextSearchIndex",
-    weights: { title: 8, tags: 5, hashtags: 4, content: 2 }
-  }
+  { name: "PostTextSearchIndex", weights: { title: 8, tags: 5, hashtags: 4, content: 2 } }
 );
+PostSchema.index({ author: 1, createdAt: -1 });
+PostSchema.index({ visibility: 1, isPublished: 1 });
 
 module.exports = mongoose.models.Post || mongoose.model("Post", PostSchema);
