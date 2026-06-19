@@ -3091,6 +3091,57 @@ async function handleApi(req, res) {
     return sendJson(res, 200, { db: publicDB() });
   }
 
+  if (route === "/api/search/users" && req.method === "GET") {
+    const db = publicDB();
+    const q = (url.searchParams.get("q") || "").trim();
+    const scope = url.searchParams.get("scope") || "all";
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"));
+    const limit = Math.max(1, Math.min(50, parseInt(url.searchParams.get("limit") || "20")));
+
+    if (!q) {
+      return sendJson(res, 200, { success: true, users: [], hasMore: false });
+    }
+
+    const searchRegex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const allUsers = allPeople(db);
+
+    let filtered = allUsers.filter(u => {
+      if (auth && String(u.name || "").toLowerCase() === String(auth.name || "").toLowerCase()) return false;
+      if (scope === "network" && auth) {
+        const connections = (db.connections || [])
+          .filter(c => (c.status || "Accepted") === "Accepted")
+          .filter(c => c.from === auth.name || c.to === auth.name)
+          .map(c => c.from === auth.name ? c.to : c.from);
+        if (!connections.includes(u.name)) return false;
+      }
+      const haystack = [u.name, u.company, u.companyName, u.role, u.title, u.headline, u.bio, u.city, u.state, u.location, ...(u.skills || []), ...(u.tags || [])].filter(Boolean).join(" ");
+      return searchRegex.test(haystack);
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const users = filtered.slice(start, start + limit).map(u => ({
+      _id: u.email || u.handle || u.name,
+      name: u.name,
+      role: u.title || u.role || "",
+      company: u.company || u.companyName || "",
+      headline: u.title || "",
+      profilePhoto: u.avatarPhoto || null,
+      location: [u.city, u.state].filter(Boolean).join(", "),
+      isOnline: Boolean(u.isOnline),
+      lastSeen: u.lastSeen || null,
+      skills: u.skills || []
+    }));
+
+    return sendJson(res, 200, {
+      success: true,
+      users,
+      hasMore: start + limit < total,
+      total,
+      query: q
+    });
+  }
+
   if (route === "/api/search/trending" && req.method === "GET") {
     const db = publicDB();
     return sendJson(res, 200, publicSearchTrendingPayload(db, req));

@@ -86,5 +86,14 @@ const UserSchema = new mongoose.Schema({
 UserSchema.index({ location: "2dsphere" });
 // Compound text index used by Explore/Search endpoints for fast people lookups.
 UserSchema.index({ name: "text", username: "text", bio: "text", company: "text" });
+// Expanded text index for universal search across more fields
+UserSchema.index({
+  name: "text",
+  company: "text",
+  role: "text",
+  headline: "text",
+  skills: "text",
+  location: "text"
+});
 
 module.exports = mongoose.models.User || mongoose.model("User", UserSchema);

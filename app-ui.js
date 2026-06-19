@@ -160,6 +160,14 @@ const AppUX = (() => {
       button.appendChild(ripple);
       setTimeout(() => ripple.remove(), 620);
     });
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".search-bar-wrapper")) {
+        const explore = document.getElementById("exploreSearchResults");
+        if (explore) { explore.classList.add("hidden"); explore.innerHTML = ""; }
+        const network = document.getElementById("networkSearchResultsDropdown");
+        if (network) { network.classList.add("hidden"); network.innerHTML = ""; }
+      }
+    });
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -1255,11 +1263,14 @@ const AppUX = (() => {
           <h1 class="explore-title">Discover India's Startup Ecosystem</h1>
           <p class="explore-sub">Search startups, founders, investors, events and ideas</p>
 
-          <div class="search-input-box">
-            <i class="si-icon" data-lucide="search"></i>
-            <input type="text" id="exploreSearch" value="${escapeHTML(rawQuery)}" placeholder="Search startups, founders..." autocomplete="off" oninput="AppUX.filterExplore(this.value)">
-            <button class="voice-btn" id="voiceBtn" type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
-            <button class="voice-btn" type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Image search"><i data-lucide="scan-line"></i></button>
+          <div class="search-bar-wrapper">
+            <div class="search-input-box">
+              <i class="si-icon" data-lucide="search"></i>
+              <input type="text" id="exploreSearch" value="${escapeHTML(rawQuery)}" placeholder="Search by name, company, role, skills..." autocomplete="off" oninput="AppUX.handleExploreSearchInput(this.value)">
+              <button class="voice-btn" id="voiceBtn" type="button" onclick="AppUX.startExploreVoice()" aria-label="Voice search"><i data-lucide="mic"></i></button>
+              <button class="voice-btn" type="button" onclick="AppUX.openExploreMediaSheet()" aria-label="Image search"><i data-lucide="scan-line"></i></button>
+            </div>
+            <div id="exploreSearchResults" class="search-results-dropdown hidden"></div>
           </div>
 
           <div class="filter-tabs" id="filterTabs">
@@ -1566,6 +1577,54 @@ const AppUX = (() => {
       if (query && summary && data.total !== undefined) summary.textContent = `${Math.max(Number(data.total || 0), visibleCards)} ecosystem results for "${query}"`;
     } catch {
       // Local-first Explore remains usable while free Render backend wakes up.
+    }
+  }
+
+  let exploreSearchDebounce;
+
+  function handleExploreSearchInput(value) {
+    clearTimeout(exploreSearchDebounce);
+    const query = value.trim();
+    if (!query) {
+      const el = document.getElementById("exploreSearchResults");
+      if (el) { el.classList.add("hidden"); el.innerHTML = ""; }
+      filterExplore(value);
+      return;
+    }
+    exploreSearchDebounce = setTimeout(() => performExploreSearch(query), 350);
+    filterExplore(value);
+  }
+
+  async function performExploreSearch(query) {
+    const el = document.getElementById("exploreSearchResults");
+    if (!el) return;
+    el.innerHTML = '<div class="search-loading">Searching...</div>';
+    el.classList.remove("hidden");
+    try {
+      const res = await fetch(`/api/search/users?q=${encodeURIComponent(query)}&scope=all&limit=15`);
+      const data = await res.json();
+      if (!data.success || !data.users.length) {
+        el.innerHTML = `<div class="search-empty">No users found for "${escapeHTML(query)}"</div>`;
+        return;
+      }
+      el.innerHTML = data.users.map(u => {
+        const profilePath = "/profile/" + encodeURIComponent(u._id);
+        return `<a href="${profilePath}" class="search-result-item">
+          <div class="search-result-avatar">
+            ${u.profilePhoto
+              ? `<img src="${u.profilePhoto}" />`
+              : `<div class="avatar-circle">${(u.name||'U').charAt(0).toUpperCase()}</div>`
+            }
+            <span class="presence-dot ${u.isOnline ? 'online' : ''}"></span>
+          </div>
+          <div class="search-result-info">
+            <strong>${escapeHTML(u.name)}</strong>
+            <span>${escapeHTML(u.role || '')} ${u.company ? '· ' + escapeHTML(u.company) : ''}</span>
+          </div>
+        </a>`;
+      }).join('');
+    } catch {
+      el.innerHTML = '<div class="search-empty">Search failed, try again</div>';
     }
   }
 
@@ -1952,10 +2011,13 @@ const AppUX = (() => {
           </div>
         </div>
         <div class="network-search-panel">
-          <div class="network-search-box">
-            <i data-lucide="search"></i>
-            <input id="networkSearchInput" type="search" placeholder="Search freelancers, startups, investors..." oninput="AppUX.handleNetworkSearchInput()" onkeydown="if(event.key==='Enter') AppUX.runNetworkSearch()">
-            <button type="button" onclick="AppUX.runNetworkSearch()">Search</button>
+          <div class="search-bar-wrapper">
+            <div class="network-search-box">
+              <i data-lucide="search"></i>
+              <input id="networkSearchInput" type="search" placeholder="Search people to connect with..." autocomplete="off" oninput="AppUX.handleNetworkSearchInput()" onkeydown="if(event.key==='Enter') AppUX.runNetworkSearch()">
+              <button type="button" onclick="AppUX.runNetworkSearch()">Search</button>
+            </div>
+            <div id="networkSearchResultsDropdown" class="search-results-dropdown hidden"></div>
           </div>
           <div class="network-filter-tabs">
             ${[
@@ -2031,9 +2093,59 @@ const AppUX = (() => {
     runNetworkSearch();
   }
 
+  let networkSearchDebounce;
+
   function handleNetworkSearchInput() {
     clearTimeout(networkSearchTimer);
     networkSearchTimer = setTimeout(runNetworkSearch, 300);
+    clearTimeout(networkSearchDebounce);
+    const input = document.getElementById("networkSearchInput");
+    const query = input?.value?.trim() || "";
+    if (!query) {
+      const dd = document.getElementById("networkSearchResultsDropdown");
+      if (dd) { dd.classList.add("hidden"); dd.innerHTML = ""; }
+      return;
+    }
+    networkSearchDebounce = setTimeout(() => performNetworkSearch(query), 350);
+  }
+
+  async function performNetworkSearch(query) {
+    const dd = document.getElementById("networkSearchResultsDropdown");
+    if (!dd) return;
+    dd.innerHTML = '<div class="search-loading">Searching...</div>';
+    dd.classList.remove("hidden");
+    try {
+      const res = await fetch(`/api/search/users?q=${encodeURIComponent(query)}&scope=all&limit=15`);
+      const data = await res.json();
+      if (!data.success || !data.users.length) {
+        dd.innerHTML = `<div class="search-empty">No users found for "${escapeHTML(query)}"</div>`;
+        return;
+      }
+      dd.innerHTML = data.users.map(u => {
+        const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
+        const initial = (u.name || 'U').charAt(0).toUpperCase();
+        const profilePath = "/profile/" + encodeURIComponent(u._id);
+        return `
+        <div class="search-result-item">
+          <a href="${profilePath}" class="search-result-link">
+            <div class="search-result-avatar">
+              ${u.profilePhoto
+                ? `<img src="${u.profilePhoto}" />`
+                : `<div class="avatar-circle">${initial}</div>`
+              }
+              <span class="presence-dot ${u.isOnline ? 'online' : ''}"></span>
+            </div>
+            <div class="search-result-info">
+              <strong>${escapeHTML(u.name)}</strong>
+              <span>${escapeHTML(u.role || '')} ${u.company ? '· ' + escapeHTML(u.company) : ''}</span>
+            </div>
+          </a>
+          <button class="connect-btn-small" onclick="connectUsers('${safeName}'); this.textContent='Pending'; this.disabled=true">+ Connect</button>
+        </div>`;
+      }).join('');
+    } catch {
+      dd.innerHTML = '<div class="search-empty">Search failed, try again</div>';
+    }
   }
 
   async function runNetworkSearch() {
