@@ -2417,6 +2417,10 @@ function serveStatic(req, res) {
       ? "/dashboard-freelancer.html"
     : /^\/settings\/?$/.test(urlPath)
       ? "/dashboard-freelancer.html"
+    : /^\/network\/requests\/?$/.test(urlPath)
+      ? "/network-requests.html"
+    : /^\/profile\/edit\/?$/.test(urlPath)
+      ? "/edit-profile.html"
     : /^\/profile\/[^/]+\/?$/.test(urlPath)
       ? "/profile.html"
       : /^\/dashboard\/aihub\/?$/.test(urlPath)
@@ -2470,7 +2474,7 @@ async function handleApi(req, res) {
   const auth = authFromRequest(req);
   if (auth) touchActiveSession(auth, req);
 
-  if (route === "/api/health") return sendJson(res, 200, { ok: true });
+  if (route === "/api/health" || route === "/health") return sendJson(res, 200, { ok: true, status: "healthy" });
   if (route === "/api/realtime/status" && req.method === "GET") {
     return sendJson(res, 200, {
       ...realtimeSummary(),
@@ -2526,6 +2530,22 @@ async function handleApi(req, res) {
     emitStateUpdate("profile-updated", { profile: { name: profile?.name, role: profile?.role, city: profile?.city } });
     return sendJson(res, 200, { success: true, user: profile });
   }
+  if (route === "/api/profile/photo" && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
+    const body = await readBody(req);
+    const dataUrl = body.dataUrl || body.photo?.dataUrl || "";
+    const photoType = body.type || "profile";
+    if (!dataUrl || !String(dataUrl).startsWith("data:image/")) return sendJson(res, 400, { success: false, message: "Send a base64 image dataUrl." });
+    if (String(dataUrl).length > 2_500_000) return sendJson(res, 400, { success: false, message: "Image is too large. Use an image under 2 MB." });
+    const field = photoType === "cover" ? "coverPhoto" : "avatarPhoto";
+    const patch = {};
+    if (field === "coverPhoto") patch.coverPhoto = { dataUrl };
+    else patch.avatarPhoto = { dataUrl };
+    const profile = persistUserProfile(auth, patch);
+    emitRealtime("profile:updated", { profile }, [`user:${profile?.name}`, `user_${profile?.name}`]);
+    return sendJson(res, 200, { success: true, url: dataUrl, user: profile });
+  }
+
   if (route === "/api/users/avatar" && req.method === "POST") {
     if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized. Sign in again." });
     const body = await readBody(req);
@@ -3845,6 +3865,107 @@ async function handleApi(req, res) {
     emitRealtime("network:updated", { connection }, [`user:${connection.from}`, `user:${connection.to}`, `user_${connection.from}`, `user_${connection.to}`]);
     emitStateUpdate("connection-response", { connection });
     return sendJson(res, 200, { success: true, connection, db: publicDB() });
+  }
+
+  if (route === "/api/connections/request" && req.method === "POST") {
+    const body = await readBody(req);
+    const from = String(auth?.name || body.from || "").slice(0, 80);
+    const to = String(body.to || "").slice(0, 80);
+    if (!from || !to || from === to) return sendJson(res, 400, { success: false, message: "Cannot connect with yourself." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    db.connections = db.connections || [];
+    const existing = db.connections.find(c => [c.from, c.to].includes(from) && [c.from, c.to].includes(to));
+    if (existing) return sendJson(res, 200, { success: true, connection: existing, status: existing.status, db: publicDB() });
+    const connection = { id: `conn-${Date.now()}`, from, to, status: "Pending", createdAt: new Date().toISOString() };
+    db.connections.push(connection);
+    createNotification(db, to, "connection_request", `${from} sent you a connection request.`, { connectionId: connection.id });
+    writeJson(DB_FILE, db);
+    emitRealtime("network:updated", { connection }, [`user:${from}`, `user:${to}`, `user_${from}`, `user_${to}`]);
+    emitStateUpdate("connection-request", { connection });
+    return sendJson(res, 200, { success: true, connection, db: publicDB() });
+  }
+
+  if (route === "/api/connections/requests" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const db = publicDB();
+    const requests = (db.connections || [])
+      .filter(c => c.to === auth.name && c.status === "Pending")
+      .map(c => {
+        const profile = allPeople(db).find(p => p.name === c.from);
+        return { _id: c.id, id: c.id, from: c.from, status: c.status, createdAt: c.createdAt, requester: profile ? { _id: profile.email || profile.handle || profile.name, name: profile.name, role: profile.title || profile.role || "", company: profile.company || profile.companyName || "", profilePhoto: profile.avatarPhoto || null, headline: profile.title || "" } : { _id: c.from, name: c.from } };
+      })
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return sendJson(res, 200, { success: true, requests });
+  }
+
+  if (route.match(/^\/api\/connections\/accept\/[^/]+$/) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const connectionId = route.split("/")[4];
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const connection = (db.connections || []).find(c => c.id === connectionId);
+    if (!connection) return sendJson(res, 404, { success: false, message: "Request not found." });
+    if (connection.to !== auth.name) return sendJson(res, 403, { success: false, message: "Not authorized." });
+    connection.status = "Accepted";
+    connection.updatedAt = new Date().toISOString();
+    createNotification(db, connection.from, "connection_accepted", `${auth.name} accepted your connection request.`, { from: auth.name, connectionId });
+    writeJson(DB_FILE, db);
+    emitRealtime("network:updated", { connection }, [`user:${connection.from}`, `user:${connection.to}`]);
+    return sendJson(res, 200, { success: true, connection });
+  }
+
+  if (route.match(/^\/api\/connections\/reject\/[^/]+$/) && req.method === "POST") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const connectionId = route.split("/")[4];
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const idx = (db.connections || []).findIndex(c => c.id === connectionId);
+    if (idx === -1) return sendJson(res, 404, { success: false, message: "Request not found." });
+    if (db.connections[idx].to !== auth.name) return sendJson(res, 403, { success: false, message: "Not authorized." });
+    db.connections.splice(idx, 1);
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true });
+  }
+
+  if (route.match(/^\/api\/connections\/conn-\d+$/) && req.method === "DELETE") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const connectionId = route.split("/")[3];
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const idx = (db.connections || []).findIndex(c => c.id === connectionId);
+    if (idx === -1) return sendJson(res, 404, { success: false, message: "Not found." });
+    const conn = db.connections[idx];
+    if (conn.from !== auth.name && conn.to !== auth.name) return sendJson(res, 403, { success: false, message: "Not authorized." });
+    db.connections.splice(idx, 1);
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true });
+  }
+
+  if (route.match(/^\/api\/connections\/status\/[^/]+$/) && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const otherName = decodeURIComponent(route.split("/")[4]);
+    const db = publicDB();
+    const connection = (db.connections || []).find(c =>
+      [c.from, c.to].includes(auth.name) && [c.from, c.to].includes(otherName)
+    );
+    if (!connection) return sendJson(res, 200, { success: true, status: "none" });
+    let status = connection.status === "Accepted" ? "accepted" : "pending";
+    if (status === "pending") {
+      status = connection.from === auth.name ? "pending_sent" : "pending_received";
+    }
+    return sendJson(res, 200, { success: true, status, connectionId: connection.id });
+  }
+
+  if (route === "/api/connections/my-connections" && req.method === "GET") {
+    if (!auth) return sendJson(res, 401, { success: false, message: "Unauthorized." });
+    const db = publicDB();
+    const people = allPeople(db);
+    const connections = (db.connections || [])
+      .filter(c => c.status === "Accepted" && (c.from === auth.name || c.to === auth.name))
+      .map(c => {
+        const otherName = c.from === auth.name ? c.to : c.from;
+        const profile = people.find(p => p.name === otherName);
+        return { connectionId: c.id, connectedAt: c.updatedAt || c.createdAt || "", user: profile ? { _id: profile.email || profile.handle || profile.name, name: profile.name, role: profile.title || profile.role || "", company: profile.company || profile.companyName || "", profilePhoto: profile.avatarPhoto || null, headline: profile.title || "", isOnline: Boolean(profile.isOnline) } : { _id: otherName, name: otherName } };
+      })
+      .sort((a, b) => new Date(b.connectedAt || 0) - new Date(a.connectedAt || 0));
+    return sendJson(res, 200, { success: true, connections });
   }
 
   if (route === "/api/investor-interest" && req.method === "POST") {

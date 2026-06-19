@@ -1,6 +1,20 @@
 (function () {
   if (window.ConnectHub && window.ConnectHub.__coreReady) return;
 
+  (function showSlowLoadHint() {
+    const t = setTimeout(function() {
+      if (!document.getElementById('postsContainer') && !document.querySelector('.feed-container')) return;
+      if (!document.getElementById('postsContainer')?.children?.length && !document.querySelector('.feed-container')?.children?.length) {
+        const hint = document.createElement('div');
+        hint.id = 'slowLoadHint';
+        hint.className = 'slow-load-hint';
+        hint.innerHTML = '⏳ Server is waking up, almost there...';
+        document.body.prepend(hint);
+      }
+    }, 4000);
+    window.addEventListener('load', function() { clearTimeout(t); });
+  })();
+
   const root = window.ConnectHub || {};
   const state = root.state || {};
 

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Profile - ConnectHub</title>
+  <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <main class="page-container edit-profile-page">
+    <div class="page-header">
+      <button type="button" onclick="history.back()" class="back-btn" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+      <h2>Edit Profile</h2>
+    </div>
+
+    <div class="photo-upload-section">
+      <div class="cover-photo-wrap">
+        <img id="coverPreview" src="" alt="Cover photo" />
+        <button class="photo-edit-btn" type="button" onclick="document.getElementById('coverInput').click()">📷 Edit Cover</button>
+        <input type="file" id="coverInput" accept="image/*" class="hidden" />
+      </div>
+      <div class="profile-photo-wrap">
+        <img id="profilePreview" src="" alt="Profile photo" />
+        <button class="photo-edit-btn-small" type="button" onclick="document.getElementById('profileInput').click()">📷</button>
+        <input type="file" id="profileInput" accept="image/*" class="hidden" />
+      </div>
+    </div>
+
+    <form id="editProfileForm" class="edit-form">
+      <label>Full Name</label>
+      <input type="text" name="name" id="editName" required />
+
+      <label>Headline</label>
+      <input type="text" name="headline" id="editHeadline" placeholder="e.g. Founder at TechNova | Building B2B SaaS" maxlength="100" />
+
+      <label>Bio</label>
+      <textarea name="bio" id="editBio" rows="4" maxlength="500" placeholder="Tell people about yourself..."></textarea>
+
+      <label>Role</label>
+      <select name="role" id="editRole">
+        <option value="freelancer">Freelancer</option>
+        <option value="startup_admin">Startup Owner</option>
+        <option value="investor">Investor</option>
+        <option value="professional">Working Professional</option>
+        <option value="student">Student</option>
+      </select>
+
+      <label>Company / Organization</label>
+      <input type="text" name="company" id="editCompany" />
+
+      <label>Location</label>
+      <input type="text" name="location" id="editLocation" placeholder="e.g. Hyderabad, India" />
+
+      <label>Skills (comma separated)</label>
+      <input type="text" id="editSkills" placeholder="e.g. React, Node.js, Marketing" />
+
+      <label>LinkedIn URL</label>
+      <input type="url" name="linkedin" id="editLinkedin" />
+
+      <label>Website</label>
+      <input type="url" name="website" id="editWebsite" />
+
+      <button type="submit" class="btn-save-profile">Save Changes</button>
+    </form>
+  </main>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/public/js/app-core.js"></script>
+  <script src="/config.js"></script>
+  <script src="/db.js"></script>
+  <script src="/public/js/edit-profile.js"></script>
+  <script>if (window.lucide) lucide.createIcons();</script>
+</body>
+</html>

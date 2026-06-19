@@ -288,7 +288,10 @@
               <div><strong>${avg}</strong><span>rating</span></div>
             </div>
             <div class="profile-action-row">
-              <a class="btn btn-primary" href="${getDashboardUrl(profile.role)}"><i data-lucide="${isOwnProfile ? "layout-dashboard" : "message-circle"}"></i>${isOwnProfile ? "Dashboard" : "Open App"}</a>
+              ${isOwnProfile
+                ? `<a class="btn btn-primary" href="/profile/edit"><i data-lucide="pencil"></i>Edit Profile</a>`
+                : `<button id="connectActionBtn" class="btn btn-primary connect-action-btn" data-name="${escapeHTML(profile.name)}" onclick="handleConnectAction(this)"><i data-lucide="user-plus"></i>Connect</button>`
+              }
               <button class="btn btn-secondary" type="button" onclick="navigator.share ? navigator.share({ title: document.title, url: location.href }) : navigator.clipboard?.writeText(location.href)"><i data-lucide="share-2"></i>Share</button>
             </div>
           </div>
@@ -740,9 +743,91 @@
 
     syncFromBackend().finally(() => {
       const profile = findRequestedProfile();
-      if (profile) render(profile);
+      if (profile) { render(profile); initConnectButton(profile); }
       else if (!instantProfile) document.getElementById("profileCard").innerHTML = '<section class="profile-info-card"><h1>Profile not found</h1><p>Open ConnectHub and search from Explore.</p><a class="btn btn-primary" href="index.html">Open app</a></section>';
     });
+
+    function initConnectButton(profile) {
+      const btn = document.getElementById('connectActionBtn');
+      if (!btn) return;
+      const name = encodeURIComponent(btn.dataset.name || profile.name);
+      fetch('/api/connections/status/' + name)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) renderConnectButton(btn, data.status, data.connectionId);
+        })
+        .catch(() => {});
+    }
+
+    function renderConnectButton(btn, status, connectionId) {
+      if (status === 'none') {
+        btn.innerHTML = '<i data-lucide="user-plus"></i>Connect';
+        btn.className = 'btn btn-primary connect-action-btn';
+        btn.onclick = function() { sendConnectRequest(this); };
+      } else if (status === 'pending_sent') {
+        btn.innerHTML = '<i data-lucide="clock"></i>Pending';
+        btn.className = 'btn btn-secondary connect-action-btn pending';
+        btn.onclick = null;
+      } else if (status === 'pending_received') {
+        btn.innerHTML = '<i data-lucide="user-check"></i>Accept Request';
+        btn.className = 'btn btn-primary connect-action-btn';
+        btn.onclick = function() { acceptConnectRequest(this, connectionId); };
+      } else if (status === 'accepted') {
+        btn.innerHTML = '<i data-lucide="check-circle"></i>Connected';
+        btn.className = 'btn btn-secondary connect-action-btn connected';
+        btn.onclick = function() { if (confirm("Remove this connection?")) removeConnection(connectionId, this); };
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function handleConnectAction(btn) {
+      const name = btn.dataset.name;
+      if (!name) return;
+      btn.innerHTML = 'Sending...';
+      btn.disabled = true;
+      fetch('/api/connections/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: name })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) { renderConnectButton(btn, 'pending_sent'); showToast('Request sent!'); }
+          else { btn.innerHTML = '<i data-lucide="user-plus"></i>Connect'; btn.disabled = false; showToast(data.message || 'Failed'); }
+        })
+        .catch(() => { btn.innerHTML = '<i data-lucide="user-plus"></i>Connect'; btn.disabled = false; });
+    }
+
+    function sendConnectRequest(btn) {
+      handleConnectAction(btn);
+    }
+
+    function acceptConnectRequest(btn, connectionId) {
+      btn.innerHTML = 'Accepting...';
+      fetch('/api/connections/accept/' + connectionId, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) { renderConnectButton(btn, 'accepted', connectionId); showToast('Connected!'); }
+        })
+        .catch(() => { btn.innerHTML = '<i data-lucide="user-check"></i>Accept'; });
+    }
+
+    function removeConnection(connectionId, btn) {
+      fetch('/api/connections/' + connectionId, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) { renderConnectButton(btn, 'none'); showToast('Connection removed'); }
+        })
+        .catch(() => {});
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast-notification';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2000);
+    }
   </script>
 </body>
 </html>

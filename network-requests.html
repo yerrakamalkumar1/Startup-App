@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connection Requests - ConnectHub</title>
+  <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <main class="page-container">
+    <div class="page-header">
+      <button type="button" onclick="history.back()" class="back-btn" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+      <h2>Connection Requests</h2>
+    </div>
+    <div id="requestsList" class="requests-list">
+      <div class="loading-state">Loading requests...</div>
+    </div>
+  </main>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/public/js/app-core.js"></script>
+  <script src="/config.js"></script>
+  <script src="/db.js"></script>
+  <script src="/public/js/network-requests.js"></script>
+  <script>if (window.lucide) lucide.createIcons();</script>
+</body>
+</html>
