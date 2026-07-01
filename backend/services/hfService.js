@@ -1,21 +1,31 @@
 const { HfInference } = require('@huggingface/inference');
 
-const HF_TOKEN = process.env.HUGGINGFACE_API_KEY;
-let hf = null;
-if (HF_TOKEN) {
-  hf = new HfInference(HF_TOKEN);
-}
-
 const CHAT_MODEL = 'Qwen/Qwen2.5-1.5B-Instruct';
 const EMBED_MODEL = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2';
 const SENTIMENT_MODEL = 'cardiffnlp/twitter-roberta-base-sentiment-latest';
 const TOXICITY_MODEL = 'unitary/toxic-bert';
 const ZERO_SHOT_MODEL = 'facebook/bart-large-mnli';
 
+let hf = null;
+
+function getHf() {
+  if (hf) return hf;
+  const token = process.env.HUGGINGFACE_API_KEY;
+  if (token) {
+    hf = new HfInference(token);
+  }
+  return hf;
+}
+
+function isAvailable() {
+  return !!getHf();
+}
+
 async function hfChat(prompt, systemMsg = 'You are ConnectBot, a helpful career assistant for ConnectHub India.') {
-  if (!hf) return null;
+  const client = getHf();
+  if (!client) return null;
   try {
-    const res = await hf.textGeneration({
+    const res = await client.textGeneration({
       model: CHAT_MODEL,
       inputs: `<|system|>${systemMsg}<|end|><|user|>${prompt}<|end|><|assistant|>`,
       parameters: { max_new_tokens: 512, temperature: 0.7, return_full_text: false, wait_for_model: true }
@@ -27,9 +37,10 @@ async function hfChat(prompt, systemMsg = 'You are ConnectBot, a helpful career 
 }
 
 async function hfEmbed(text) {
-  if (!hf) return null;
+  const client = getHf();
+  if (!client) return null;
   try {
-    const res = await hf.featureExtraction({
+    const res = await client.featureExtraction({
       model: EMBED_MODEL,
       inputs: String(text).substring(0, 512)
     });
@@ -40,9 +51,10 @@ async function hfEmbed(text) {
 }
 
 async function hfSentiment(text) {
-  if (!hf) return null;
+  const client = getHf();
+  if (!client) return null;
   try {
-    const res = await hf.textClassification({
+    const res = await client.textClassification({
       model: SENTIMENT_MODEL,
       inputs: String(text).substring(0, 512)
     });
@@ -54,9 +66,10 @@ async function hfSentiment(text) {
 }
 
 async function hfToxicity(text) {
-  if (!hf) return null;
+  const client = getHf();
+  if (!client) return null;
   try {
-    const res = await hf.textClassification({
+    const res = await client.textClassification({
       model: TOXICITY_MODEL,
       inputs: String(text).substring(0, 512)
     });
@@ -68,9 +81,10 @@ async function hfToxicity(text) {
 }
 
 async function hfClassify(text, labels) {
-  if (!hf) return null;
+  const client = getHf();
+  if (!client) return null;
   try {
-    const res = await hf.zeroShotClassification({
+    const res = await client.zeroShotClassification({
       model: ZERO_SHOT_MODEL,
       inputs: String(text).substring(0, 512),
       parameters: { candidate_labels: labels }
@@ -81,4 +95,4 @@ async function hfClassify(text, labels) {
   }
 }
 
-module.exports = { hfChat, hfEmbed, hfSentiment, hfToxicity, hfClassify, HF_AVAILABLE: !!hf };
+module.exports = { hfChat, hfEmbed, hfSentiment, hfToxicity, hfClassify, isAvailable, get HF_AVAILABLE() { return isAvailable(); } };
