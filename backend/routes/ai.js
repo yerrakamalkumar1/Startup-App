@@ -45,7 +45,8 @@ async function handleAiApi(req, res, context) {
     sendJson(res, 200, {
       success: true,
       hfAvailable: hfService.HF_AVAILABLE,
-      hfChat: !!hfService.HF_AVAILABLE,
+      envVarSet: !!process.env.HUGGINGFACE_API_KEY,
+      envVarLen: (process.env.HUGGINGFACE_API_KEY || "").length,
       aiService: true,
       deepseek: !!process.env.DEEPSEEK_API_KEY,
       ollama: !!process.env.OLLAMA_BASE_URL,
