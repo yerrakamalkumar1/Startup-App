@@ -1581,17 +1581,18 @@ const AppUX = (() => {
   }
 
   let exploreSearchDebounce;
+  let searchDropdownDismisser = null;
 
   function handleExploreSearchInput(value) {
     clearTimeout(exploreSearchDebounce);
     const query = value.trim();
-    if (!query) {
+    if (query.length < 2) {
       const el = document.getElementById("exploreSearchResults");
       if (el) { el.classList.add("hidden"); el.innerHTML = ""; }
       filterExplore(value);
       return;
     }
-    exploreSearchDebounce = setTimeout(() => performExploreSearch(query), 350);
+    exploreSearchDebounce = setTimeout(() => performExploreSearch(query), 300);
     filterExplore(value);
   }
 
@@ -1601,28 +1602,53 @@ const AppUX = (() => {
     el.innerHTML = '<div class="search-loading">Searching...</div>';
     el.classList.remove("hidden");
     try {
-      const res = await fetch(`/api/search/users?q=${encodeURIComponent(query)}&scope=all&limit=15`);
+      const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`);
       const data = await res.json();
-      if (!data.success || !data.users.length) {
+      if (!data.success || !data.suggestions.length) {
         el.innerHTML = `<div class="search-empty">No users found for "${escapeHTML(query)}"</div>`;
         return;
       }
-      el.innerHTML = data.users.map(u => {
+      const highlight = (text) => {
+        if (!text) return "";
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return escapeHTML(text);
+        return escapeHTML(text.slice(0, idx)) + '<strong>' + escapeHTML(text.slice(idx, idx + query.length)) + '</strong>' + escapeHTML(text.slice(idx + query.length));
+      };
+      el.innerHTML = data.suggestions.map(u => {
         const profilePath = "/profile/" + encodeURIComponent(u._id);
+        const statusLabel = u.connectionStatus === "connected" ? "Connected" : u.connectionStatus === "pending_sent" ? "Sent" : u.connectionStatus === "pending_received" ? "Request" : "";
         return `<a href="${profilePath}" class="search-result-item">
           <div class="search-result-avatar">
             ${u.profilePhoto
               ? `<img src="${u.profilePhoto}" />`
               : `<div class="avatar-circle">${(u.name||'U').charAt(0).toUpperCase()}</div>`
             }
-            <span class="presence-dot ${u.isOnline ? 'online' : ''}"></span>
+            <span class="presence-dot"></span>
           </div>
           <div class="search-result-info">
-            <strong>${escapeHTML(u.name)}</strong>
-            <span>${escapeHTML(u.role || '')} ${u.company ? '· ' + escapeHTML(u.company) : ''}</span>
+            <strong>${highlight(u.name)}</strong>
+            <span>${highlight(u.role || '')}${u.company ? ' · ' + highlight(u.company) : ''}</span>
+            ${u.location ? '<small>' + escapeHTML(u.location) + '</small>' : ''}
           </div>
+          ${statusLabel ? '<span class="suggestion-status">' + statusLabel + '</span>' : ''}
         </a>`;
       }).join('');
+      if (!searchDropdownDismisser) {
+        searchDropdownDismisser = (e) => {
+          const dd = document.getElementById("exploreSearchResults");
+          const input = document.getElementById("exploreSearch");
+          if (dd && !dd.contains(e.target) && input && !input.contains(e.target)) {
+            dd.classList.add("hidden");
+          }
+        };
+        document.addEventListener("click", searchDropdownDismisser);
+        document.addEventListener("keydown", function escDismiss(e) {
+          if (e.key === "Escape") {
+            const dd = document.getElementById("exploreSearchResults");
+            if (dd) dd.classList.add("hidden");
+          }
+        });
+      }
     } catch {
       el.innerHTML = '<div class="search-empty">Search failed, try again</div>';
     }
@@ -1790,6 +1816,19 @@ const AppUX = (() => {
     return String(name || "").toLowerCase().split(/\s+/).some(part => part.startsWith(q) || q.startsWith(part));
   }
 
+  function getConnectionStatus(personName) {
+    const user = getCurrentUser?.();
+    if (!user || !personName || personName === user.name) return "self";
+    const db = getDB();
+    const conn = (db.connections || []).find(c =>
+      [c.from, c.to].includes(user.name) && [c.from, c.to].includes(personName)
+    );
+    if (!conn) return "none";
+    if (conn.status === "Accepted") return "connected";
+    if (conn.from === user.name) return "pending_sent";
+    return "pending_received";
+  }
+
   function expandLocalPeopleSearchTerms(query) {
     const base = String(query || "").trim().toLowerCase();
     if (!base) return [];
@@ -1935,6 +1974,7 @@ const AppUX = (() => {
     const role = person.roleType || person.role || "member";
     const safeName = escapeJS(name);
     const safeId = escapeJS(id);
+    const user = getCurrentUser?.();
     const createdAt = new Date(person.createdAt || person.joinedAt || 0).getTime();
     const isNew = createdAt && Date.now() - createdAt < 7 * 86400000;
     const avatarUrl = person.avatar || person.avatarPhoto?.dataUrl || "";
@@ -1945,6 +1985,19 @@ const AppUX = (() => {
       person.company || person.companyName,
       person.location || [person.city, person.state].filter(Boolean).join(", ")
     ].filter(Boolean).join(" · ");
+    const connStatus = person._connectionStatus || (user ? getConnectionStatus(name) : "none");
+    let actionHTML = "";
+    if (user && name !== user.name) {
+      if (connStatus === "connected") {
+        actionHTML = `<button class="msg-btn" type="button" onclick="event.stopPropagation();AppUX.openMessageTo('${safeName}')" title="Message"><i data-lucide="message-circle"></i></button>`;
+      } else if (connStatus === "pending_sent") {
+        actionHTML = `<span class="sent-pill">Sent</span><button class="msg-icon-btn" type="button" onclick="event.stopPropagation();AppUX.openMessageTo('${safeName}')" title="Message"><i data-lucide="message-circle"></i></button>`;
+      } else if (connStatus === "pending_received") {
+        actionHTML = `<button class="connect-btn" type="button" onclick="event.stopPropagation();AppUX.sendExploreConnect(event,'${safeId}','${safeName}')">Accept</button><button class="msg-icon-btn" type="button" onclick="event.stopPropagation();AppUX.openMessageTo('${safeName}')" title="Message"><i data-lucide="message-circle"></i></button>`;
+      } else {
+        actionHTML = `<button class="connect-btn" type="button" onclick="event.stopPropagation();AppUX.sendExploreConnect(event,'${safeId}','${safeName}')">Connect</button>`;
+      }
+    }
     return `
       <article class="person-card" onclick="window.location='${escapeAttr(person.profileUrl || profileUrl({ ...person, email: id }))}'">
         <div class="p-avatar">${avatarHTML}</div>
@@ -1953,25 +2006,32 @@ const AppUX = (() => {
           <div class="p-meta"><span class="role-badge ${roleBadgeClass(role)}">${escapeHTML(role)}</span>${meta ? ` · ${escapeHTML(meta)}` : ""}</div>
           ${(person.skills || person.tags || []).length ? `<div class="p-tags">${(person.skills || person.tags || []).slice(0, 3).map(tag => `<span>${escapeHTML(tag)}</span>`).join("")}</div>` : ""}
         </div>
-        <button class="connect-btn" type="button" onclick="AppUX.sendExploreConnect(event,'${safeId}','${safeName}')">Connect</button>
+        <div class="p-actions">${actionHTML}</div>
       </article>`;
   }
 
   async function sendExploreConnect(event, userId, name) {
     event?.stopPropagation?.();
-    const button = event?.currentTarget || event?.target;
+    const button = event?.currentTarget || event?.target?.closest?.("button");
+    const card = button?.closest?.(".person-card");
     try {
       await apiRequest(`/api/network/connect/${encodeURIComponent(userId)}`, { method: "POST" });
-      if (button) {
-        button.textContent = "Sent";
-        button.classList.add("sent");
+      if (card) {
+        const actions = card.querySelector(".p-actions");
+        if (actions) {
+          actions.innerHTML = `<span class="sent-pill">Sent</span><button class="msg-icon-btn" type="button" onclick="event.stopPropagation();AppUX.openMessageTo('${escapeJS(name)}')" title="Message"><i data-lucide="message-circle"></i></button>`;
+          if (window.lucide) window.lucide.createIcons();
+        }
       }
       showToast("Connection request sent");
     } catch {
       connectUsers?.(name);
       if (button) {
-        button.textContent = "Sent";
-        button.classList.add("sent");
+        const actions = card?.querySelector(".p-actions");
+        if (actions) {
+          actions.innerHTML = `<span class="sent-pill">Sent</span><button class="msg-icon-btn" type="button" onclick="event.stopPropagation();AppUX.openMessageTo('${escapeJS(name)}')" title="Message"><i data-lucide="message-circle"></i></button>`;
+          if (window.lucide) window.lucide.createIcons();
+        }
       }
       showToast("Connection request saved");
     }

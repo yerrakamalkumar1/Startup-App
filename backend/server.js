@@ -3033,6 +3033,40 @@ async function handleApi(req, res) {
     }
     return sendJson(res, 200, { success: true, message: normalized, db: publicDB() });
   }
+
+  if (route === "/api/messages/start" && req.method === "POST") {
+    const body = await readBody(req);
+    const senderName = String(auth?.name || body.from || "").slice(0, 80);
+    const recipientName = String(body.to || body.recipient || "").slice(0, 80);
+    if (!senderName || !recipientName || senderName === recipientName) return sendJson(res, 400, { success: false, message: "Valid sender and recipient are required." });
+    const db = readJson(DB_FILE, INITIAL_DB);
+    const messageLimitKey = `msg_req_${senderName}_${new Date().toISOString().slice(0, 10)}`;
+    const msgReqCount = (db.messages || []).filter(m => m.from === senderName && m.createdAt && m.createdAt.startsWith(new Date().toISOString().slice(0, 10))).length;
+    if (msgReqCount > 20) return sendJson(res, 429, { success: false, message: "Daily message request limit reached (20/day)." });
+    const existing = (db.conversations || []).find(c =>
+      c.participants && c.participants.includes(senderName) && c.participants.includes(recipientName)
+    );
+    if (existing) return sendJson(res, 200, { success: true, conversation: existing, isNew: false });
+    const connected = connectionNamesFor(db, senderName).has(recipientName);
+    const conversation = {
+      id: `conv-${Date.now()}`,
+      participants: [senderName, recipientName],
+      lastMessage: "",
+      lastMessageAt: null,
+      status: connected ? "accepted" : "request",
+      requester: senderName,
+      messageRequestAck: connected,
+      createdAt: new Date().toISOString()
+    };
+    db.conversations = db.conversations || [];
+    db.conversations.push(conversation);
+    if (!connected) {
+      createNotification(db, recipientName, "message_request", `${senderName} sent you a message request.`, { conversationId: conversation.id, from: senderName });
+    }
+    writeJson(DB_FILE, db);
+    return sendJson(res, 200, { success: true, conversation, isNew: true });
+  }
+
   if (route === "/api/notifications/read" && req.method === "PUT") {
     const db = readJson(DB_FILE, INITIAL_DB);
     (db.notifications || []).forEach(note => { note.read = true; });
@@ -3201,6 +3235,52 @@ async function handleApi(req, res) {
       users,
       hasMore: start + limit < total,
       total,
+      query: q
+    });
+  }
+
+  if (route === "/api/search/suggestions" && req.method === "GET") {
+    const q = (url.searchParams.get("q") || "").trim();
+    if (!q || q.length < 2) return sendJson(res, 200, { success: true, suggestions: [] });
+    const db = publicDB();
+    const searchRegex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const prefixRegex = new RegExp('^' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const allUsers = allPeople(db);
+    const currentName = auth?.name || "";
+
+    let scored = allUsers
+      .filter(u => u.name && u.name !== currentName)
+      .map(u => {
+        const haystack = [u.name, u.company, u.companyName, u.role, u.title, u.headline, u.bio, u.city, u.state, ...(u.skills || []), ...(u.tags || [])].filter(Boolean).join(" ");
+        if (!searchRegex.test(haystack)) return null;
+        let score = 0;
+        if (prefixRegex.test(u.name)) score = 100;
+        else if (searchRegex.test(u.name)) score = 80;
+        else if (prefixRegex.test(u.company || u.companyName || "")) score = 70;
+        else if (prefixRegex.test(u.role || u.title || "")) score = 60;
+        else if (prefixRegex.test(u.city || "")) score = 50;
+        else score = 40;
+        return { u, score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
+    const acceptedNames = new Set((db.connections || []).filter(c => c.status === "Accepted" && (c.from === currentName || c.to === currentName)).map(c => c.from === currentName ? c.to : c.from));
+    const pendingSent = new Set((db.connections || []).filter(c => c.from === currentName && c.status === "Pending").map(c => c.to));
+    const pendingRecv = new Set((db.connections || []).filter(c => c.to === currentName && c.status === "Pending").map(c => c.from));
+
+    return sendJson(res, 200, {
+      success: true,
+      suggestions: scored.map(({ u }) => ({
+        _id: u.email || u.handle || u.name,
+        name: u.name,
+        role: u.title || u.role || "",
+        company: u.company || u.companyName || "",
+        location: [u.city, u.state].filter(Boolean).join(", "),
+        profilePhoto: u.avatarPhoto || null,
+        connectionStatus: acceptedNames.has(u.name) ? "connected" : pendingSent.has(u.name) ? "pending_sent" : pendingRecv.has(u.name) ? "pending_received" : "none"
+      })),
       query: q
     });
   }

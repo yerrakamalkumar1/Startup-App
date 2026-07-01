@@ -10652,6 +10652,73 @@ body.dark .profile-tag-row .keyword-tag:focus-visible,
   pointer-events: none;
 }
 
+.p-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.sent-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.msg-icon-btn, .msg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #f0fdfa;
+  color: #0f766e;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.msg-icon-btn:hover, .msg-btn:hover {
+  background: #ccfbf1;
+}
+
+.msg-btn {
+  background: #0f766e;
+  color: #fff;
+}
+
+.msg-btn:hover {
+  background: #115e59;
+}
+
+.msg-icon-btn svg, .msg-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.suggestion-status {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f3f4f6;
+}
+
+.search-results-dropdown .search-result-item small {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
 .no-results-msg {
   padding: 36px 20px;
   text-align: center;
