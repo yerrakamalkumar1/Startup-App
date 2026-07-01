@@ -1,4 +1,5 @@
 const aiService = require("../services/aiService");
+const hfService = require("../services/hfService");
 
 const buckets = new Map();
 const WINDOW_MS = 60 * 1000;
@@ -12,20 +13,14 @@ function isRateLimited(req, auth) {
   const key = rateLimitKey(req, auth);
   const now = Date.now();
   const bucket = buckets.get(key) || { count: 0, resetAt: now + WINDOW_MS };
-  if (now > bucket.resetAt) {
-    bucket.count = 0;
-    bucket.resetAt = now + WINDOW_MS;
-  }
+  if (now > bucket.resetAt) { bucket.count = 0; bucket.resetAt = now + WINDOW_MS; }
   bucket.count += 1;
   buckets.set(key, bucket);
   return bucket.count > MAX_REQUESTS;
 }
 
 function profilesFromDb(db) {
-  return [
-    ...(db.registeredProfiles || []),
-    ...(db.demoProfiles || [])
-  ];
+  return [...(db.registeredProfiles || []), ...(db.demoProfiles || [])];
 }
 
 function startupsFromDb(db) {
@@ -42,19 +37,77 @@ async function handleAiApi(req, res, context) {
   const db = publicDB();
   const body = req.method === "POST" ? await readBody(req) : {};
   const profiles = profilesFromDb(db);
-  const freelancers = profiles.filter(profile => profile.role === "freelancer");
-  const startups = startupsFromDb(db);
+  const freelancers = profiles.filter(p => p.role === "freelancer");
+  const startupsList = startupsFromDb(db);
 
-  if (route === "/api/ai/embed" && req.method === "POST") {
-    sendJson(res, 200, { success: true, ...(await aiService.embed(body.text || "")) });
+  // Health
+  if (route === "/api/ai/health" && req.method === "GET") {
+    sendJson(res, 200, {
+      success: true,
+      hfAvailable: hfService.HF_AVAILABLE,
+      hfChat: !!hfService.HF_AVAILABLE,
+      aiService: true,
+      deepseek: !!process.env.DEEPSEEK_API_KEY,
+      ollama: !!process.env.OLLAMA_BASE_URL,
+      timestamp: new Date().toISOString()
+    });
     return true;
   }
+
+  // HuggingFace Chat
+  if (route === "/api/ai/chat" && req.method === "POST") {
+    const reply = await hfService.hfChat(body.message || "", body.systemPrompt);
+    sendJson(res, 200, {
+      success: true,
+      reply: reply || "I'm here to help you find opportunities on ConnectHub. Try describing your skills or goals!",
+      model: reply ? "Qwen2.5-1.5B-Instruct" : "fallback",
+      hfUsed: !!reply
+    });
+    return true;
+  }
+
+  // Sentiment
+  if (route === "/api/ai/sentiment" && req.method === "POST") {
+    const result = await hfService.hfSentiment(body.text || "");
+    sendJson(res, 200, { success: true, sentiment: result || { label: "NEUTRAL", score: 0.5 }, hfUsed: !!result });
+    return true;
+  }
+
+  // Content moderation
+  if (route === "/api/ai/moderate" && req.method === "POST") {
+    const result = await hfService.hfToxicity(body.text || "");
+    sendJson(res, 200, { success: true, moderation: result || { label: "safe", score: 0, isToxic: false }, hfUsed: !!result });
+    return true;
+  }
+
+  // Classify sector
+  if (route === "/api/ai/classify" && req.method === "POST") {
+    const sectors = body.labels || ["fintech","healthtech","edtech","ecommerce","cleantech","agritech","logistics","saas","biotech","legaltech","proptech","manufacturing","consumer"];
+    const result = await hfService.hfClassify(body.text || "", sectors);
+    sendJson(res, 200, { success: true, classification: result || sectors.map((l, i) => ({ label: l, score: parseFloat((1 / sectors.length).toFixed(3)) })), hfUsed: !!result });
+    return true;
+  }
+
+  // Embed
+  if (route === "/api/ai/embed" && req.method === "POST") {
+    const text = body.text || "";
+    const hfEmb = await hfService.hfEmbed(text);
+    if (hfEmb) {
+      sendJson(res, 200, { success: true, embedding: hfEmb, dims: hfEmb.length, hfUsed: true });
+    } else {
+      const fallback = await aiService.embed(text);
+      sendJson(res, 200, { success: true, ...fallback, hfUsed: false });
+    }
+    return true;
+  }
+
+  // Original AI service routes
   if (route === "/api/ai/match-freelancers" && req.method === "POST") {
     sendJson(res, 200, { success: true, ...(await aiService.matchFreelancers(body.startup || auth || {}, body.freelancers || freelancers)) });
     return true;
   }
   if (route === "/api/ai/match-startups" && req.method === "POST") {
-    sendJson(res, 200, { success: true, ...(await aiService.matchStartups(body.investor || auth || {}, body.startups || startups)) });
+    sendJson(res, 200, { success: true, ...(await aiService.matchStartups(body.investor || auth || {}, body.startups || startupsList)) });
     return true;
   }
   if (route === "/api/ai/enhance-profile" && req.method === "POST") {

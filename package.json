@@ -10,6 +10,7 @@
     "seed": "node seed.js"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.21",
     "@supabase/supabase-js": "^2.49.8",
     "axios": "^1.7.9",
     "cloudinary": "^2.5.1",
